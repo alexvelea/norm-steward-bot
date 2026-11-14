@@ -272,6 +272,59 @@ export class Controller {
       );
     return { state, rules };
   }
+  /** Join is idempotent upstream: retries return the existing village, never another one. */
+  private async readJoinedContext(
+    worlds: WorldSummary[],
+    revision: number,
+  ): Promise<AdvisorContext> {
+    let context: AdvisorContext | undefined;
+    let missing: unknown;
+    try {
+      context = await this.readContext();
+      if (context.state.villages.length) return context;
+    } catch (error) {
+      if (!(error instanceof RemoteError) || error.code !== "NOT_IN_WORLD")
+        throw error;
+      missing = error;
+    }
+    const world = worlds.find((w) => w.id === this.settings.worldId);
+    if (
+      !this.automatic ||
+      this.stopped ||
+      revision !== this.revision ||
+      world?.status !== "running"
+    ) {
+      if (context) return context;
+      throw missing;
+    }
+    this.record(
+      "submitted",
+      `Automatically joining ${world.name}, round ${world.round}.`,
+      undefined,
+      undefined,
+      world.tick,
+    );
+    await this.persist();
+    if (!this.automatic || this.stopped || revision !== this.revision) {
+      if (context) return context;
+      throw missing;
+    }
+    await this.request<StateResponse>(this.settings, this.path("/join"), {});
+    // Refresh both state and rules: joining may race a round transition.
+    const joined = await this.readContext();
+    if (!joined.state.villages.length)
+      throw new Error(
+        "World join returned no village; the bot will retry after refreshing state.",
+      );
+    this.record(
+      "confirmed",
+      `Joined ${joined.state.world.name}, round ${joined.state.world.round}; managing ${joined.state.villages.map((v) => v.name).join(", ")}.`,
+      undefined,
+      undefined,
+      joined.state.world.tick,
+    );
+    return joined;
+  }
   private plan(context: AdvisorContext): void {
     this.view.world = context.state.world;
     this.view.villages = context.state.villages.map((v) => ({
@@ -405,7 +458,7 @@ export class Controller {
       ]);
       this.view.account = me.account;
       this.view.worlds = worlds;
-      const context = await this.readContext();
+      const context = await this.readJoinedContext(worlds, revision);
       this.view.connection = "connected";
       this.view.error = null;
       const scope = productionScope(

@@ -112,6 +112,15 @@ There is no browser execution toggle or prerequisite acknowledgement. The intern
 available for diagnostics; authentication failures and an expired uncertain idempotency window pause
 submissions and show the actual error. Accepted construction continues in the game.
 
+The persistent executor automatically joins the **selected** running world when `/state` reports
+`NOT_IN_WORLD`, including after a round reset, or when state contains zero villages. It does not
+join other world IDs, paused/ended worlds, or join while diagnostic execution is paused. The
+upstream `/join` endpoint is idempotent: a retry returns existing holdings rather than founding a
+second village. Each attempt checks fresh state first, respects rate-limit backoff and records
+submission/confirmation in recent decisions. After joining it rereads state/rules; normal epoch
+reconciliation discards obsolete pending economic requests before spending. Closing the browser
+has no effect on joining. No additional browser executor or join loop is introduced.
+
 Before POST, read state/rules again and rerank. A manual build inserted after the first evaluation
 therefore stops or changes the selection. The remote engine remains the final arbiter; another
 independent client can still act between revalidation and submission. There is no cross-client

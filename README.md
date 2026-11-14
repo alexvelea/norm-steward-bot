@@ -37,7 +37,8 @@ refresh the browser after a rebuild. For built files use `npm run build:web` the
 lease on port 8790, even if it chooses another UI port. No game engine runs here.
 
 The Economic Advisor runs automatically when a valid connection is configured, including after
-restarts. The persistent service owns execution; browsers only display its state. Existing server
+restarts. It automatically joins the selected world when a new round starts, and refounds if all
+villages are lost. It never switches to unrelated world IDs. The persistent service owns execution; browsers only display its state. Existing server
 standing build orders make this advisor wait in that village. Do not run an independent starter
 bot on the same account alongside this executor.
 
