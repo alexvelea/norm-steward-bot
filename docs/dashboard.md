@@ -6,6 +6,10 @@ and proxies game traffic; the central game server continues to own all simulatio
 
 ## What it shows
 
+**Site access** (`/access/login`)
+- Token-only private-site sign-in; no username. All app assets and transports are behind this gate.
+- The game-key sign-in remains a separate inner layer. Lock signs out both layers.
+
 **Personal control center** (`/`)
 - Existing player only: no public pitch, signup, key generation or onboarding cards.
 - Account, selected world, villages, last evaluation and connection status.

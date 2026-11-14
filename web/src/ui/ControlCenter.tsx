@@ -49,6 +49,8 @@ export function ControlCenter() {
         await controlRequest("/logout", "POST", {});
         setApiKey(null);
         setAuthenticated(false);
+        await fetch("/access/logout", { method: "POST" });
+        location.assign("/");
       }}
     />
   );

@@ -86,6 +86,13 @@ Manual gameplay remains available. Its writes use normal API limits and appear i
 activity stream; the President revalidates on the next cycle. Ad hoc operator instructions are in
 [OPERATOR.md](OPERATOR.md); that agent must not launch another economic loop.
 
+## Site gate and local control credentials
+
+A separate high-entropy site token gates all app pages, static assets, control routes and game
+transports. Only the token form is public. The service loads its digest, issues an opaque secure
+cookie, and never logs or embeds the token. See README.md for generation, storage and rotation.
+This does not change or replace the upstream game API key.
+
 ## Local control API and credentials
 
 `POST /control/session` authenticates the configured player key and issues an HttpOnly,

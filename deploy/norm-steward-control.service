@@ -10,6 +10,7 @@ Environment=HOST=127.0.0.1
 Environment=PORT=8788
 Environment=STEWARD_CONTROL_DIR=/var/lib/norm-steward-bot
 Environment=STEWARD_KEY_FILE=/root/key.txt
+Environment=STEWARD_ACCESS_TOKEN_HASH_FILE=/var/lib/norm-steward-bot/access-token.sha256
 Environment=STEWARD_URL=https://norn-steward.velea.cc
 Environment=STEWARD_WORLD=blitz-1
 ExecStart=/usr/local/bin/node --import tsx scripts/serve.mjs

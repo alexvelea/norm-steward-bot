@@ -24,10 +24,13 @@ npm ci
 export STEWARD_KEY_FILE=/absolute/path/to/your/private-key.txt
 export STEWARD_URL=https://norn-steward.velea.cc
 export STEWARD_WORLD=blitz-1
+npm run access:init
 npm run dev
 ```
 
-Open http://127.0.0.1:8788 and unlock with the same player key. A browser that already stores that key
+Open http://127.0.0.1:8788 and first enter the separate site access token (no username).
+`access:init` saves it in private `data/control/access-token.txt` by default; read it locally into
+your password manager. Then unlock the application with the player key. A browser that already stores that key
 connects automatically. `npm run dev` builds/watches UI files and starts the single control process;
 refresh the browser after a rebuild. For built files use `npm run build:web` then `npm start`.
 `HOST` defaults to loopback and `PORT` to 8788. A second process is refused by a loopback executor
@@ -55,6 +58,8 @@ npm ci
 npm run build:web
 sudo install -m 0644 deploy/norm-steward-control.service /etc/systemd/system/
 sudo systemctl daemon-reload
+# First install only; skip token initialization on later updates.
+sudo env STEWARD_CONTROL_DIR=/var/lib/norm-steward-bot npm run access:init
 sudo systemctl enable --now norm-steward-control
 sudo install -m 0644 web/Caddyfile /etc/caddy/Caddyfile
 sudo caddy validate --config /etc/caddy/Caddyfile
@@ -134,3 +139,28 @@ npm run build:web
 
 Rules in this repository are a client snapshot. Update src/shared/ and src/rules/ together when
 upstream contracts change, and check the live server's rules/options before making strategy assumptions.
+
+## Private token-only site access
+
+The entire site is gated before static files, control routes, API/MCP traffic and WebSocket upgrades.
+Only `/access/login` is public. Paste the separate access token; no username is required. The game
+API key remains the second layer, and existing browsers can reuse their saved game key.
+
+Production access token: `/var/lib/norm-steward-bot/access-token.txt` (mode 0600). The service reads
+only its SHA-256 digest from `access-token.sha256`. Both live in a mode-0700 private directory and
+must never be committed. The generated token has 256 random bits; it is not a user-chosen password.
+Access sessions are opaque, HttpOnly, SameSite=Strict, Secure over HTTPS, and expire after seven days
+or service restart. The Lock button logs out both layers. Token values are submitted in a POST body,
+never in a URL. Wrong tokens are throttled; existing authenticated streams stop forwarding after
+access revocation or expiry. The service refuses to start without an initialized digest.
+
+Rotate from this checkout, then restart to invalidate every existing access session:
+
+```bash
+sudo env STEWARD_CONTROL_DIR=/var/lib/norm-steward-bot npm run access:init -- --rotate
+sudo systemctl restart norm-steward-control
+```
+
+Do not rerun initialization as a routine deployment step when a token already exists. Restarting
+continues to reset economic automation to recommendation-only. For non-default directories, set
+STEWARD_CONTROL_DIR and optionally STEWARD_ACCESS_TOKEN_HASH_FILE consistently for init and service.

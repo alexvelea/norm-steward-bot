@@ -21,6 +21,7 @@ const isApi = (url = "/") => /^\/(?:api\/v1|mcp)(?:[/?]|$)/.test(url);
 
 export function createUiServer({
   control,
+  access,
   root = resolve(project, "web/dist"),
   upstream = process.env.STEWARD_URL || "https://norn-steward.velea.cc",
 } = {}) {
@@ -39,6 +40,7 @@ export function createUiServer({
     } else response.destroy();
   });
   const server = createServer(async (request, response) => {
+    if (access && (await access.handle(request, response))) return;
     if (request.url?.startsWith("/control/")) {
       if (!control) {
         response.writeHead(503, { "Content-Type": "application/json" });
@@ -94,6 +96,11 @@ export function createUiServer({
   });
   const bridges = new WebSocketServer({ noServer: true });
   server.on("upgrade", (request, socket, head) => {
+    if (access && !access.authorized(request)) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+      socket.destroy();
+      return;
+    }
     if (!isApi(request.url) || (control && !control.authorized(request))) {
       socket.destroy();
       return;
@@ -114,6 +121,11 @@ export function createUiServer({
       const queue = [];
       let helloSeen = false;
       const forward = (payload) => {
+        if (access && !access.authorized(request)) {
+          client.close(1008);
+          upstreamSocket.terminate();
+          return;
+        }
         let data = payload.toString();
         if (!helloSeen) {
           helloSeen = true;
@@ -135,6 +147,11 @@ export function createUiServer({
         queue.length = 0;
       });
       upstreamSocket.on("message", (data) => {
+        if (access && !access.authorized(request)) {
+          client.close(1008);
+          upstreamSocket.terminate();
+          return;
+        }
         if (client.readyState === WebSocket.OPEN) client.send(data.toString());
       });
       upstreamSocket.on("error", () => client.close(1011));
@@ -165,7 +182,17 @@ export async function startUiServer() {
   const { Controller, acquireExecutorLease } = await import("../src/control/controller.ts");
   const { FileControlStorage } = await import("../src/control/storage.ts");
   const { ControlHttp } = await import("../src/control/http.ts");
+  const { SiteAccess } = await import("../src/control/access.ts");
   const dataDir = resolve(process.env.STEWARD_CONTROL_DIR || resolve(project, "data/control"));
+  const digestFile = resolve(process.env.STEWARD_ACCESS_TOKEN_HASH_FILE || resolve(dataDir, "access-token.sha256"));
+  let siteAccess;
+  try {
+    siteAccess = new SiteAccess((await readFile(digestFile, "utf8")).trim());
+  } catch {
+    throw new Error(
+      "Site access token is not initialized. Run npm run access:init with the configured STEWARD_CONTROL_DIR first.",
+    );
+  }
   const initialKey = process.env.STEWARD_KEY_FILE
     ? (await readFile(process.env.STEWARD_KEY_FILE, "utf8")).trim()
     : process.env.STEWARD_KEY || "";
@@ -182,7 +209,7 @@ export async function startUiServer() {
     throw error;
   }
   const control = new ControlHttp(controller);
-  const server = createUiServer({ control });
+  const server = createUiServer({ control, access: siteAccess });
   const port = Number(process.env.PORT || 8788);
   const host = process.env.HOST || "127.0.0.1";
   try {

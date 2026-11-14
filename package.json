@@ -14,7 +14,8 @@
     "watch:web": "node web/build.mjs --watch",
     "bot": "tsx bots/typescript/starter.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
-    "test": "node --import tsx --test web/test/*.test.ts test/*.test.ts"
+    "test": "node --import tsx --test web/test/*.test.ts test/*.test.ts",
+    "access:init": "node scripts/access-token.mjs"
   },
   "dependencies": {
     "http-proxy": "^1.18.1"
