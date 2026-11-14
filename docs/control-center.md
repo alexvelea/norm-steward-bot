@@ -1,6 +1,6 @@
 # Personal control center: first iteration
 
-This process is a client of the existing game. It contains no simulation, game clock, game account
+This process is a client of the existing game. It contains no authoritative simulation, game clock, game account
 store or game persistence. The private file is local client configuration and execution bookkeeping.
 No LLM, model key, prompt or inference service participates in economic decisions.
 
@@ -25,7 +25,7 @@ Scores are deterministic integers:
 | Farm | 100 if no free population, otherwise 95 **only** below max(50, 20% of capacity); sufficient buffer = not-needed (20) |
 | Storehouse | 90–99 **only** if current stock + 300 ticks of production exceeds capacity for any resource; otherwise not-needed (25) |
 | Cellar | 80 **only** if protection per resource is below the largest 300-tick production amount; otherwise not-needed (25) |
-| Great Hall | 75 only if construction ticks saved over the next three upgrades of each producer repay the hall's own build duration; otherwise not-needed (30) |
+| Great Hall | 70–79 only when Hall-first finishes the same useful upgrade sequence sooner after resource costs/waits and a safety margin; otherwise not-needed (30) |
 | Resource producer | 60 for lowest projected coverage, then 50 and 40; ties share a score |
 
 90–100 = capacity, 70–89 = protection/construction speed, 40–69 = production. Lower scores are
@@ -37,8 +37,39 @@ that resource's costs for the next lumberyard, quarry and mine upgrades`. Maxed 
 excluded from the cost basket. The lowest coverage wins, so an apparently abundant resource can
 still be most scarce relative to what production upgrades actually consume. Rates use live
 per-tick milli-resource values; these horizons are game time (ticks), not browser wall time.
-Forecasts deliberately ignore speculative future spending or uncompleted production upgrades.
+The displayed 3-/5-minute capacity forecasts ignore speculative future spending or uncompleted
+production upgrades. The Hall comparison below separately estimates a bounded sequence.
 Equality at a capacity target does not trigger an upgrade.
+
+## Great Hall payback
+
+`src/advisors/hall.ts` makes a bounded client-side projection: at most eight useful upgrades within
+3,600 game ticks, capped by the remaining round time. It does not submit or persist a build plan.
+First construct a baseline sequence using the existing priorities: required farm/storage/cellar,
+then the producer with the lowest projected supply/cost coverage. Recompute costs and coverage
+after each hypothetical completion; do not assume three levels of every producer will be built.
+
+Compare that exact sequence with building **one** Hall level first. Both paths start from live
+per-resource stock and production. They wait for each individual resource, spend costs at the
+start, cap accumulated stock at storage, update production only on completion, and account for
+population, prerequisites, capacity upgrades and Council action intervals. The first next-level
+cost/population requirement comes from live options; future levels and durations use live tables.
+Hall-first includes its own build duration and resource cost, including delays that cost causes
+for subsequent upgrades. Production multipliers observed in live state are held constant.
+
+Recommend the Hall only if the net completion-time saving is at least the largest of **20 ticks,
+10% of the Hall's build duration, and 2% of baseline completion time**. The margin avoids acting on
+small estimates and polling jitter. A positive comparison receives 70–79 based on the percentage
+of baseline time saved; urgent farm/storage and required protection still outrank it. The reason
+shows the sequence, both completion times, resource waits and net saving. An infeasible Hall path,
+maxed-out economy, short round horizon or resource starvation does not create a Hall recommendation.
+Existing construction/standing orders defer the comparison until they finish.
+
+This is a short-term estimate, not an engine or a search for the global optimum. It compares the
+same work to make the opportunity cost explicit; resource changes can cause the real sequence to
+change on the next evaluation. Other villages, future troop orders, trades, attacks, new bonuses
+and exact executor polling delays are not projected. The single authoritative executor still
+refreshes and reranks against live state before every write; it never blindly executes this sequence.
 
 ## Total production
 

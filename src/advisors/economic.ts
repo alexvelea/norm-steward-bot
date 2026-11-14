@@ -1,3 +1,4 @@
+import { estimateHall } from "./hall.js";
 import type { BuildingId, Resources, VillageState } from "../shared/api.js";
 import {
   compareProposals,
@@ -93,25 +94,7 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal[] {
     const producerCoverages = Object.values(producers).map(
       (r) => f.coverage[r],
     );
-    // A hall must repay its own construction delay over the next three upgrades of each producer.
-    let hallSavings = 0;
-    const nextHall = Math.min(
-      v.buildings.hall + 1,
-      rules.tables.hallSpeed.length - 1,
-    );
-    for (const id of Object.keys(producers) as (keyof typeof producers)[]) {
-      for (let step = 1; step <= 3; step++) {
-        const row = rules.tables.buildings[id][v.buildings[id] + step - 1];
-        if (row)
-          hallSavings += Math.max(
-            0,
-            row.ticksByHall[v.buildings.hall] - row.ticksByHall[nextHall],
-          );
-      }
-    }
-    const hallDuration =
-      v.options.build.find((o) => o.building === "hall")?.ticks ?? Infinity;
-    const needsHall = hallSavings >= hallDuration && hallDuration > 0;
+    const hall = estimateHall(v, rules, state.world);
     for (const building of ECONOMIC_BUILDINGS) {
       const option = v.options.build.find((o) => o.building === building),
         queued = v.buildQueue.find((q) => q.building === building);
@@ -147,9 +130,9 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal[] {
         importance = needed ? 80 : 25;
         reason = `Five-minute production buffer: timber ${round(f.fiveMinuteProduction.timber)}, stone ${round(f.fiveMinuteProduction.stone)}, iron ${round(f.fiveMinuteProduction.iron)}. Cellar hides ${v.hidden} of each; target is ${round(cellarTarget)} per resource. ${needed ? "Expand protection toward that target." : "Five minutes of production are covered; do not upgrade."}`;
       } else {
-        needed = needsHall;
-        importance = needed ? 75 : 30;
-        reason = `Next hall level saves ${hallSavings} construction ticks across the next three upgrades of each resource producer; the hall itself takes ${option.ticks} ticks. ${needed ? "The projected savings repay the hall's construction delay." : "The savings do not repay that delay within this short horizon; do not upgrade."}`;
+        needed = hall.needed;
+        importance = hall.importance;
+        reason = hall.reason;
       }
       const blockers: string[] = queued
         ? ["ALREADY_QUEUED"]
