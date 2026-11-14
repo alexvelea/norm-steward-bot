@@ -1,0 +1,12 @@
+node_modules/
+web/dist/
+.env
+.env.*
+!.env.example
+*.log
+__pycache__/
+*.pyc
+data/
+*.pem
+*.key
+.DS_Store

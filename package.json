@@ -1,0 +1,34 @@
+{
+  "name": "norm-steward-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal Norn Steward hybrid dashboard and autonomous API bots",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node web/build.mjs --serve",
+    "start": "node scripts/serve.mjs",
+    "build:web": "node web/build.mjs",
+    "watch:web": "node web/build.mjs --watch",
+    "bot": "tsx bots/typescript/starter.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
+    "test": "node --import tsx --test web/test/*.test.ts test/*.test.ts"
+  },
+  "dependencies": {
+    "http-proxy": "^1.18.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "ws": "^8.18.0"
+  }
+}
