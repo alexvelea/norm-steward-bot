@@ -1,6 +1,8 @@
 # Documentation
 
 - [Setup and hosting](../README.md): install, run, configure, and publish this client.
+- [Control center](control-center.md): deterministic advisors, scoring, allocation, execution and credentials.
+- [Operator handoff](OPERATOR.md): instructions for an ad hoc scouting/troop agent.
 - [Dashboard](dashboard.md): imported hybrid UI, manual commands, town view, and visibility rules.
 - [Bots](../bots/README.md): starter bot configuration and strategy.
 - [API reference](api.md): upstream REST endpoints used by the client.

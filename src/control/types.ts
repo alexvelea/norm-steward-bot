@@ -1,0 +1,61 @@
+import type { Action, MeResponse, StateResponse, WorldSummary } from "../shared/api.js";
+import type { Proposal, Selection } from "../advisors/types.js";
+export interface Settings {
+  serverUrl: string;
+  worldId: string;
+  apiKey: string;
+}
+export interface Pending {
+  proposal: Proposal;
+  action: Extract<Action, { type: "build" }>;
+  accountId: string;
+  worldId: string;
+  epoch: string;
+  serverUrl: string;
+  createdTick: number;
+  expiresTick: number;
+  phase: "prepared" | "submitted" | "uncertain" | "accepted";
+  itemId?: string;
+}
+export interface Decision {
+  id: string;
+  at: string;
+  tick?: number;
+  kind:
+    | "recommendation"
+    | "prepared"
+    | "submitted"
+    | "accepted"
+    | "confirmed"
+    | "rejected"
+    | "waiting"
+    | "uncertain"
+    | "cancelled";
+  text: string;
+  proposalId?: string;
+  clientId?: string;
+}
+export interface SavedControl {
+  settings: Settings;
+  pending: Pending | null;
+  decisions: Decision[];
+}
+export interface ControlView {
+  settings: Omit<Settings, "apiKey"> & { keyConfigured: boolean; keyHint: string };
+  automatic: boolean;
+  busy: boolean;
+  connection: "unconfigured" | "connecting" | "connected" | "error";
+  error: string | null;
+  lastEvaluatedAt: string | null;
+  nextAttemptAt: string | null;
+  account: MeResponse["account"] | null;
+  worlds: WorldSummary[];
+  world: WorldSummary | null;
+  villages: { id: string; name: string; points: number }[];
+  proposals: Proposal[];
+  selection: Selection;
+  decisions: Decision[];
+  pending: Pending | null;
+  conflicts: string[];
+}
+export type StateReader = () => Promise<StateResponse>;

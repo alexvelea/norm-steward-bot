@@ -1,0 +1,23 @@
+[Unit]
+Description=Personal Norn Steward control center and economic advisor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/norm-steward-bot
+Environment=HOST=127.0.0.1
+Environment=PORT=8788
+Environment=STEWARD_CONTROL_DIR=/var/lib/norm-steward-bot
+Environment=STEWARD_KEY_FILE=/root/key.txt
+Environment=STEWARD_URL=https://norn-steward.velea.cc
+Environment=STEWARD_WORLD=blitz-1
+ExecStart=/usr/local/bin/node --import tsx scripts/serve.mjs
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

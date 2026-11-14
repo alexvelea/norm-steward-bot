@@ -1,0 +1,424 @@
+import { randomUUID } from "node:crypto";
+import { createServer as createLeaseServer, type Server as LeaseServer } from "node:net";
+import type { ActionsResponse, MeResponse, RulesResponse, StateResponse, WorldSummary } from "../shared/api.js";
+import { economicAdvisor } from "../advisors/economic.js";
+import { selectProposal } from "../advisors/president.js";
+import type { AdvisorContext, Proposal } from "../advisors/types.js";
+import type { ControlStorage } from "./storage.js";
+import { remoteRequest, RemoteError, validateOrigin, type Remote } from "./remote.js";
+import type { ControlView, Decision, Pending, SavedControl, Settings } from "./types.js";
+
+/** A kernel-owned loopback listener is a process lease, automatically released even after a crash. */
+export async function acquireExecutorLease(port = 8790): Promise<LeaseServer> {
+  const server = createLeaseServer((socket) => socket.destroy());
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", () => {
+      server.removeListener("error", reject);
+      resolve();
+    });
+  });
+  return server;
+}
+export class Controller {
+  private saved: SavedControl;
+  private automatic = false;
+  private revision = 0;
+  private busy = false;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private stopped = false;
+  private backoffUntil = 0;
+  private lastPlan = "";
+  private persistence: Promise<void> = Promise.resolve();
+  private view: Omit<ControlView, "settings" | "automatic" | "busy" | "decisions" | "pending" | "nextAttemptAt"> = {
+    connection: "unconfigured",
+    error: null,
+    lastEvaluatedAt: null,
+    account: null,
+    worlds: [],
+    world: null,
+    villages: [],
+    proposals: [],
+    selection: { selected: null, reason: "Waiting for a configured player and world.", reservations: [] },
+    conflicts: [],
+  };
+  private constructor(
+    saved: SavedControl,
+    private storage: ControlStorage,
+    private request: Remote,
+    private now: () => number,
+  ) {
+    this.saved = saved;
+  }
+  static async create(
+    storage: ControlStorage,
+    initial: Settings,
+    request: Remote = remoteRequest,
+    now: () => number = Date.now,
+  ): Promise<Controller> {
+    const saved = (await storage.load()) ?? { settings: initial, pending: null, decisions: [] };
+    saved.settings.serverUrl = validateOrigin(saved.settings.serverUrl);
+    const controller = new Controller(saved, storage, request, now);
+    await controller.persist();
+    return controller;
+  }
+  get settings(): Settings {
+    return { ...this.saved.settings };
+  }
+  snapshot(): ControlView {
+    const { apiKey, ...settings } = this.saved.settings;
+    // A pending operation contains no credentials. All returned objects are serialized by the HTTP layer.
+    return {
+      ...this.view,
+      settings: {
+        ...settings,
+        keyConfigured: !!apiKey,
+        keyHint: apiKey ? `••••••••${apiKey.slice(-4)}` : "Not configured",
+      },
+      automatic: this.automatic,
+      busy: this.busy,
+      decisions: this.saved.decisions,
+      pending: this.saved.pending,
+      nextAttemptAt: this.backoffUntil > this.now() ? new Date(this.backoffUntil).toISOString() : null,
+    };
+  }
+  private persist(): Promise<void> {
+    const value = structuredClone(this.saved);
+    this.persistence = this.persistence.catch(() => undefined).then(() => this.storage.save(value));
+    return this.persistence;
+  }
+  private record(kind: Decision["kind"], text: string, proposal?: Proposal, clientId?: string, tick?: number): void {
+    this.saved.decisions.unshift({
+      id: randomUUID(),
+      at: new Date(this.now()).toISOString(),
+      kind,
+      text,
+      proposalId: proposal?.id,
+      clientId,
+      tick,
+    });
+    this.saved.decisions = this.saved.decisions.slice(0, 100);
+  }
+  async configure(input: Partial<Settings>): Promise<void> {
+    if (this.busy) throw new Error("An evaluation is in progress; retry settings in a moment.");
+    const settings = { ...this.saved.settings, ...input };
+    settings.serverUrl = validateOrigin(settings.serverUrl);
+    if (!settings.worldId.trim() || !settings.apiKey.trim()) throw new Error("A player key and world are required.");
+    this.automatic = false;
+    this.revision++;
+    this.backoffUntil = 0;
+    this.saved.settings = settings;
+    this.lastPlan = "";
+    this.view = {
+      ...this.view,
+      connection: "connecting",
+      account: null,
+      world: null,
+      villages: [],
+      proposals: [],
+      error: null,
+    };
+    this.record(
+      "waiting",
+      "Settings changed; automatic execution is off. Revalidate the connection before enabling it.",
+    );
+    await this.persist();
+    await this.cycle();
+  }
+  async setAutomatic(enabled: boolean, acknowledgeExclusive = false): Promise<void> {
+    if (
+      enabled &&
+      (!acknowledgeExclusive || this.view.connection !== "connected" || !this.view.account || !this.view.world)
+    )
+      throw new Error("Connect first and acknowledge that no competing economic bot is running.");
+    this.automatic = enabled;
+    this.revision++;
+    this.record(
+      "waiting",
+      enabled
+        ? "Automatic Economic Advisor enabled by operator; one action per cycle after fresh revalidation."
+        : "Recommendation-only mode enabled; no new advisor actions will be submitted.",
+    );
+    try {
+      await this.persist();
+    } catch (e) {
+      this.automatic = false;
+      this.revision++;
+      throw e;
+    }
+  }
+  async resolveUncertain(acknowledged: boolean): Promise<void> {
+    if (this.automatic || this.busy || !acknowledged)
+      throw new Error("Pause execution and acknowledge inspection of the game activity log first.");
+    const pending = this.saved.pending;
+    if (!pending) return;
+    if (pending.phase === "accepted")
+      throw new Error("Accepted construction is still tracked; wait for completion or cancel it in Town view.");
+    this.record(
+      "uncertain",
+      "Operator inspected the activity log and cleared this uncertain operation. Its original request ID remains in history.",
+      pending.proposal,
+      pending.action.clientId,
+    );
+    this.saved.pending = null;
+    this.backoffUntil = 0;
+    await this.persist();
+  }
+  start(intervalMs = 10000): void {
+    const run = async () => {
+      if (this.stopped) return;
+      await this.cycle();
+      if (!this.stopped) this.timer = setTimeout(() => void run(), intervalMs);
+    };
+    void run();
+  }
+  stop(): void {
+    this.stopped = true;
+    this.automatic = false;
+    this.revision++;
+    if (this.timer) clearTimeout(this.timer);
+  }
+  private path(suffix: string): string {
+    return `/worlds/${encodeURIComponent(this.saved.settings.worldId)}${suffix}`;
+  }
+  private async readContext(): Promise<AdvisorContext> {
+    const settings = this.settings;
+    const [state, rules] = await Promise.all([
+      this.request<StateResponse>(settings, this.path("/state")),
+      this.request<RulesResponse>(settings, this.path("/rules")),
+    ]);
+    if (state.world.id !== settings.worldId) throw new Error("Returned state belongs to another world.");
+    if (rules.version !== state.world.rulesVersion)
+      throw new Error("Rules version mismatch; wait for compatible live rules.");
+    return { state, rules };
+  }
+  private plan(context: AdvisorContext): void {
+    this.view.world = context.state.world;
+    this.view.villages = context.state.villages.map((v) => ({ id: v.id, name: v.name, points: v.points }));
+    this.view.proposals = economicAdvisor.evaluate(context);
+    this.view.selection = selectProposal(this.view.proposals);
+    if (this.saved.pending?.phase === "accepted") {
+      const p = this.saved.pending.proposal;
+      this.view.selection = {
+        ...this.view.selection,
+        selected: null,
+        reason: `Wait for accepted ${p.buildingName} level ${p.targetLevel} in ${p.villageName} to finish. This first executor tracks one advisor construction globally at a time.`,
+      };
+    }
+    this.view.conflicts = context.state.villages
+      .filter((v) => v.orders.build.length > 0)
+      .map((v) => `${v.name} has server standing build orders. The advisor will not add competing construction there.`);
+    const selected = this.view.selection.selected;
+    const signature = JSON.stringify({
+      id: selected?.id,
+      importance: selected?.importance,
+      reservations: this.view.selection.reservations,
+      queues: context.state.villages.map((v) => v.buildQueue.map((q) => q.id)),
+    });
+    if (signature !== this.lastPlan) {
+      this.record(
+        selected ? "recommendation" : "waiting",
+        this.view.selection.reason,
+        selected ?? undefined,
+        undefined,
+        context.state.world.tick,
+      );
+      this.lastPlan = signature;
+    }
+    this.view.lastEvaluatedAt = new Date(this.now()).toISOString();
+  }
+  /** Pending requests survive process restarts; retries never create a new clientId. */
+  private async reconcile(context: AdvisorContext): Promise<void> {
+    const p = this.saved.pending;
+    if (!p) return;
+    const s = context.state;
+    const v = s.villages.find((v) => v.id === p.proposal.villageId);
+    if (
+      p.serverUrl !== this.saved.settings.serverUrl ||
+      p.worldId !== s.world.id ||
+      p.epoch !== s.world.epoch ||
+      p.accountId !== this.view.account?.id ||
+      !v
+    ) {
+      this.record(
+        "cancelled",
+        "Pending operation belongs to an old world, epoch or account; it will not be replayed.",
+        p.proposal,
+        p.action.clientId,
+        s.world.tick,
+      );
+      this.saved.pending = null;
+      await this.persist();
+      return;
+    }
+    const item = p.itemId ? v.buildQueue.find((q) => q.id === p.itemId) : undefined;
+    if (p.phase === "accepted") {
+      if (item) return;
+      this.record(
+        v.buildings[p.action.building] >= p.proposal.targetLevel ? "confirmed" : "cancelled",
+        v.buildings[p.action.building] >= p.proposal.targetLevel
+          ? `${p.proposal.buildingName} reached level ${p.proposal.targetLevel}, confirmed by fresh server state.`
+          : "Accepted construction disappeared without reaching its target; it may have been cancelled by another actor.",
+        p.proposal,
+        p.action.clientId,
+        s.world.tick,
+      );
+      this.saved.pending = null;
+      await this.persist();
+      return;
+    }
+    if (
+      v.buildings[p.action.building] !== p.proposal.currentLevel ||
+      v.buildQueue.some((q) => q.building === p.action.building)
+    ) {
+      this.record(
+        "uncertain",
+        "Desired building state changed after an uncertain request. It may have applied or another actor may have acted; do not submit a second upgrade.",
+        p.proposal,
+        p.action.clientId,
+        s.world.tick,
+      );
+      this.saved.pending = null;
+      await this.persist();
+      return;
+    }
+    if (s.world.tick >= p.expiresTick) {
+      this.automatic = false;
+      this.record(
+        "uncertain",
+        "Idempotency window expired with no confirmed outcome. Automatic execution is paused; inspect the activity log before clearing this operation.",
+        p.proposal,
+        p.action.clientId,
+        s.world.tick,
+      );
+      this.backoffUntil = this.now() + 60000;
+      await this.persist();
+    }
+  }
+  async cycle(): Promise<void> {
+    if (this.busy || this.stopped || this.now() < this.backoffUntil) return;
+    if (!this.saved.settings.apiKey) {
+      this.view.connection = "unconfigured";
+      return;
+    }
+    this.busy = true;
+    const revision = this.revision;
+    try {
+      this.view.connection = this.view.account ? this.view.connection : "connecting";
+      const [me, worlds] = await Promise.all([
+        this.request<MeResponse>(this.settings, "/me"),
+        this.request<WorldSummary[]>(this.settings, "/worlds"),
+      ]);
+      this.view.account = me.account;
+      this.view.worlds = worlds;
+      const context = await this.readContext();
+      this.view.connection = "connected";
+      this.view.error = null;
+      await this.reconcile(context);
+      this.plan(context);
+      await this.persist();
+      if (!this.automatic || revision !== this.revision || this.stopped) return;
+      if (this.saved.pending?.phase === "accepted") return;
+      // Read state and live rules again immediately before sending: manual commands may have won the race.
+      const fresh = await this.readContext();
+      this.plan(fresh);
+      await this.reconcile(fresh);
+      if (!this.automatic || revision !== this.revision || this.stopped) return;
+      const selected = this.view.selection.selected;
+      if (!selected) return;
+      let pending = this.saved.pending;
+      if (pending && (pending.proposal.id !== selected.id || fresh.state.world.tick >= pending.expiresTick)) return;
+      if (!pending) {
+        const ttl = Number((fresh.rules.rules.LIMITS as { clientIdTtl?: number })?.clientIdTtl);
+        if (!Number.isFinite(ttl) || ttl <= 1)
+          throw new Error("Live idempotency TTL is unavailable; refusing to execute.");
+        pending = {
+          proposal: selected,
+          action: { ...selected.action, clientId: `econ-${randomUUID()}` },
+          accountId: me.account.id,
+          worldId: fresh.state.world.id,
+          epoch: fresh.state.world.epoch,
+          serverUrl: this.saved.settings.serverUrl,
+          createdTick: fresh.state.world.tick,
+          expiresTick: fresh.state.world.tick + ttl - 1,
+          phase: "prepared",
+        };
+        this.saved.pending = pending;
+        this.record(
+          "prepared",
+          `${selected.buildingName} level ${selected.targetLevel} prepared; journalling its request ID before any network write.`,
+          selected,
+          pending.action.clientId,
+          fresh.state.world.tick,
+        );
+        await this.persist(); // Never POST unless its request ID is durably journalled.
+      }
+      if (!this.automatic || revision !== this.revision || this.stopped) return;
+      try {
+        pending.phase = "submitted";
+        this.record(
+          "submitted",
+          `${pending.proposal.buildingName} level ${pending.proposal.targetLevel} handed to the API; awaiting its result.`,
+          pending.proposal,
+          pending.action.clientId,
+          fresh.state.world.tick,
+        );
+        const response = await this.request<ActionsResponse>(this.settings, this.path("/actions"), {
+          actions: [pending.action],
+          returnState: true,
+          note: `Economic Advisor: ${pending.proposal.buildingName}; importance ${pending.proposal.importance}`,
+        });
+        const result = response.results[0];
+        if (!result) throw new RemoteError(0, 5000, "Action response contained no result; outcome unknown.");
+        if (!result.ok) {
+          this.record(
+            "rejected",
+            `${result.error.code}: ${result.error.message}`,
+            selected,
+            pending.action.clientId,
+            response.tick,
+          );
+          this.saved.pending = null;
+          this.backoffUntil = this.now() + Math.max(10000, Number(result.error.details?.retryAfterMs) || 0);
+        } else if ("item" in result.data) {
+          pending.phase = "accepted";
+          pending.itemId = result.data.item.id;
+          this.record(
+            "accepted",
+            `${selected.buildingName} level ${selected.targetLevel} accepted into construction queue; completion is not confirmed yet.`,
+            selected,
+            pending.action.clientId,
+            response.tick,
+          );
+        } else throw new RemoteError(0, 5000, "Unexpected action result; inspect the game activity log.");
+        await this.persist();
+      } catch (e) {
+        const error =
+          e instanceof RemoteError ? e : new RemoteError(0, 5000, "Unexpected transport error; outcome is unknown.");
+        if (error.status && error.status < 500 && error.status !== 429) {
+          this.saved.pending = null;
+          this.record("rejected", error.message, selected, pending.action.clientId);
+          if (error.status === 401 || error.status === 403) this.automatic = false;
+        } else {
+          pending.phase = "uncertain";
+          this.record(
+            "uncertain",
+            error.message + " Revalidate before retrying the same request ID.",
+            selected,
+            pending.action.clientId,
+          );
+        }
+        this.backoffUntil = this.now() + error.retryMs;
+        await this.persist();
+      }
+    } catch (e) {
+      this.view.connection = "error";
+      this.view.error = e instanceof Error ? e.message : "Evaluation failed.";
+      const delay = e instanceof RemoteError ? e.retryMs : 10000;
+      this.backoffUntil = this.now() + delay;
+      if (e instanceof RemoteError && (e.status === 401 || e.status === 403)) this.automatic = false;
+    } finally {
+      this.busy = false;
+    }
+  }
+}

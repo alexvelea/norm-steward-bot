@@ -2,7 +2,7 @@
 // page, and world links use `?w=<id>` so a plain static file server (no SPA fallback) can reload them.
 import { useSyncExternalStore } from "react";
 
-export type Route = { name: "home" } | { name: "world"; worldId: string };
+export type Route = { name: "settings" } | { name: "home" } | { name: "world"; worldId: string };
 
 const CHANGE = "steward:navigate";
 
@@ -11,6 +11,7 @@ export function isMock(): boolean {
 }
 
 function parse(): Route {
+  if (location.pathname === "/settings") return { name: "settings" };
   const query = new URLSearchParams(location.search);
   const fromQuery = query.get("w");
   if (fromQuery) return { name: "world", worldId: fromQuery };

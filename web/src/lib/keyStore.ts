@@ -37,3 +37,5 @@ export function useApiKey(): string | null {
 export function looksLikeKey(text: string): boolean {
   return /^nsk_[0-9A-Za-z]{20,}$/.test(text.trim());
 }
+
+if (typeof window !== "undefined") window.addEventListener("storage", event => { if (event.key === STORAGE_KEY) apiKey.set(read()); });

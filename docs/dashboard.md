@@ -1,17 +1,20 @@
 # The dashboard
 
 Where people watch their stewards and optionally give orders themselves. Hybrid mode uses the
-player's pasted key and the existing gameplay API. This client serves it at `/`; a separate static
-UI may proxy `/api/v1/*` (including the WebSocket stream) to an existing game server.
+player's configured key and the existing gameplay API. The local control process serves the UI
+and proxies game traffic; the central game server continues to own all simulation and game state.
 
 ## What it shows
 
-**Home** (`/`)
-- What the game is in two lines, and the worlds with their live tick, players and time left.
-- **Get a key:** pick a name, get the key once, with copy buttons for a `curl` call, the starter bots
-  and the MCP line for Claude Code.
-- **Connect:** paste a key to see your own stewards. It's kept in this browser only. A saved key the
-  server refuses (rotated or mistyped) never hides the worlds: the page says so and lists the public ones.
+**Personal control center** (`/`)
+- Existing player only: no public pitch, signup, key generation or onboarding cards.
+- Account, selected world, villages, last evaluation and connection status.
+- Economic Advisor proposals ranked by score, with reasons, costs, blockers and readiness.
+- President's selection/reservation and recent recommendation/submission/outcome history.
+- Explicit automatic execution toggle, off by default. Browser tabs never execute advisor loops.
+- **Settings** (`/settings`): server origin, selected world and masked key. Reveal/edit are explicit;
+  saving changes pauses automatic execution. Private routes require the configured owner key.
+- See [control-center.md](control-center.md) for policy, authentication and persistent execution.
 
 **A world** (`/w/<id>`)
 - **The map fills the screen.** A drawn parchment land (procedural from a hash of the world id and

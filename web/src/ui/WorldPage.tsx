@@ -94,7 +94,7 @@ function WorldBody() {
           <h2>This world can't be shown</h2>
           <p className="muted">{fatal}</p>
           <Link href={homeHref()} className="btn">
-            ← All worlds
+            ← Advisors
           </Link>
         </div>
       </div>
@@ -130,7 +130,7 @@ function WorldBar() {
   if (!summary) {
     return (
       <div className="world-bar">
-        <Link href={homeHref()} className="back" title="All worlds">
+        <Link href={homeHref()} className="back" title="Advisor control center">
           ←
         </Link>
         <span className="muted">Opening the world…</span>
@@ -140,7 +140,7 @@ function WorldBar() {
   const left = summary.endsAtTick - tick;
   return (
     <div className="world-bar">
-      <Link href={homeHref()} className="back" title="All worlds">
+      <Link href={homeHref()} className="back" title="Advisor control center">
         ←
       </Link>
       <div className="world-bar-title">

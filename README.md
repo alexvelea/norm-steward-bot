@@ -6,37 +6,78 @@ illustrated Town view, building details, and other dashboard changes.
 
 This repository is a client setup. The central game server runs the simulation, validates actions,
 maintains accounts and worlds, and saves progress. There is no game engine or game server here.
-The small local Node process serves UI files and proxies API/WebSocket/MCP traffic to the game.
+The local Node process serves the personal UI, coordinates advisors and proxies API/WebSocket/MCP traffic to the game.
 
-## Local setup
+## Personal control center
 
-Requires Node.js 20 or newer and npm. Python 3.10+ is optional for the Python bot.
+The root page is your Economic Advisor dashboard, not a public landing/signup page. Settings holds
+server origin, masked player key and selected world. Map, Town, manual commands and game activity
+are preserved under **Map & commands**. Read [the policy and execution design](docs/control-center.md)
+for the scoring scale, save-versus-spend policy, safety checks and local control API.
+
+### Start locally
+
+Requires Node.js 20+ and npm. Initialize the owner key locally (never commit it):
 
 ```bash
 npm ci
+export STEWARD_KEY_FILE=/absolute/path/to/your/private-key.txt
+export STEWARD_URL=https://norn-steward.velea.cc
+export STEWARD_WORLD=blitz-1
 npm run dev
 ```
 
-Open http://127.0.0.1:8788. The UI builds and watches for changes; refresh after a rebuild.
-By default it connects to https://norn-steward.velea.cc. To use another game server:
+Open http://127.0.0.1:8788 and unlock with the same player key. A browser that already stores that key
+connects automatically. `npm run dev` builds/watches UI files and starts the single control process;
+refresh the browser after a rebuild. For built files use `npm run build:web` then `npm start`.
+`HOST` defaults to loopback and `PORT` to 8788. A second process is refused by a loopback executor
+lease on port 8790, even if it chooses another UI port. No game engine runs here.
+
+**Recommendation-only is the default**, including after restarts. Nothing in evaluation submits game
+actions until you explicitly enable Automatic execution. The process keeps running after browsers
+close. Automatic mode does not survive a service restart; accepted construction still belongs to
+the game and is reconciled afterward. Stop competing starter/LLM economic bots before enabling it.
+Current server standing build orders cause this advisor to wait in that village.
+
+`STEWARD_CONTROL_DIR` defaults to ignored `data/control`. The service stores the game key and its
+request/decision journal in mode-0600 `control.json`; keep machine access private. Environment values
+bootstrap a fresh configuration, not overwrite saved Settings. `.env` is not automatically loaded.
+Session cookies protect private settings and the game proxy; the reveal button is explicit.
+Synthetic `/?mock=1` remains separate and cannot enable advisors or mix mock data with live state.
+
+### Persistent hosting on Alex's machine
+
+The production process is a systemd service behind Caddy. The included unit assumes this checkout
+at `/root/norm-steward-bot` and the existing private credential source `/root/key.txt`:
 
 ```bash
-STEWARD_URL=https://your-game.example npm run dev
+npm ci
+npm run build:web
+sudo install -m 0644 deploy/norm-steward-control.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now norm-steward-control
+sudo install -m 0644 web/Caddyfile /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
 ```
 
-`STEWARD_URL` must be an origin without an API path. `PORT` defaults to 8788 and `HOST` to
-127.0.0.1. Environment files are not automatically loaded: export variables in your shell.
-You can inspect the synthetic offline demo at http://127.0.0.1:8788/?mock=1.
-Mock games do not affect your live account.
+Caddy supplies HTTPS at https://alex.norn-steward.velea.cc and forwards to the loopback control
+process. It now serves from this checkout's `web/dist`; copying files to the old static directory
+is no longer the deployment path. On edits rebuild UI and restart the control service for server
+changes (`systemctl restart norm-steward-control`). A restart safely returns to recommendation mode.
+Use `systemctl status norm-steward-control` and `journalctl -u norm-steward-control` to inspect it.
+Adapt paths and hostname for another machine; merge Caddy blocks if it hosts other sites.
 
-In the live UI, use **Connect** with your existing player key or register a new account.
-Open a world and join it if needed. **Command** submits manual actions; **Town** opens the
-illustrated village and building details. Bots and manual commands share the same resources and
-queues. There is no arbitration that reserves resources for one or the other.
-Player keys are stored by the browser and forwarded to the selected game server; they are not
-embedded in the build. Never commit them. Changing UI hostname uses a separate browser storage area.
+## Operator handoff
+
+Give another agent [docs/OPERATOR.md](docs/OPERATOR.md) for explicitly requested scouting, support
+recalls and troop movement. It includes a copyable task prompt and must not start another economic
+loop. The advisor and President themselves are deterministic scripts, with **no LLM calls**.
 
 ## Run your bot
+
+These starters are an alternative economic controller. Do not run one on the same account while
+automatic Economic Advisor execution is enabled.
 
 Use the same game account/key as the dashboard if you want to control the same villages.
 In a second terminal, choose the TypeScript or Python starter:
@@ -66,30 +107,6 @@ On a remote machine, use separate tmux windows for UI development and the bot. F
 created session: `tmux attach -t codex`. Detach with Ctrl+B, then D. tmux survives SSH disconnects,
 but not reboots; use a service manager if you need the bot to restart after reboot.
 
-## Static hosting on Alex's machine
-
-The existing [web/Caddyfile](web/Caddyfile) serves alex.norn-steward.velea.cc and proxies API,
-WebSocket, and MCP requests to norn-steward.velea.cc. Caddy handles HTTPS. Node is needed to build,
-not to serve this production setup. Caddy must already be installed; DNS and ports 80/443 must be ready.
-After copying this repo onto that machine, run there:
-
-```bash
-npm ci
-npm run build:web
-sudo mkdir -p /srv/norn-steward-ui
-sudo rsync -a web/dist/ /srv/norn-steward-ui/
-sudo install -m 0644 web/Caddyfile /etc/caddy/Caddyfile
-sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl reload caddy
-```
-
-This Caddyfile is for a dedicated UI machine. If Caddy already hosts other sites, merge this site
-block instead of replacing its configuration. Adjust the hostname, upstream, and Host header if
-hosting elsewhere. On later updates, rebuild and copy web/dist/ again. No game saves are needed.
-
-For a built local preview, use `npm run build:web` then `npm start`; it uses the same local proxy
-as development, without watching. This does not deploy or start a bot automatically.
-
 ## Repository layout
 
 | Path | Purpose |
@@ -98,12 +115,14 @@ as development, without watching. This does not deploy or start a bot automatica
 | bots/ | Standalone TypeScript/Python starters and optional Claude shift runner |
 | src/shared/api.ts | Public API type snapshot used by the UI |
 | src/rules/ | Rule constants and derived tables needed by UI and tests; no engine |
-| scripts/serve.mjs | Local static hosting and API/WebSocket/MCP proxy |
+| scripts/serve.mjs | Personal UI hosting, authenticated control API and transport proxy |
+| src/advisors/ | Shared proposal interface, Economic Advisor and President |
+| src/control/ | Persistent client executor, private configuration and execution journal |
 | docs/ | Dashboard documentation and upstream API/game references |
 
 The original engine, house bots, backend, persistence, MCP implementation, and server-only tests
-were intentionally omitted. Their services remain on the central game machine. The source on Alex's
-machine was only read; this import does not redeploy or modify the running UI.
+were intentionally omitted. Those services remain on the central game machine. This repository
+now owns the personal control service and UI deployed on Alex's machine.
 
 ## Checks
 

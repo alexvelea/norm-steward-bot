@@ -19,7 +19,7 @@ async function listen(server: Server): Promise<string> {
 
 async function close(server: Server) {
   server.closeAllConnections();
-  await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
 }
 
 test("serves deep UI routes and forwards authenticated REST/MCP unchanged", async () => {
@@ -30,7 +30,15 @@ test("serves deep UI routes and forwards authenticated REST/MCP unchanged", asyn
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({ url: req.url, method: req.method, key: req.headers.authorization, dashboard: req.headers["x-steward-client"], body: Buffer.concat(chunks).toString() }));
+    res.end(
+      JSON.stringify({
+        url: req.url,
+        method: req.method,
+        key: req.headers.authorization,
+        dashboard: req.headers["x-steward-client"],
+        body: Buffer.concat(chunks).toString(),
+      }),
+    );
   });
   const target = await listen(upstream);
   const ui = createUiServer({ root, upstream: target });
@@ -40,8 +48,17 @@ test("serves deep UI routes and forwards authenticated REST/MCP unchanged", asyn
     const asset = await fetch(`${origin}/app.js`);
     assert.match(asset.headers.get("content-type")!, /javascript/);
     assert.equal((await fetch(`${origin}/missing.js`)).status, 404);
-    const action = await fetch(`${origin}/api/v1/worlds/test/actions`, { method: "POST", headers: { Authorization: "Bearer test-only-key", "Content-Type": "application/json" }, body: '{"actions":[]}' });
-    assert.deepEqual(await action.json(), { url: "/api/v1/worlds/test/actions", method: "POST", key: "Bearer test-only-key", body: '{"actions":[]}' });
+    const action = await fetch(`${origin}/api/v1/worlds/test/actions`, {
+      method: "POST",
+      headers: { Authorization: "Bearer test-only-key", "Content-Type": "application/json" },
+      body: '{"actions":[]}',
+    });
+    assert.deepEqual(await action.json(), {
+      url: "/api/v1/worlds/test/actions",
+      method: "POST",
+      key: "Bearer test-only-key",
+      body: '{"actions":[]}',
+    });
     const read = await fetch(`${origin}/api/v1/worlds?after=5`, { headers: { "X-Steward-Client": "dashboard" } });
     assert.equal(((await read.json()) as { dashboard: string }).dashboard, "dashboard");
     const mcp = await fetch(`${origin}/mcp`, { method: "POST", body: "test-rpc" });
@@ -58,7 +75,7 @@ test("proxies the live WebSocket stream including client hello", async () => {
   const sockets = new WebSocketServer({ server: upstream });
   sockets.on("connection", (socket, request) => {
     assert.equal(request.url, "/api/v1/worlds/test/stream");
-    socket.on("message", payload => socket.send(payload.toString()));
+    socket.on("message", (payload) => socket.send(payload.toString()));
   });
   const target = await listen(upstream);
   const ui = createUiServer({ upstream: target });
@@ -72,8 +89,53 @@ test("proxies the live WebSocket stream including client hello", async () => {
   } finally {
     client.terminate();
     for (const socket of sockets.clients) socket.terminate();
-    await new Promise<void>(resolve => sockets.close(() => resolve()));
+    await new Promise<void>((resolve) => sockets.close(() => resolve()));
     await close(ui);
     await close(upstream);
+  }
+});
+
+test("authenticated proxy pins REST and WebSocket identity to the configured player", async () => {
+  const { Controller } = await import("../src/control/controller.js");
+  const { ControlHttp } = await import("../src/control/http.js");
+  const upstream = createServer((req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ authorization: req.headers.authorization }));
+  });
+  const sockets = new WebSocketServer({ server: upstream });
+  sockets.on("connection", (socket) => socket.on("message", (data) => socket.send(data.toString())));
+  const target = await listen(upstream);
+  const controller = await Controller.create(
+    { load: async () => null, save: async () => {} },
+    { serverUrl: target, worldId: "test", apiKey: "owner-key" },
+  );
+  const ui = createUiServer({ control: new ControlHttp(controller), upstream: target });
+  const origin = await listen(ui);
+  let client: WebSocket | null = null;
+  try {
+    const session = await fetch(origin + "/control/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey: "owner-key" }),
+    });
+    const cookie = session.headers.get("set-cookie")!.split(";")[0];
+    const response = await fetch(origin + "/api/v1/me", {
+      headers: { Cookie: cookie, Authorization: "Bearer stale-other-key" },
+    });
+    assert.deepEqual(await response.json(), { authorization: "Bearer owner-key" });
+    client = new WebSocket(origin.replace("http:", "ws:") + "/api/v1/worlds/test/stream", {
+      headers: { Cookie: cookie },
+    });
+    await once(client, "open");
+    const reply = once(client, "message");
+    client.send(JSON.stringify({ type: "hello", key: "stale-other-key" }));
+    assert.equal(JSON.parse((await reply)[0].toString()).key, "owner-key");
+  } finally {
+    client?.terminate();
+    for (const socket of sockets.clients) socket.terminate();
+    await new Promise<void>((resolve) => sockets.close(() => resolve()));
+    await close(ui);
+    await close(upstream);
+    controller.stop();
   }
 });

@@ -8,8 +8,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "node web/build.mjs --serve",
-    "start": "node scripts/serve.mjs",
+    "dev": "node --import tsx web/build.mjs --serve",
+    "start": "node --import tsx scripts/serve.mjs",
     "build:web": "node web/build.mjs",
     "watch:web": "node web/build.mjs --watch",
     "bot": "tsx bots/typescript/starter.ts",
