@@ -7,7 +7,10 @@ export class ControlHttp {
   private attempts = new Map<string, { at: number; count: number }>();
   constructor(readonly controller: Controller) {}
   private equal(a: string, b: string): boolean {
-    return timingSafeEqual(createHash("sha256").update(a).digest(), createHash("sha256").update(b).digest());
+    return timingSafeEqual(
+      createHash("sha256").update(a).digest(),
+      createHash("sha256").update(b).digest(),
+    );
   }
   authorized(req: IncomingMessage): boolean {
     const cookie = (req.headers.cookie ?? "")
@@ -36,7 +39,9 @@ export class ControlHttp {
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const path = new URL(req.url ?? "/", "http://localhost").pathname;
     if (req.method !== "GET" && !this.sameOrigin(req)) {
-      this.reply(res, 403, { error: "Cross-origin control requests are refused." });
+      this.reply(res, 403, {
+        error: "Cross-origin control requests are refused.",
+      });
       return;
     }
     let body: Record<string, unknown> = {};
@@ -50,9 +55,12 @@ export class ControlHttp {
           chunks.push(Buffer.from(chunk));
         }
         body = JSON.parse(Buffer.concat(chunks).toString() || "{}");
-        if (!body || Array.isArray(body) || typeof body !== "object") throw new Error("Invalid body");
+        if (!body || Array.isArray(body) || typeof body !== "object")
+          throw new Error("Invalid body");
       } catch {
-        this.reply(res, 400, { error: "Expected a JSON object (maximum 8 KB)." });
+        this.reply(res, 400, {
+          error: "Expected a JSON object (maximum 8 KB).",
+        });
         return;
       }
     }
@@ -65,22 +73,35 @@ export class ControlHttp {
         this.attempts.set(ip, limit);
       }
       if (++limit.count > 10) {
-        this.reply(res, 429, { error: "Too many sign-in attempts; wait a minute." });
+        this.reply(res, 429, {
+          error: "Too many sign-in attempts; wait a minute.",
+        });
         return;
       }
       const configured = this.controller.settings.apiKey;
       if (!configured) {
-        this.reply(res, 503, { error: "Bootstrap the owner key with STEWARD_KEY_FILE before starting the service." });
+        this.reply(res, 503, {
+          error:
+            "Bootstrap the owner key with STEWARD_KEY_FILE before starting the service.",
+        });
         return;
       }
-      if (typeof body.apiKey !== "string" || !this.equal(body.apiKey, configured)) {
-        this.reply(res, 401, { error: "The key does not match this personal control center." });
+      if (
+        typeof body.apiKey !== "string" ||
+        !this.equal(body.apiKey, configured)
+      ) {
+        this.reply(res, 401, {
+          error: "The key does not match this personal control center.",
+        });
         return;
       }
       const token = randomBytes(32).toString("hex");
       this.sessions.set(token, Date.now() + 86400000);
-      if (this.sessions.size > 100) this.sessions.delete(this.sessions.keys().next().value!);
-      const secure = req.headers["x-forwarded-proto"] === "https" || req.headers.origin?.startsWith("https:");
+      if (this.sessions.size > 100)
+        this.sessions.delete(this.sessions.keys().next().value!);
+      const secure =
+        req.headers["x-forwarded-proto"] === "https" ||
+        req.headers.origin?.startsWith("https:");
       res.setHeader(
         "Set-Cookie",
         `steward_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400${secure ? "; Secure" : ""}`,
@@ -89,7 +110,9 @@ export class ControlHttp {
       return;
     }
     if (!this.authorized(req)) {
-      this.reply(res, 401, { error: "Sign in with your configured player key." });
+      this.reply(res, 401, {
+        error: "Sign in with your configured player key.",
+      });
       return;
     }
     try {
@@ -108,7 +131,10 @@ export class ControlHttp {
           .find((s) => s.startsWith("steward_session="))
           ?.slice(16);
         if (cookie) this.sessions.delete(cookie);
-        res.setHeader("Set-Cookie", "steward_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0");
+        res.setHeader(
+          "Set-Cookie",
+          "steward_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
+        );
         this.reply(res, 200, { ok: true });
         return;
       }
@@ -118,18 +144,23 @@ export class ControlHttp {
           typeof body.worldId !== "string" ||
           (body.apiKey !== undefined && typeof body.apiKey !== "string")
         )
-          throw new Error("Server URL and world are required strings; key is optional.");
+          throw new Error(
+            "Server URL and world are required strings; key is optional.",
+          );
         await this.controller.configure({
           serverUrl: body.serverUrl,
           worldId: body.worldId,
-          ...(typeof body.apiKey === "string" && body.apiKey ? { apiKey: body.apiKey } : {}),
+          ...(typeof body.apiKey === "string" && body.apiKey
+            ? { apiKey: body.apiKey }
+            : {}),
         });
         this.reply(res, 200, this.controller.snapshot());
         return;
       }
       if (path === "/control/automatic" && req.method === "PUT") {
-        if (typeof body.enabled !== "boolean") throw new Error("enabled must be a boolean.");
-        await this.controller.setAutomatic(body.enabled, body.acknowledgeExclusive === true);
+        if (typeof body.enabled !== "boolean")
+          throw new Error("enabled must be a boolean.");
+        await this.controller.setAutomatic(body.enabled);
         this.reply(res, 200, this.controller.snapshot());
         return;
       }
@@ -145,7 +176,9 @@ export class ControlHttp {
       }
       this.reply(res, 404, { error: "No such control endpoint." });
     } catch (e) {
-      this.reply(res, 400, { error: e instanceof Error ? e.message : "Control operation failed." });
+      this.reply(res, 400, {
+        error: e instanceof Error ? e.message : "Control operation failed.",
+      });
     }
   }
 }

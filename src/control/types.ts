@@ -1,4 +1,11 @@
-import type { Action, MeResponse, StateResponse, WorldSummary } from "../shared/api.js";
+import type {
+  Action,
+  MeResponse,
+  StateResponse,
+  WorldSummary,
+} from "../shared/api.js";
+import type { EconomicForecast } from "../advisors/economic.js";
+import type { ProductionLedger, ProductionView } from "./production.js";
 import type { Proposal, Selection } from "../advisors/types.js";
 export interface Settings {
   serverUrl: string;
@@ -39,9 +46,13 @@ export interface SavedControl {
   settings: Settings;
   pending: Pending | null;
   decisions: Decision[];
+  production?: ProductionLedger;
 }
 export interface ControlView {
-  settings: Omit<Settings, "apiKey"> & { keyConfigured: boolean; keyHint: string };
+  settings: Omit<Settings, "apiKey"> & {
+    keyConfigured: boolean;
+    keyHint: string;
+  };
   automatic: boolean;
   busy: boolean;
   connection: "unconfigured" | "connecting" | "connected" | "error";
@@ -57,5 +68,7 @@ export interface ControlView {
   decisions: Decision[];
   pending: Pending | null;
   conflicts: string[];
+  production: ProductionView | null;
+  economicForecasts: EconomicForecast[];
 }
 export type StateReader = () => Promise<StateResponse>;

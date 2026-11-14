@@ -8,7 +8,7 @@ No LLM, model key, prompt or inference service participates in economic decision
 
 `src/advisors/types.ts` defines a small synchronous interface: evaluate live state and rules, return
 proposals. Each proposal names its advisor, village, action, target level, importance (0–100),
-reason, per-resource requirements, blockers, affordability tick, and ready/waiting/queued status.
+reason, per-resource requirements, blockers, affordability tick, and ready/waiting/queued/not-needed status.
 Future army/war advisors can implement the same interface. Only Economic Advisor is registered.
 The President is a sorted filter, not a planner. It submits at most one build per ten-second cycle.
 This first executor tracks one global operation until completion, so multi-village construction is
@@ -22,15 +22,34 @@ Scores are deterministic integers:
 
 | Candidate | Importance policy |
 |---|---|
-| Farm | 100 at no free population; 95 with <= max(10, 8% capacity) free; 75 with <=20% free; otherwise 20 |
-| Storehouse | 99 when an economic upgrade exceeds capacity; 98 at >=95% full; 90 at >=85%; 86 if production fills a store within 120 ticks; 65 at >=65%; otherwise 25 |
-| Resource producer | 40 + round(25 × production deficit relative to fastest resource) + round(14 × stock shortfall relative to largest economic upgrade bill), capped at 79 |
-| Great Hall | 30 + min(45, round(35 × ticks saved across other non-maxed economic candidates / hall upgrade duration)) |
-| Cellar | 85 when an incoming attack exists and resources are exposed; otherwise 40 if exposure exceeds half storage, else 25. Incoming scouting also counts as an attack in the available state |
+| Farm | 100 if no free population, otherwise 95 **only** below max(50, 20% of capacity); sufficient buffer = not-needed (20) |
+| Storehouse | 90–99 **only** if current stock + 300 ticks of production exceeds capacity for any resource; otherwise not-needed (25) |
+| Cellar | 80 **only** if protection per resource is below the largest 300-tick production amount; otherwise not-needed (25) |
+| Great Hall | 75 only if construction ticks saved over the next three upgrades of each producer repay the hall's own build duration; otherwise not-needed (30) |
+| Resource producer | 60 for lowest projected coverage, then 50 and 40; ties share a score |
 
-90–100 = urgent; 70–89 = important, save resources; 40–69 = useful; 0–39 = discretionary.
-Ties use village ID, then building ID. Every recommendation explains its numbers and tradeoff.
-Population includes the server's reserved construction and training population.
+90–100 = capacity, 70–89 = protection/construction speed, 40–69 = production. Lower scores are
+informational and never executed. Not-needed proposals remain visible at the bottom. Ties use
+village ID then building ID. Population used includes reserved construction and training.
+
+For each resource, producer coverage is `(current inventory + production over 180 ticks) / sum of
+that resource's costs for the next lumberyard, quarry and mine upgrades`. Maxed producers are
+excluded from the cost basket. The lowest coverage wins, so an apparently abundant resource can
+still be most scarce relative to what production upgrades actually consume. Rates use live
+per-tick milli-resource values; these horizons are game time (ticks), not browser wall time.
+Forecasts deliberately ignore speculative future spending or uncompleted production upgrades.
+Equality at a capacity target does not trigger an upgrade.
+
+## Total production
+
+The service persists estimated gross production for the current account/server/world/epoch.
+It starts with the earliest available server history sample, then integrates live aggregate village
+rates between evaluations. Rate changes use the average of adjacent observations. This is an
+estimate: historical samples are sparse, downtime can hide rate changes, and overflow is included.
+Spending and looting never decrease or inflate this counter. It is not an exact lifetime total or
+net inventory change. Repeated observations at the same tick add nothing; restarts preserve totals.
+A different account/world/epoch or backwards game clock starts a new ledger. The UI labels the
+estimate and its tick range, and shows each village's inventory, projected supply and cost coverage.
 
 ## Allocation and waiting
 
@@ -40,11 +59,12 @@ Population includes the server's reserved construction and training population.
   are displayed as queued, not proposed again.
 - Standing build orders block advisor construction in that village. The operator must choose which
   economic controller to run; this application never silently removes existing orders.
-- If an important proposal (>=70) is blocked **only** by resources and no equal/higher-priority action
-  is ready, reserve that village's resources. Do not buy a lower-priority upgrade. Another village
-  may still spend its own resources.
-- Below 70, the President may choose the highest-ranked affordable upgrade instead of waiting for
-  an expensive discretionary one. It does not save indefinitely for impossible prerequisites.
+- The highest **needed** proposal in a village owns its budget, including score-40–60 production.
+  If it only lacks resources, save until it is affordable; never spend on lower-ranked filler.
+  If it has another blocker, wait and show that blocker rather than diverting its budget. Another
+  village can still spend independently. This simple policy may stall on an impossible prerequisite
+  (for example a producer bill larger than storage even though the five-minute storage target fits);
+  it reports the constraint rather than overriding the explicit capacity policy.
 - Council cooldown, ended rounds, missing prerequisites and full queues are explicit waiting states.
 - Decisions are short-term heuristics, not ROI-optimal planning. Army needs and market exchanges are
   not modelled yet. Manual orders and other clients can still consume the same resources.
@@ -56,9 +76,10 @@ refreshing, multiple tabs and closing the browser do not create or stop executor
 executor lease (port 8790) prevents a second production process from starting, even at another HTTP
 port, and is released by the OS after crashes. Do not override this port for another live executor.
 
-Recommendation-only is the startup default, including after restarts. Automatic execution requires
-an explicit toggle and acknowledgement that competing economic bots have been stopped. Disabling
-it stops new advisor submissions; accepted construction continues in the game.
+Economic execution starts automatically with a valid configured connection and resumes after restart.
+There is no browser execution toggle or prerequisite acknowledgement. The internal pause API remains
+available for diagnostics; authentication failures and an expired uncertain idempotency window pause
+submissions and show the actual error. Accepted construction continues in the game.
 
 Before POST, read state/rules again and rerank. A manual build inserted after the first evaluation
 therefore stops or changes the selection. The remote engine remains the final arbiter; another
@@ -79,8 +100,8 @@ The last 100 decisions and any pending request survive restarts in `control.json
 ## Existing starter bots and operator agent
 
 Stop `npm run bot`, the Python starter and LLM shift runners for this account before automatic mode.
-Those independent processes can compete even if the browser is closed. The acknowledgement is a
-human assertion, not proof; a bot running on another machine cannot be detected reliably. Current
+Those independent processes can compete even if the browser is closed. A bot running on another
+machine cannot be detected reliably. Current
 server standing build orders are detected and block this advisor per village.
 Manual gameplay remains available. Its writes use normal API limits and appear in the game's
 activity stream; the President revalidates on the next cycle. Ad hoc operator instructions are in
@@ -103,11 +124,11 @@ The game proxy uses the configured server/key, including the WebSocket hello, so
 not accidentally switch the service's account by forwarding an old Authorization header.
 
 - GET /control/state: masked settings, advisor status, recommendations and journal.
-- PUT /control/settings: origin, player key (optional replacement), world; always pauses automation.
-- PUT /control/automatic: enabled boolean; enabling also requires acknowledgeExclusive:true.
-- POST /control/evaluate: refresh now; still no execution in recommendation-only mode.
+- PUT /control/settings: origin, player key (optional replacement), world; revalidates and resumes the bot.
+- PUT /control/automatic: enabled boolean; internal diagnostic pause/resume, no browser switch.
+- POST /control/evaluate: request a bot cycle; this can execute the configured economic policy.
 - POST /control/key: explicitly reveal the saved key to the authenticated operator.
-- POST /control/pending/resolve: clear an uncertain request only while paused, after explicitly acknowledging activity-log inspection; does not cancel accepted work.
+- POST /control/pending/resolve: clear an uncertain request only while paused, after explicitly acknowledging activity-log inspection; resumes the bot without cancelling accepted work.
 - POST /control/logout: invalidate this browser session.
 
 Initialize the owner key locally using STEWARD_KEY_FILE or STEWARD_KEY. There is no public signup

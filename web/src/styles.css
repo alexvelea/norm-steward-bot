@@ -2234,3 +2234,9 @@ input.num {
 .cc-service-error { position: relative; z-index: 11; padding: 10px 20px; color: var(--ember); background: var(--ink-3); font-size: 12px; }
 .cc-mock-banner { position: fixed; z-index: 20; top: 0; left: 0; right: 0; text-align: center; padding: 8px; background: #302310; color: var(--gold); font-size: 11px; }.cc-mock .world { top: 33px; }
 @media(max-width:800px){.cc-nav { padding: 0 14px; gap: 15px; height: 64px; }.cc-brand { font-size: 15px; }.cc-nav nav { gap: 13px; }.cc-nav nav a { font-size: 10px; }.cc-identity { display: none; }.cc-nav > .btn { margin-left: auto; }.cc-main { padding: 25px 14px 50px; }.cc-page-heading { flex-direction: column; align-items: start; }.cc-page-heading h1 { font-size: 27px; }.cc-stats { grid-template-columns: 1fr; }.cc-stats > div { padding: 13px 16px; }.cc-president { grid-template-columns: 1fr; gap: 16px; }.cc-execution { border-left: 0; border-top: 1px solid var(--line); padding: 18px 0 0; }.cc-columns { grid-template-columns: 1fr; }.cc-proposal { padding: 14px; }.cc-proposal-top { gap: 8px; }.cc-proposal h3 { font-size: 13px; }.cc-score strong { font-size: 20px; }.cc-card { padding: 18px; }.cc-unlock { margin: 10vh 12px; }.cc-settings-facts { grid-template-columns: 90px 1fr; }.cc-section-heading h2 { font-size: 17px; }.cc-nav .cc-brand { display: none; }}
+
+.cc-production { margin: 20px 0; }
+.cc-production summary { cursor:pointer; padding:12px 0; }
+.cc-forecast-scroll { overflow-x:auto; }
+.cc-forecast { width:100%; border-collapse:collapse; font-size:13px; }
+.cc-forecast th, .cc-forecast td { text-align:left; padding:8px; border-bottom:1px solid var(--line, #393328); }

@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { controlRequest, loginCurrentKey, useControl, type ControlView } from "../lib/control";
+import {
+  controlRequest,
+  loginCurrentKey,
+  useControl,
+  type ControlView,
+} from "../lib/control";
 import { setApiKey, useApiKey } from "../lib/keyStore";
 import { navigate, useRoute, worldHref, isMock } from "../lib/router";
 import { formatResources } from "../lib/format";
@@ -62,7 +67,9 @@ function Unlock({ error }: { error: string }) {
     <div className="cc-unlock">
       <div className="eyebrow">Personal bot control center</div>
       <h1>Steward Control</h1>
-      <p className="muted">Unlock with the player key configured on this machine.</p>
+      <p className="muted">
+        Unlock with the player key configured on this machine.
+      </p>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -91,7 +98,9 @@ function Unlock({ error }: { error: string }) {
           {error}
         </p>
       )}
-      <p className="small muted">The persistent service must be running. There is no public signup here.</p>
+      <p className="small muted">
+        The persistent service must be running. There is no public signup here.
+      </p>
     </div>
   );
 }
@@ -123,7 +132,10 @@ function ConnectedCenter({ onLogout }: { onLogout(): Promise<void> }) {
           <Link href="/" className={!settings && !map ? "is-active" : ""}>
             Advisors
           </Link>
-          <Link href={worldHref(view.settings.worldId)} className={map ? "is-active" : ""}>
+          <Link
+            href={worldHref(view.settings.worldId)}
+            className={map ? "is-active" : ""}
+          >
             Map & commands
           </Link>
           <Link href="/settings" className={settings ? "is-active" : ""}>
@@ -151,12 +163,15 @@ function ConnectedCenter({ onLogout }: { onLogout(): Promise<void> }) {
       )}
       {map && route.worldId !== view.settings.worldId && (
         <div className="cc-service-error">
-          Viewing {route.worldId}; the advisor manages {view.settings.worldId}. Change the selected world in Settings to
-          manage this one.
+          Viewing {route.worldId}; the advisor manages {view.settings.worldId}.
+          Change the selected world in Settings to manage this one.
         </div>
       )}
       {map ? (
-        <WorldPage key={`${route.worldId}:${view.settings.serverUrl}:${view.account?.id}`} worldId={route.worldId} />
+        <WorldPage
+          key={`${route.worldId}:${view.settings.serverUrl}:${view.account?.id}`}
+          worldId={route.worldId}
+        />
       ) : settings ? (
         <SettingsPage view={view} onChange={setView} />
       ) : (
@@ -165,24 +180,15 @@ function ConnectedCenter({ onLogout }: { onLogout(): Promise<void> }) {
     </div>
   );
 }
-function AdvisorPage({ view, onChange }: { view: ControlView; onChange(view: ControlView): void }) {
+function AdvisorPage({
+  view,
+  onChange,
+}: {
+  view: ControlView;
+  onChange(view: ControlView): void;
+}) {
   const [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [ack, setAck] = useState(false),
     [inspected, setInspected] = useState(false);
-  const toggle = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      onChange(
-        await controlRequest<ControlView>("/automatic", "PUT", { enabled: !view.automatic, acknowledgeExclusive: ack }),
-      );
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <main className="cc-main">
       <div className="cc-page-heading">
@@ -190,11 +196,12 @@ function AdvisorPage({ view, onChange }: { view: ControlView; onChange(view: Con
           <p className="eyebrow">Your deterministic council</p>
           <h1>Economic Advisor</h1>
           <p className="muted">
-            Short-term upgrades, ranked by need. The President chooses one affordable action at a time.
+            Short-term upgrades, ranked by need. The President chooses one
+            affordable action at a time.
           </p>
         </div>
         <span className={`cc-mode ${view.automatic ? "is-auto" : ""}`}>
-          {view.automatic ? "Automatic execution" : "Recommendations only"}
+          {view.automatic ? "Bot running" : "Needs attention"}
         </span>
       </div>
       <section className="cc-stats">
@@ -207,14 +214,22 @@ function AdvisorPage({ view, onChange }: { view: ControlView; onChange(view: Con
           <span>Managing</span>
           <strong>{view.account?.name || "—"}</strong>
           <small>
-            {view.world?.name || view.settings.worldId} · round {view.world?.round ?? "—"} · tick{" "}
-            {view.world?.tick ?? "—"}
+            {view.world?.name || view.settings.worldId} · round{" "}
+            {view.world?.round ?? "—"} · tick {view.world?.tick ?? "—"}
           </small>
         </div>
         <div>
           <span>Last evaluation</span>
-          <strong>{view.lastEvaluatedAt ? new Date(view.lastEvaluatedAt).toLocaleTimeString() : "Waiting"}</strong>
-          <small>{view.busy ? "Evaluation in progress" : "Persistent service · every 10 seconds"}</small>
+          <strong>
+            {view.lastEvaluatedAt
+              ? new Date(view.lastEvaluatedAt).toLocaleTimeString()
+              : "Waiting"}
+          </strong>
+          <small>
+            {view.busy
+              ? "Evaluation in progress"
+              : "Persistent service · every 10 seconds"}
+          </small>
         </div>
       </section>
       <section className="cc-card cc-president">
@@ -226,42 +241,30 @@ function AdvisorPage({ view, onChange }: { view: ControlView; onChange(view: Con
               : "Wait & preserve resources"}
           </h2>
           <p>{view.selection.reason}</p>
-          {!view.automatic && (
-            <p className="muted small">
-              This is a recommendation. No action is submitted while automatic execution is off.
-            </p>
-          )}
           {view.nextAttemptAt && (
-            <p className="warn-line small">Retry/backoff until {new Date(view.nextAttemptAt).toLocaleTimeString()}.</p>
+            <p className="warn-line small">
+              Retry/backoff until{" "}
+              {new Date(view.nextAttemptAt).toLocaleTimeString()}.
+            </p>
           )}
         </div>
         <div className="cc-execution">
-          <strong>{view.automatic ? "Economic automation is running" : "Automatic execution is off"}</strong>
-          <p className="muted small">
-            Closing the browser does not stop this service. Manual commands still share the same queues and resources.
+          <strong>Targets</strong>
+          <p className="small muted">
+            Storage: stock + 5 minutes. Cellar: 5 minutes of production. Farm:
+            max(50, 20%) free capacity.
           </p>
-          {!view.automatic && (
-            <label className="cc-check">
-              <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />I have stopped the
-              starter bot and other economic loops.
-            </label>
-          )}
-          <button
-            className={`btn ${view.automatic ? "btn-ember" : "btn-gold"}`}
-            role="switch"
-            aria-checked={view.automatic}
-            disabled={busy || (!view.automatic && (!ack || view.connection !== "connected"))}
-            onClick={() => void toggle()}
-          >
-            {view.automatic ? "Turn automatic execution off" : "Enable automatic execution"}
-          </button>
-          {error && (
-            <p className="error-line" role="alert">
-              {error}
-            </p>
-          )}
+          <p className="small muted">
+            Production: lowest projected 3-minute supply relative to the cost of
+            the next producer upgrades.
+          </p>
         </div>
       </section>
+      {error && (
+        <p className="error-line" role="alert">
+          {error}
+        </p>
+      )}
       {view.error && (
         <p className="error-line" role="alert">
           {view.error}
@@ -279,6 +282,68 @@ function AdvisorPage({ view, onChange }: { view: ControlView; onChange(view: Con
           </Link>
         ))}
       </div>
+      <section className="cc-card cc-production">
+        <h2>Total production</h2>
+        {view.production ? (
+          <>
+            <p>
+              {formatResources(view.production.produced)} ·{" "}
+              <strong>
+                {Math.round(
+                  Object.values(view.production.produced).reduce(
+                    (sum, n) => sum + n,
+                    0,
+                  ),
+                ).toLocaleString()}{" "}
+                total
+              </strong>
+            </p>
+            <p className="small muted">
+              Estimated gross production from tick {view.production.fromTick} to{" "}
+              {view.production.toTick}, across all managed villages. Includes
+              production lost to overflow; spending does not reduce this
+              counter.
+            </p>
+          </>
+        ) : (
+          <p className="muted">Waiting for production samples.</p>
+        )}
+        {view.economicForecasts.map((f) => (
+          <details key={f.villageId}>
+            <summary>{f.villageName} · projected resources</summary>
+            <div className="cc-forecast-scroll">
+              <table className="cc-forecast">
+                <thead>
+                  <tr>
+                    <th>Resource</th>
+                    <th>Stock</th>
+                    <th>In 3 min</th>
+                    <th>Producer upgrade costs</th>
+                    <th>Coverage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(["timber", "stone", "iron"] as const).map((r) => (
+                    <tr key={r}>
+                      <th>{r}</th>
+                      <td>{Math.round(f.stock[r]).toLocaleString()}</td>
+                      <td>{Math.round(f.threeMinutes[r]).toLocaleString()}</td>
+                      <td>{f.producerDemand[r].toLocaleString()}</td>
+                      <td>{f.coverage[r].toFixed(2)}×</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="small muted">
+              Free population {f.freePopulation} / target{" "}
+              {Math.ceil(f.requiredFreePopulation)} · storage{" "}
+              {f.storage.toLocaleString()} per resource · protected{" "}
+              {f.hidden.toLocaleString()} per resource.
+            </p>
+          </details>
+        ))}
+      </section>
       <div className="cc-columns">
         <section>
           <div className="cc-section-heading">
@@ -287,7 +352,9 @@ function AdvisorPage({ view, onChange }: { view: ControlView; onChange(view: Con
               className="btn btn-small"
               onClick={async () => {
                 try {
-                  onChange(await controlRequest<ControlView>("/evaluate", "POST", {}));
+                  onChange(
+                    await controlRequest<ControlView>("/evaluate", "POST", {}),
+                  );
                 } catch (e) {
                   setError((e as Error).message);
                 }
@@ -297,7 +364,8 @@ function AdvisorPage({ view, onChange }: { view: ControlView; onChange(view: Con
             </button>
           </div>
           <p className="small muted">
-            90–100 urgent · 70–89 important/save · 40–69 useful · 0–39 discretionary. Ties are deterministic.
+            90–100 capacity · 70–89 protection/speed · 40–69 production.
+            Not-needed upgrades are never built. Ties are deterministic.
           </p>
           <div className="cc-proposals">
             {view.proposals.map((p, i) => (
@@ -306,7 +374,9 @@ function AdvisorPage({ view, onChange }: { view: ControlView; onChange(view: Con
                 className={`cc-proposal ${view.selection.selected?.id === p.id ? "is-selected" : ""}`}
               >
                 <div className="cc-proposal-top">
-                  <span className="cc-rank">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="cc-rank">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
                   <div>
                     <h3>
                       {p.buildingName} <span>→ {p.targetLevel}</span>
@@ -317,23 +387,38 @@ function AdvisorPage({ view, onChange }: { view: ControlView; onChange(view: Con
                     <strong>{p.importance}</strong>
                     <small>/100</small>
                   </div>
-                  <span className={`cc-status status-${p.status}`}>{p.status}</span>
+                  <span className={`cc-status status-${p.status}`}>
+                    {p.status}
+                  </span>
                 </div>
                 <p>{p.reason}</p>
-                <div className="cc-proposal-cost">{formatResources(p.requirements)}</div>
+                <div className="cc-proposal-cost">
+                  {formatResources(p.requirements)}
+                </div>
                 {p.blockers.length > 0 && (
                   <p className="cc-blockers">
-                    {p.blockers.map((b) => b.toLowerCase().replaceAll("_", " ")).join(" · ")}
-                    {p.affordableAtTick !== null ? ` · resources at tick ${p.affordableAtTick}` : ""}
+                    {p.blockers
+                      .map((b) => b.toLowerCase().replaceAll("_", " "))
+                      .join(" · ")}
+                    {p.affordableAtTick !== null
+                      ? ` · resources at tick ${p.affordableAtTick}`
+                      : ""}
                   </p>
                 )}
-                {view.selection.reservations.some((r) => r.proposalId === p.id) && (
-                  <p className="cc-saving">Saving for this upgrade; lower-priority spending is held.</p>
+                {view.selection.reservations.some(
+                  (r) => r.proposalId === p.id,
+                ) && (
+                  <p className="cc-saving">
+                    Saving for this upgrade; lower-priority spending is held.
+                  </p>
                 )}
               </article>
             ))}
             {!view.proposals.length && (
-              <p className="cc-card muted">No proposals yet. Check the connection and selected world in Settings.</p>
+              <p className="cc-card muted">
+                No proposals yet. Check the connection and selected world in
+                Settings.
+              </p>
             )}
           </div>
         </section>
@@ -344,7 +429,9 @@ function AdvisorPage({ view, onChange }: { view: ControlView; onChange(view: Con
             {view.decisions.map((d) => (
               <article key={d.id}>
                 <div>
-                  <span className={`cc-decision-kind kind-${d.kind}`}>{d.kind}</span>
+                  <span className={`cc-decision-kind kind-${d.kind}`}>
+                    {d.kind}
+                  </span>
                   <time>{new Date(d.at).toLocaleTimeString()}</time>
                 </div>
                 <p>{d.text}</p>
@@ -362,26 +449,36 @@ function AdvisorPage({ view, onChange }: { view: ControlView; onChange(view: Con
             <div className="cc-card">
               <h3>Tracked operation</h3>
               <p>
-                {view.pending.proposal.buildingName} → {view.pending.proposal.targetLevel}
+                {view.pending.proposal.buildingName} →{" "}
+                {view.pending.proposal.targetLevel}
               </p>
               <span className="cc-status">{view.pending.phase}</span>
               <p className="small muted">
-                Kept on disk for reconciliation and idempotent retry. Pausing automation does not cancel construction
-                already accepted by the game.
+                Tracked until the game confirms completion. Retries reuse the
+                original request ID.
               </p>
               {view.pending.phase !== "accepted" && !view.automatic && (
                 <>
                   <label className="cc-check">
-                    <input type="checkbox" checked={inspected} onChange={(e) => setInspected(e.target.checked)} />I
-                    inspected game activity and understand this outcome may be unknown.
+                    <input
+                      type="checkbox"
+                      checked={inspected}
+                      onChange={(e) => setInspected(e.target.checked)}
+                    />
+                    I inspected game activity and understand this outcome may be
+                    unknown.
                   </label>
                   <button
                     className="btn btn-small"
-                    disabled={!inspected || busy}
+                    disabled={!inspected}
                     onClick={async () => {
                       try {
                         onChange(
-                          await controlRequest<ControlView>("/pending/resolve", "POST", { acknowledged: inspected }),
+                          await controlRequest<ControlView>(
+                            "/pending/resolve",
+                            "POST",
+                            { acknowledged: inspected },
+                          ),
                         );
                         setInspected(false);
                       } catch (e) {
@@ -398,21 +495,29 @@ function AdvisorPage({ view, onChange }: { view: ControlView; onChange(view: Con
           <div className="cc-card cc-policy">
             <h3>Allocation policy</h3>
             <p>
-              Urgent capacity first. Important resource-only blockers (score ≥70) reserve this village’s resources.
-              Lower priorities may use remaining opportunities only when no important upgrade is saving.
+              The highest needed upgrade reserves this village’s resources until
+              affordable. Lower priorities wait; upgrades marked not-needed
+              never consume resources.
             </p>
             <p>
-              One queued build per village, one new advisor action per cycle. Existing build orders block advisor
-              construction. No army or war automation.
+              One queued build per village, one new advisor action per cycle.
+              Existing build orders block advisor construction. No army or war
+              automation.
             </p>
-            <Link href="/settings">Connection & execution settings →</Link>
+            <Link href="/settings">Connection settings →</Link>
           </div>
         </aside>
       </div>
     </main>
   );
 }
-function SettingsPage({ view, onChange }: { view: ControlView; onChange(view: ControlView): void }) {
+function SettingsPage({
+  view,
+  onChange,
+}: {
+  view: ControlView;
+  onChange(view: ControlView): void;
+}) {
   const [url, setUrl] = useState(view.settings.serverUrl),
     [world, setWorld] = useState(view.settings.worldId),
     [draft, setDraft] = useState(""),
@@ -436,7 +541,7 @@ function SettingsPage({ view, onChange }: { view: ControlView; onChange(view: Co
       setEditing(false);
       setRevealed(null);
       onChange(next);
-      setMessage("Settings saved. Automatic execution is off.");
+      setMessage("Connection updated.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -448,7 +553,8 @@ function SettingsPage({ view, onChange }: { view: ControlView; onChange(view: Co
       <p className="eyebrow">Personal configuration</p>
       <h1>Settings</h1>
       <p className="muted">
-        The local service stores your connection privately. The remote server remains authoritative for game state.
+        The local service stores your connection privately. The remote server
+        remains authoritative for game state.
       </p>
       <section className="cc-card">
         <h2>Game connection</h2>
@@ -460,12 +566,22 @@ function SettingsPage({ view, onChange }: { view: ControlView; onChange(view: Co
         >
           <label className="field">
             <span>Game server URL</span>
-            <input type="url" required value={url} onChange={(e) => setUrl(e.target.value)} />
-            <small>Origin only; changing it pauses automatic execution.</small>
+            <input
+              type="url"
+              required
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+            />
+            <small>Server origin only, without an API path.</small>
           </label>
           <label className="field">
             <span>Selected world</span>
-            <input required list="cc-worlds" value={world} onChange={(e) => setWorld(e.target.value)} />
+            <input
+              required
+              list="cc-worlds"
+              value={world}
+              onChange={(e) => setWorld(e.target.value)}
+            />
             <datalist id="cc-worlds">
               {view.worlds.map((w) => (
                 <option key={w.id} value={w.id}>
@@ -495,7 +611,13 @@ function SettingsPage({ view, onChange }: { view: ControlView; onChange(view: Co
                     revealed === null
                       ? editing
                         ? ""
-                        : (await controlRequest<{ apiKey: string }>("/key", "POST", {})).apiKey
+                        : (
+                            await controlRequest<{ apiKey: string }>(
+                              "/key",
+                              "POST",
+                              {},
+                            )
+                          ).apiKey
                       : null,
                   );
                 } catch (e) {
@@ -517,7 +639,10 @@ function SettingsPage({ view, onChange }: { view: ControlView; onChange(view: Co
               {editing ? "Cancel key edit" : "Edit key"}
             </button>
           </div>
-          <button className="btn btn-gold" disabled={busy || (editing && !draft.trim())}>
+          <button
+            className="btn btn-gold"
+            disabled={busy || (editing && !draft.trim())}
+          >
             {busy ? "Saving…" : "Save connection"}
           </button>
         </form>
@@ -544,17 +669,9 @@ function SettingsPage({ view, onChange }: { view: ControlView; onChange(view: Co
           <dt>Villages</dt>
           <dd>{view.villages.map((v) => v.name).join(", ") || "None"}</dd>
           <dt>Execution</dt>
-          <dd>{view.automatic ? "Automatic" : "Recommendation-only"}</dd>
+          <dd>{view.automatic ? "Bot running" : "Needs attention"}</dd>
         </dl>
         {view.error && <p className="error-line">{view.error}</p>}
-        <p className="small muted">
-          Stop TypeScript/Python starter bots before enabling the Economic Advisor. This app cannot reserve resources
-          against an unrelated bot using the same key. Server standing build orders are detected and left alone.
-        </p>
-        <p className="small muted">
-          Automatic mode always starts off after a service restart. Keys and the decision journal live in a private,
-          ignored file on this machine.
-        </p>
       </section>
     </main>
   );

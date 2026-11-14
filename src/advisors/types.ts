@@ -1,4 +1,9 @@
-import type { Action, Resources, RulesResponse, StateResponse } from "../shared/api.js";
+import type {
+  Action,
+  Resources,
+  RulesResponse,
+  StateResponse,
+} from "../shared/api.js";
 
 export interface AdvisorContext {
   state: StateResponse;
@@ -13,12 +18,12 @@ export interface Proposal {
   buildingName: string;
   currentLevel: number;
   targetLevel: number;
-  /** 0–39 discretionary, 40–69 useful, 70–89 important/save, 90–100 urgent. */
+  /** 0–39 unnecessary (not executed), 40–69 production, 70–89 protection/speed, 90–100 capacity. */
   importance: number;
   reason: string;
   requirements: Resources;
   blockers: string[];
-  status: "ready" | "waiting" | "queued";
+  status: "ready" | "waiting" | "queued" | "not-needed";
   affordableAtTick: number | null;
 }
 export interface Advisor {
@@ -29,4 +34,13 @@ export interface Selection {
   selected: Proposal | null;
   reason: string;
   reservations: { villageId: string; proposalId: string; reason: string }[];
+}
+
+export function compareProposals(a: Proposal, b: Proposal): number {
+  return (
+    Number(a.status === "not-needed") - Number(b.status === "not-needed") ||
+    b.importance - a.importance ||
+    a.villageId.localeCompare(b.villageId) ||
+    a.action.building.localeCompare(b.action.building)
+  );
 }

@@ -36,11 +36,10 @@ refresh the browser after a rebuild. For built files use `npm run build:web` the
 `HOST` defaults to loopback and `PORT` to 8788. A second process is refused by a loopback executor
 lease on port 8790, even if it chooses another UI port. No game engine runs here.
 
-**Recommendation-only is the default**, including after restarts. Nothing in evaluation submits game
-actions until you explicitly enable Automatic execution. The process keeps running after browsers
-close. Automatic mode does not survive a service restart; accepted construction still belongs to
-the game and is reconciled afterward. Stop competing starter/LLM economic bots before enabling it.
-Current server standing build orders cause this advisor to wait in that village.
+The Economic Advisor runs automatically when a valid connection is configured, including after
+restarts. The persistent service owns execution; browsers only display its state. Existing server
+standing build orders make this advisor wait in that village. Do not run an independent starter
+bot on the same account alongside this executor.
 
 `STEWARD_CONTROL_DIR` defaults to ignored `data/control`. The service stores the game key and its
 request/decision journal in mode-0600 `control.json`; keep machine access private. Environment values
@@ -69,7 +68,7 @@ sudo systemctl reload caddy
 Caddy supplies HTTPS at https://alex.norn-steward.velea.cc and forwards to the loopback control
 process. It now serves from this checkout's `web/dist`; copying files to the old static directory
 is no longer the deployment path. On edits rebuild UI and restart the control service for server
-changes (`systemctl restart norm-steward-control`). A restart safely returns to recommendation mode.
+changes (`systemctl restart norm-steward-control`). A restart resumes the economic policy and reconciles any tracked construction.
 Use `systemctl status norm-steward-control` and `journalctl -u norm-steward-control` to inspect it.
 Adapt paths and hostname for another machine; merge Caddy blocks if it hosts other sites.
 
@@ -162,5 +161,5 @@ sudo systemctl restart norm-steward-control
 ```
 
 Do not rerun initialization as a routine deployment step when a token already exists. Restarting
-continues to reset economic automation to recommendation-only. For non-default directories, set
+resumes economic automation. For non-default directories, set
 STEWARD_CONTROL_DIR and optionally STEWARD_ACCESS_TOKEN_HASH_FILE consistently for init and service.

@@ -15,9 +15,10 @@ and proxies game traffic; the central game server continues to own all simulatio
 - Account, selected world, villages, last evaluation and connection status.
 - Economic Advisor proposals ranked by score, with reasons, costs, blockers and readiness.
 - President's selection/reservation and recent recommendation/submission/outcome history.
-- Explicit automatic execution toggle, off by default. Browser tabs never execute advisor loops.
+- Bot status and automatic execution by the persistent service. Browser tabs never execute advisor loops.
+- Estimated cumulative gross production and per-village three-minute supply/cost coverage.
 - **Settings** (`/settings`): server origin, selected world and masked key. Reveal/edit are explicit;
-  saving changes pauses automatic execution. Private routes require the configured owner key.
+  saving changes revalidates the connection and resumes the bot. Private routes require the configured owner key.
 - See [control-center.md](control-center.md) for policy, authentication and persistent execution.
 
 **A world** (`/w/<id>`)

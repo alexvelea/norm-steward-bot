@@ -15,7 +15,11 @@ class Memory implements ControlStorage {
     this.value = structuredClone(v);
   }
 }
-const settings: Settings = { serverUrl: "https://game.test", worldId: "test", apiKey: "test-secret" };
+const settings: Settings = {
+  serverUrl: "https://game.test",
+  worldId: "test",
+  apiKey: "test-secret",
+};
 async function setup() {
   const c = context(),
     storage = new Memory();
@@ -23,9 +27,19 @@ async function setup() {
     reads = 0,
     fail: RemoteError | null = null;
   const writes: Action[][] = [];
-  const request: Remote = async <T>(_s: Settings, path: string, body?: unknown) => {
-    if (path === "/me") return { account: { id: "a1", name: "Tester", createdAt: "" }, worlds: [], sandboxes: [] } as T;
+  const request: Remote = async <T>(
+    _s: Settings,
+    path: string,
+    body?: unknown,
+  ) => {
+    if (path === "/me")
+      return {
+        account: { id: "a1", name: "Tester", createdAt: "" },
+        worlds: [],
+        sandboxes: [],
+      } as T;
     if (path === "/worlds") return [c.state.world] as T;
+    if (path.endsWith("/history")) return { samples: [] } as T;
     if (path.endsWith("/rules")) return structuredClone(c.rules) as T;
     if (path.endsWith("/state")) {
       reads++;
@@ -52,11 +66,19 @@ async function setup() {
     v.buildQueue.push(item);
     return {
       tick: c.state.world.tick,
-      results: [{ ok: true, type: "build", clientId: action.clientId, data: { item } }],
+      results: [
+        { ok: true, type: "build", clientId: action.clientId, data: { item } },
+      ],
       state: structuredClone(c.state),
     } as T;
   };
-  const controller = await Controller.create(storage, settings, request, () => now);
+  const controller = await Controller.create(
+    storage,
+    settings,
+    request,
+    () => now,
+    { execute: false },
+  );
   return {
     controller,
     c,
@@ -76,29 +98,44 @@ async function setup() {
 }
 test("recommendation mode never writes, even when many tabs refresh", async () => {
   const x = await setup();
-  await Promise.all([x.controller.cycle(), x.controller.cycle(), x.controller.cycle()]);
+  await Promise.all([
+    x.controller.cycle(),
+    x.controller.cycle(),
+    x.controller.cycle(),
+  ]);
   await x.controller.cycle();
   assert.equal(x.writes.length, 0);
   assert.equal(x.controller.snapshot().automatic, false);
   assert.ok(x.controller.snapshot().proposals.length);
-  await assert.rejects(x.controller.setAutomatic(true), /acknowledge/);
+  await x.controller.setAutomatic(true);
+  assert.equal(x.controller.snapshot().automatic, true);
 });
 test("one submission survives concurrent evaluation and accepted construction is confirmed separately", async () => {
   const x = await setup();
   await x.controller.cycle();
-  await x.controller.setAutomatic(true, true);
-  await Promise.all([x.controller.cycle(), x.controller.cycle(), x.controller.cycle()]);
+  await x.controller.setAutomatic(true);
+  await Promise.all([
+    x.controller.cycle(),
+    x.controller.cycle(),
+    x.controller.cycle(),
+  ]);
   assert.equal(x.writes.length, 1);
   assert.equal(x.controller.snapshot().pending?.phase, "accepted");
-  assert.equal(x.storage.value?.pending?.action.clientId, x.writes[0][0].clientId);
+  assert.equal(
+    x.storage.value?.pending?.action.clientId,
+    x.writes[0][0].clientId,
+  );
   await x.controller.cycle();
   assert.equal(x.writes.length, 1);
   const pending = x.controller.snapshot().pending!;
   x.c.state.villages[0].buildQueue = [];
-  x.c.state.villages[0].buildings[pending.action.building] = pending.proposal.targetLevel;
+  x.c.state.villages[0].buildings[pending.action.building] =
+    pending.proposal.targetLevel;
   await x.controller.setAutomatic(false);
   await x.controller.cycle();
-  assert.ok(x.controller.snapshot().decisions.some((d) => d.kind === "confirmed"));
+  assert.ok(
+    x.controller.snapshot().decisions.some((d) => d.kind === "confirmed"),
+  );
   assert.equal(x.writes.length, 1);
 });
 test("refresh before submission catches a manual build made after the recommendation", async () => {
@@ -119,36 +156,48 @@ test("refresh before submission catches a manual build made after the recommenda
       ];
     return x.request<T>(s, p, b);
   };
-  const controller = await Controller.create(x.storage, settings, changing);
+  const controller = await Controller.create(
+    x.storage,
+    settings,
+    changing,
+    Date.now,
+    { execute: false },
+  );
   await controller.cycle();
   reads = 0;
-  await controller.setAutomatic(true, true);
+  await controller.setAutomatic(true);
   await controller.cycle();
   assert.equal(x.writes.length, 0);
-  assert.ok(controller.snapshot().proposals.some((p) => p.blockers.includes("BUILD_QUEUE_BUSY")));
+  assert.ok(
+    controller
+      .snapshot()
+      .proposals.some((p) => p.blockers.includes("BUILD_QUEUE_BUSY")),
+  );
 });
-test("uncertain retries preserve the exact ID and payload across restarts; restart never enables automatic mode", async () => {
+test("uncertain retries preserve the exact ID and payload when the bot restarts automatically", async () => {
   const x = await setup();
   await x.controller.cycle();
-  await x.controller.setAutomatic(true, true);
+  await x.controller.setAutomatic(true);
   x.failNext();
   await x.controller.cycle();
   assert.equal(x.writes.length, 1);
   const first = structuredClone(x.writes[0]);
   assert.equal(x.storage.value?.pending?.phase, "uncertain");
-  const restarted = await Controller.create(x.storage, settings, x.request, () => 10000);
+  const restarted = await Controller.create(
+    x.storage,
+    settings,
+    x.request,
+    () => 10000,
+  );
   await restarted.cycle();
-  assert.equal(restarted.snapshot().automatic, false);
-  assert.equal(x.writes.length, 1);
-  await restarted.setAutomatic(true, true);
-  await restarted.cycle();
+  assert.equal(restarted.snapshot().automatic, true);
   assert.equal(x.writes.length, 2);
   assert.deepEqual(x.writes[1], first);
 });
 test("an uncertain operation never adds another level if state has already changed", async () => {
   const x = await setup();
   await x.controller.cycle();
-  await x.controller.setAutomatic(true, true);
+  await x.controller.setAutomatic(true);
   x.failNext();
   await x.controller.cycle();
   const p = x.controller.snapshot().pending!;
@@ -166,12 +215,18 @@ test("an uncertain operation never adds another level if state has already chang
   await x.controller.cycle();
   assert.equal(x.writes.length, 1);
   assert.equal(x.controller.snapshot().pending, null);
-  assert.ok(x.controller.snapshot().decisions.some((d) => d.kind === "uncertain" && d.text.includes("another actor")));
+  assert.ok(
+    x.controller
+      .snapshot()
+      .decisions.some(
+        (d) => d.kind === "uncertain" && d.text.includes("another actor"),
+      ),
+  );
 });
 test("expired idempotency windows pause execution rather than risking a duplicate", async () => {
   const x = await setup();
   await x.controller.cycle();
-  await x.controller.setAutomatic(true, true);
+  await x.controller.setAutomatic(true);
   x.failNext();
   await x.controller.cycle();
   x.c.state.world.tick = x.controller.snapshot().pending!.expiresTick;
@@ -186,7 +241,9 @@ test("a second process cannot acquire the authoritative executor lease", async (
   try {
     const address = first.address();
     assert.ok(address && typeof address !== "string");
-    await assert.rejects(acquireExecutorLease(address.port), { code: "EADDRINUSE" });
+    await assert.rejects(acquireExecutorLease(address.port), {
+      code: "EADDRINUSE",
+    });
   } finally {
     await new Promise<void>((resolve) => first.close(() => resolve()));
   }
@@ -195,7 +252,7 @@ test("a second process cannot acquire the authoritative executor lease", async (
 test("HTTP 429 observes backoff and then reuses the request instead of duplicating it", async () => {
   const x = await setup();
   await x.controller.cycle();
-  await x.controller.setAutomatic(true, true);
+  await x.controller.setAutomatic(true);
   x.failNext(429, 20000);
   await x.controller.cycle();
   const first = structuredClone(x.writes[0]);
@@ -214,17 +271,32 @@ test("per-action errors inside HTTP 200 are rejected, never marked accepted", as
       ? ({
           tick: 100,
           results: [
-            { ok: false, type: "build", error: { code: "QUEUE_FULL", message: "Another actor filled the queue" } },
+            {
+              ok: false,
+              type: "build",
+              error: {
+                code: "QUEUE_FULL",
+                message: "Another actor filled the queue",
+              },
+            },
           ],
         } as T)
       : x.request<T>(s, p, b);
-  const controller = await Controller.create(x.storage, settings, request);
+  const controller = await Controller.create(
+    x.storage,
+    settings,
+    request,
+    Date.now,
+    { execute: false },
+  );
   await controller.cycle();
-  await controller.setAutomatic(true, true);
+  await controller.setAutomatic(true);
   await controller.cycle();
   assert.equal(controller.snapshot().pending, null);
   assert.ok(controller.snapshot().decisions.some((d) => d.kind === "rejected"));
-  assert.ok(!controller.snapshot().decisions.some((d) => d.kind === "accepted"));
+  assert.ok(
+    !controller.snapshot().decisions.some((d) => d.kind === "accepted"),
+  );
 });
 test("no submission occurs if the durable request journal cannot be written", async () => {
   const x = await setup();
@@ -234,7 +306,7 @@ test("no submission occurs if the durable request journal cannot be written", as
     return original(value);
   };
   await x.controller.cycle();
-  await x.controller.setAutomatic(true, true);
+  await x.controller.setAutomatic(true);
   await x.controller.cycle();
   assert.equal(x.writes.length, 0);
   assert.match(x.controller.snapshot().error ?? "", /Disk unavailable/);
@@ -257,10 +329,16 @@ test("turning off automatic execution during revalidation prevents the write", a
     }
     return x.request<T>(s, p, b);
   };
-  const controller = await Controller.create(x.storage, settings, request);
+  const controller = await Controller.create(
+    x.storage,
+    settings,
+    request,
+    Date.now,
+    { execute: false },
+  );
   await controller.cycle();
   reads = 0;
-  await controller.setAutomatic(true, true);
+  await controller.setAutomatic(true);
   const cycle = controller.cycle();
   await reached;
   await controller.setAutomatic(false);
@@ -269,14 +347,14 @@ test("turning off automatic execution during revalidation prevents the write", a
   assert.equal(x.writes.length, 0);
 });
 
-test("key rotation can be configured while tracking accepted work and always pauses execution", async () => {
+test("key rotation preserves tracked work and lets the bot resume", async () => {
   const x = await setup();
   await x.controller.cycle();
-  await x.controller.setAutomatic(true, true);
+  await x.controller.setAutomatic(true);
   await x.controller.cycle();
   assert.equal(x.controller.snapshot().pending?.phase, "accepted");
   await x.controller.configure({ apiKey: "new-test-key" });
-  assert.equal(x.controller.snapshot().automatic, false);
+  assert.equal(x.controller.snapshot().automatic, true);
   assert.equal(x.controller.settings.apiKey, "new-test-key");
   assert.equal(x.controller.snapshot().pending?.phase, "accepted");
   assert.equal(x.writes.length, 1);

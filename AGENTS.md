@@ -12,4 +12,4 @@ This is a personal client repository: a hybrid dashboard and autonomous API bots
 - Do not add CI triggered by push, pull request, or schedule.
 - Verify with npm run typecheck, npm test, and npm run build:web. For UI changes, also run and visually inspect the dashboard.
 
-The persistent control service owns the only advisor executor. Keep recommendation-only as the startup default, journal action IDs before writes, and never add browser execution loops. Local private connection settings are client configuration, not a game account store.
+The persistent control service owns the only advisor executor. Run the configured economic policy automatically on startup, journal action IDs before writes, and never add browser execution loops. Local private connection settings are client configuration, not a game account store.

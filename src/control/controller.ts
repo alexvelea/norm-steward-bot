@@ -1,12 +1,38 @@
 import { randomUUID } from "node:crypto";
-import { createServer as createLeaseServer, type Server as LeaseServer } from "node:net";
-import type { ActionsResponse, MeResponse, RulesResponse, StateResponse, WorldSummary } from "../shared/api.js";
-import { economicAdvisor } from "../advisors/economic.js";
+import {
+  createServer as createLeaseServer,
+  type Server as LeaseServer,
+} from "node:net";
+import type {
+  ActionsResponse,
+  HistoryResponse,
+  MeResponse,
+  RulesResponse,
+  StateResponse,
+  WorldSummary,
+} from "../shared/api.js";
+import {
+  productionScope,
+  productionView,
+  trackProduction,
+} from "./production.js";
+import { economicAdvisor, forecastEconomy } from "../advisors/economic.js";
 import { selectProposal } from "../advisors/president.js";
 import type { AdvisorContext, Proposal } from "../advisors/types.js";
 import type { ControlStorage } from "./storage.js";
-import { remoteRequest, RemoteError, validateOrigin, type Remote } from "./remote.js";
-import type { ControlView, Decision, Pending, SavedControl, Settings } from "./types.js";
+import {
+  remoteRequest,
+  RemoteError,
+  validateOrigin,
+  type Remote,
+} from "./remote.js";
+import type {
+  ControlView,
+  Decision,
+  Pending,
+  SavedControl,
+  Settings,
+} from "./types.js";
 
 /** A kernel-owned loopback listener is a process lease, automatically released even after a crash. */
 export async function acquireExecutorLease(port = 8790): Promise<LeaseServer> {
@@ -22,7 +48,7 @@ export async function acquireExecutorLease(port = 8790): Promise<LeaseServer> {
 }
 export class Controller {
   private saved: SavedControl;
-  private automatic = false;
+  private automatic = true;
   private revision = 0;
   private busy = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -30,7 +56,15 @@ export class Controller {
   private backoffUntil = 0;
   private lastPlan = "";
   private persistence: Promise<void> = Promise.resolve();
-  private view: Omit<ControlView, "settings" | "automatic" | "busy" | "decisions" | "pending" | "nextAttemptAt"> = {
+  private view: Omit<
+    ControlView,
+    | "settings"
+    | "automatic"
+    | "busy"
+    | "decisions"
+    | "pending"
+    | "nextAttemptAt"
+  > = {
     connection: "unconfigured",
     error: null,
     lastEvaluatedAt: null,
@@ -39,8 +73,14 @@ export class Controller {
     world: null,
     villages: [],
     proposals: [],
-    selection: { selected: null, reason: "Waiting for a configured player and world.", reservations: [] },
+    selection: {
+      selected: null,
+      reason: "Waiting for a configured player and world.",
+      reservations: [],
+    },
     conflicts: [],
+    production: null,
+    economicForecasts: [],
   };
   private constructor(
     saved: SavedControl,
@@ -55,10 +95,16 @@ export class Controller {
     initial: Settings,
     request: Remote = remoteRequest,
     now: () => number = Date.now,
+    options: { execute?: boolean } = {},
   ): Promise<Controller> {
-    const saved = (await storage.load()) ?? { settings: initial, pending: null, decisions: [] };
+    const saved = (await storage.load()) ?? {
+      settings: initial,
+      pending: null,
+      decisions: [],
+    };
     saved.settings.serverUrl = validateOrigin(saved.settings.serverUrl);
     const controller = new Controller(saved, storage, request, now);
+    controller.automatic = options.execute !== false;
     await controller.persist();
     return controller;
   }
@@ -79,15 +125,26 @@ export class Controller {
       busy: this.busy,
       decisions: this.saved.decisions,
       pending: this.saved.pending,
-      nextAttemptAt: this.backoffUntil > this.now() ? new Date(this.backoffUntil).toISOString() : null,
+      nextAttemptAt:
+        this.backoffUntil > this.now()
+          ? new Date(this.backoffUntil).toISOString()
+          : null,
     };
   }
   private persist(): Promise<void> {
     const value = structuredClone(this.saved);
-    this.persistence = this.persistence.catch(() => undefined).then(() => this.storage.save(value));
+    this.persistence = this.persistence
+      .catch(() => undefined)
+      .then(() => this.storage.save(value));
     return this.persistence;
   }
-  private record(kind: Decision["kind"], text: string, proposal?: Proposal, clientId?: string, tick?: number): void {
+  private record(
+    kind: Decision["kind"],
+    text: string,
+    proposal?: Proposal,
+    clientId?: string,
+    tick?: number,
+  ): void {
     this.saved.decisions.unshift({
       id: randomUUID(),
       at: new Date(this.now()).toISOString(),
@@ -100,11 +157,15 @@ export class Controller {
     this.saved.decisions = this.saved.decisions.slice(0, 100);
   }
   async configure(input: Partial<Settings>): Promise<void> {
-    if (this.busy) throw new Error("An evaluation is in progress; retry settings in a moment.");
+    if (this.busy)
+      throw new Error(
+        "An evaluation is in progress; retry settings in a moment.",
+      );
     const settings = { ...this.saved.settings, ...input };
     settings.serverUrl = validateOrigin(settings.serverUrl);
-    if (!settings.worldId.trim() || !settings.apiKey.trim()) throw new Error("A player key and world are required.");
-    this.automatic = false;
+    if (!settings.worldId.trim() || !settings.apiKey.trim())
+      throw new Error("A player key and world are required.");
+    this.automatic = true;
     this.revision++;
     this.backoffUntil = 0;
     this.saved.settings = settings;
@@ -116,28 +177,39 @@ export class Controller {
       world: null,
       villages: [],
       proposals: [],
+      economicForecasts: [],
+      production: null,
+      selection: {
+        selected: null,
+        reason: "Revalidating connection.",
+        reservations: [],
+      },
       error: null,
     };
     this.record(
       "waiting",
-      "Settings changed; automatic execution is off. Revalidate the connection before enabling it.",
+      "Connection settings updated; the bot will revalidate the account and resume its economic policy.",
     );
     await this.persist();
     await this.cycle();
   }
-  async setAutomatic(enabled: boolean, acknowledgeExclusive = false): Promise<void> {
+  async setAutomatic(enabled: boolean): Promise<void> {
     if (
       enabled &&
-      (!acknowledgeExclusive || this.view.connection !== "connected" || !this.view.account || !this.view.world)
+      (this.view.connection !== "connected" ||
+        !this.view.account ||
+        !this.view.world)
     )
-      throw new Error("Connect first and acknowledge that no competing economic bot is running.");
+      throw new Error(
+        "The bot needs a valid game connection before it can run.",
+      );
     this.automatic = enabled;
     this.revision++;
     this.record(
       "waiting",
       enabled
-        ? "Automatic Economic Advisor enabled by operator; one action per cycle after fresh revalidation."
-        : "Recommendation-only mode enabled; no new advisor actions will be submitted.",
+        ? "Bot execution resumed; decisions are revalidated against live state."
+        : "Bot execution paused by operator.",
     );
     try {
       await this.persist();
@@ -149,11 +221,15 @@ export class Controller {
   }
   async resolveUncertain(acknowledged: boolean): Promise<void> {
     if (this.automatic || this.busy || !acknowledged)
-      throw new Error("Pause execution and acknowledge inspection of the game activity log first.");
+      throw new Error(
+        "Pause execution and acknowledge inspection of the game activity log first.",
+      );
     const pending = this.saved.pending;
     if (!pending) return;
     if (pending.phase === "accepted")
-      throw new Error("Accepted construction is still tracked; wait for completion or cancel it in Town view.");
+      throw new Error(
+        "Accepted construction is still tracked; wait for completion or cancel it in Town view.",
+      );
     this.record(
       "uncertain",
       "Operator inspected the activity log and cleared this uncertain operation. Its original request ID remains in history.",
@@ -161,6 +237,7 @@ export class Controller {
       pending.action.clientId,
     );
     this.saved.pending = null;
+    this.automatic = true;
     this.backoffUntil = 0;
     await this.persist();
   }
@@ -187,14 +264,22 @@ export class Controller {
       this.request<StateResponse>(settings, this.path("/state")),
       this.request<RulesResponse>(settings, this.path("/rules")),
     ]);
-    if (state.world.id !== settings.worldId) throw new Error("Returned state belongs to another world.");
+    if (state.world.id !== settings.worldId)
+      throw new Error("Returned state belongs to another world.");
     if (rules.version !== state.world.rulesVersion)
-      throw new Error("Rules version mismatch; wait for compatible live rules.");
+      throw new Error(
+        "Rules version mismatch; wait for compatible live rules.",
+      );
     return { state, rules };
   }
   private plan(context: AdvisorContext): void {
     this.view.world = context.state.world;
-    this.view.villages = context.state.villages.map((v) => ({ id: v.id, name: v.name, points: v.points }));
+    this.view.villages = context.state.villages.map((v) => ({
+      id: v.id,
+      name: v.name,
+      points: v.points,
+    }));
+    this.view.economicForecasts = context.state.villages.map(forecastEconomy);
     this.view.proposals = economicAdvisor.evaluate(context);
     this.view.selection = selectProposal(this.view.proposals);
     if (this.saved.pending?.phase === "accepted") {
@@ -207,7 +292,10 @@ export class Controller {
     }
     this.view.conflicts = context.state.villages
       .filter((v) => v.orders.build.length > 0)
-      .map((v) => `${v.name} has server standing build orders. The advisor will not add competing construction there.`);
+      .map(
+        (v) =>
+          `${v.name} has server standing build orders. The advisor will not add competing construction there.`,
+      );
     const selected = this.view.selection.selected;
     const signature = JSON.stringify({
       id: selected?.id,
@@ -251,11 +339,15 @@ export class Controller {
       await this.persist();
       return;
     }
-    const item = p.itemId ? v.buildQueue.find((q) => q.id === p.itemId) : undefined;
+    const item = p.itemId
+      ? v.buildQueue.find((q) => q.id === p.itemId)
+      : undefined;
     if (p.phase === "accepted") {
       if (item) return;
       this.record(
-        v.buildings[p.action.building] >= p.proposal.targetLevel ? "confirmed" : "cancelled",
+        v.buildings[p.action.building] >= p.proposal.targetLevel
+          ? "confirmed"
+          : "cancelled",
         v.buildings[p.action.building] >= p.proposal.targetLevel
           ? `${p.proposal.buildingName} reached level ${p.proposal.targetLevel}, confirmed by fresh server state.`
           : "Accepted construction disappeared without reaching its target; it may have been cancelled by another actor.",
@@ -304,7 +396,9 @@ export class Controller {
     this.busy = true;
     const revision = this.revision;
     try {
-      this.view.connection = this.view.account ? this.view.connection : "connecting";
+      this.view.connection = this.view.account
+        ? this.view.connection
+        : "connecting";
       const [me, worlds] = await Promise.all([
         this.request<MeResponse>(this.settings, "/me"),
         this.request<WorldSummary[]>(this.settings, "/worlds"),
@@ -314,6 +408,27 @@ export class Controller {
       const context = await this.readContext();
       this.view.connection = "connected";
       this.view.error = null;
+      const scope = productionScope(
+        this.settings.serverUrl,
+        me.account.id,
+        context.state,
+      );
+      let history: HistoryResponse = { samples: [] };
+      if (this.saved.production?.scope !== scope) {
+        try {
+          history = await this.request<HistoryResponse>(
+            this.settings,
+            this.path("/history"),
+          );
+        } catch {}
+      }
+      this.saved.production = trackProduction(
+        this.saved.production,
+        scope,
+        context.state,
+        history.samples,
+      );
+      this.view.production = productionView(this.saved.production);
       await this.reconcile(context);
       this.plan(context);
       await this.persist();
@@ -321,17 +436,32 @@ export class Controller {
       if (this.saved.pending?.phase === "accepted") return;
       // Read state and live rules again immediately before sending: manual commands may have won the race.
       const fresh = await this.readContext();
+      this.saved.production = trackProduction(
+        this.saved.production,
+        productionScope(this.settings.serverUrl, me.account.id, fresh.state),
+        fresh.state,
+      );
+      this.view.production = productionView(this.saved.production);
       this.plan(fresh);
       await this.reconcile(fresh);
       if (!this.automatic || revision !== this.revision || this.stopped) return;
       const selected = this.view.selection.selected;
       if (!selected) return;
       let pending = this.saved.pending;
-      if (pending && (pending.proposal.id !== selected.id || fresh.state.world.tick >= pending.expiresTick)) return;
+      if (
+        pending &&
+        (pending.proposal.id !== selected.id ||
+          fresh.state.world.tick >= pending.expiresTick)
+      )
+        return;
       if (!pending) {
-        const ttl = Number((fresh.rules.rules.LIMITS as { clientIdTtl?: number })?.clientIdTtl);
+        const ttl = Number(
+          (fresh.rules.rules.LIMITS as { clientIdTtl?: number })?.clientIdTtl,
+        );
         if (!Number.isFinite(ttl) || ttl <= 1)
-          throw new Error("Live idempotency TTL is unavailable; refusing to execute.");
+          throw new Error(
+            "Live idempotency TTL is unavailable; refusing to execute.",
+          );
         pending = {
           proposal: selected,
           action: { ...selected.action, clientId: `econ-${randomUUID()}` },
@@ -363,13 +493,22 @@ export class Controller {
           pending.action.clientId,
           fresh.state.world.tick,
         );
-        const response = await this.request<ActionsResponse>(this.settings, this.path("/actions"), {
-          actions: [pending.action],
-          returnState: true,
-          note: `Economic Advisor: ${pending.proposal.buildingName}; importance ${pending.proposal.importance}`,
-        });
+        const response = await this.request<ActionsResponse>(
+          this.settings,
+          this.path("/actions"),
+          {
+            actions: [pending.action],
+            returnState: true,
+            note: `Economic Advisor: ${pending.proposal.buildingName}; importance ${pending.proposal.importance}`,
+          },
+        );
         const result = response.results[0];
-        if (!result) throw new RemoteError(0, 5000, "Action response contained no result; outcome unknown.");
+        if (!result)
+          throw new RemoteError(
+            0,
+            5000,
+            "Action response contained no result; outcome unknown.",
+          );
         if (!result.ok) {
           this.record(
             "rejected",
@@ -379,7 +518,9 @@ export class Controller {
             response.tick,
           );
           this.saved.pending = null;
-          this.backoffUntil = this.now() + Math.max(10000, Number(result.error.details?.retryAfterMs) || 0);
+          this.backoffUntil =
+            this.now() +
+            Math.max(10000, Number(result.error.details?.retryAfterMs) || 0);
         } else if ("item" in result.data) {
           pending.phase = "accepted";
           pending.itemId = result.data.item.id;
@@ -390,15 +531,32 @@ export class Controller {
             pending.action.clientId,
             response.tick,
           );
-        } else throw new RemoteError(0, 5000, "Unexpected action result; inspect the game activity log.");
+        } else
+          throw new RemoteError(
+            0,
+            5000,
+            "Unexpected action result; inspect the game activity log.",
+          );
         await this.persist();
       } catch (e) {
         const error =
-          e instanceof RemoteError ? e : new RemoteError(0, 5000, "Unexpected transport error; outcome is unknown.");
+          e instanceof RemoteError
+            ? e
+            : new RemoteError(
+                0,
+                5000,
+                "Unexpected transport error; outcome is unknown.",
+              );
         if (error.status && error.status < 500 && error.status !== 429) {
           this.saved.pending = null;
-          this.record("rejected", error.message, selected, pending.action.clientId);
-          if (error.status === 401 || error.status === 403) this.automatic = false;
+          this.record(
+            "rejected",
+            error.message,
+            selected,
+            pending.action.clientId,
+          );
+          if (error.status === 401 || error.status === 403)
+            this.automatic = false;
         } else {
           pending.phase = "uncertain";
           this.record(
@@ -416,7 +574,8 @@ export class Controller {
       this.view.error = e instanceof Error ? e.message : "Evaluation failed.";
       const delay = e instanceof RemoteError ? e.retryMs : 10000;
       this.backoffUntil = this.now() + delay;
-      if (e instanceof RemoteError && (e.status === 401 || e.status === 403)) this.automatic = false;
+      if (e instanceof RemoteError && (e.status === 401 || e.status === 403))
+        this.automatic = false;
     } finally {
       this.busy = false;
     }

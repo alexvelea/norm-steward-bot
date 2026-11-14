@@ -1,47 +1,42 @@
-import type { Proposal, Selection } from "./types.js";
+import { compareProposals, type Proposal, type Selection } from "./types.js";
 
-/** One new build globally per cycle, never borrowing resources between villages. */
+/** Keep each village's budget for its highest-priority needed action, including production. */
 export function selectProposal(proposals: Proposal[]): Selection {
-  const ranked = [...proposals].sort(
-    (a, b) =>
-      b.importance - a.importance ||
-      a.villageId.localeCompare(b.villageId) ||
-      a.action.building.localeCompare(b.action.building),
-  );
-  const reservations: Selection["reservations"] = [];
-  const candidates: Proposal[] = [];
+  const ranked = [...proposals].sort(compareProposals);
+  const reservations: Selection["reservations"] = [],
+    candidates: Proposal[] = [];
   for (const villageId of new Set(ranked.map((p) => p.villageId))) {
-    const local = ranked.filter((p) => p.villageId === villageId && p.status !== "queued");
-    const top = local[0];
-    if (!top) continue;
-    const save = local.find(
+    const top = ranked.find(
       (p) =>
-        p.importance >= 70 &&
-        p.status === "waiting" &&
-        p.blockers.length > 0 &&
-        p.blockers.every((b) => b === "INSUFFICIENT_RESOURCES"),
+        p.villageId === villageId &&
+        p.status !== "queued" &&
+        p.status !== "not-needed",
     );
-    if (save && !local.some((p) => p.status === "ready" && p.importance >= save.importance)) {
+    if (!top) continue;
+    if (top.status === "ready") candidates.push(top);
+    else if (
+      top.blockers.length &&
+      top.blockers.every((b) => b === "INSUFFICIENT_RESOURCES")
+    )
       reservations.push({
         villageId,
-        proposalId: save.id,
-        reason: `Save for ${save.buildingName} ${save.targetLevel} (score ${save.importance}); do not spend this village's resources on lower priorities.`,
+        proposalId: top.id,
+        reason: `Save for ${top.buildingName} ${top.targetLevel} in ${top.villageName} (score ${top.importance}). Keep the budget for this needed upgrade instead of spending on a lower priority.`,
       });
-      continue;
-    }
-    const ready = local.find((p) => p.status === "ready");
-    if (ready) candidates.push(ready);
   }
-  const selected = candidates.sort((a, b) => b.importance - a.importance || a.id.localeCompare(b.id))[0] ?? null;
+  const selected = candidates.sort(compareProposals)[0] ?? null;
+  const blocked = ranked.find((p) => p.status === "waiting");
   return {
     selected,
     reservations,
     reason: selected
-      ? `${selected.buildingName} in ${selected.villageName} is the highest-ranked affordable, unblocked proposal (score ${selected.importance}). Ties use village ID then building name.`
+      ? `${selected.buildingName} in ${selected.villageName} is the highest-priority needed action and is affordable now (score ${selected.importance}).`
       : reservations.length
         ? reservations.map((r) => r.reason).join(" ")
-        : ranked.length
-          ? `Wait: ${ranked.find((p) => p.status !== "queued")?.buildingName ?? ranked[0].buildingName} is highest priority, but ${(ranked.find((p) => p.status !== "queued") ?? ranked[0]).blockers.map((b) => b.toLowerCase().replaceAll("_", " ")).join(", ") || "existing construction"} prevents a new action.`
-          : "No economic upgrades are currently proposed.",
+        : blocked
+          ? `Wait for ${blocked.buildingName}: ${blocked.blockers.map((b) => b.toLowerCase().replaceAll("_", " ")).join(", ")}.`
+          : ranked.some((p) => p.status === "queued")
+            ? "Construction is in progress; reassess when it finishes."
+            : "No upgrade is currently needed; retain resources.",
   };
 }
