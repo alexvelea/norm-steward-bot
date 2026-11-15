@@ -72,3 +72,28 @@ At r8.0 tick 9275, the known attack arrives in 10 ticks and current construction
 giving -206 ticks. Military buildings, troops and training remain empty. This is timing evidence,
 not a tested defence policy. Five further defensive scouting reports and zero battles were observed
 since tick 7473 with complete interval coverage; no combat benefit is measured.
+
+Construction horizon work remains an offline audit before a sandbox-tested spending guard:
+
+```bash
+node --import tsx scripts/construction-horizon.ts /path/to/run/evidence > /path/outside/git/construction-horizon.json
+```
+
+It reads only redacted `state.json`, preserves server build options and costs, and compares queued
+completion ticks with the current round end. Option projections combine current duration, server
+affordability, Council cooldown and the latest construction end across owned villages. They are
+conditional observations: queued Hall/producer completions can change durations/affordability,
+other blockers still apply, and polling, new spending and standing orders are not projected.
+Unknown affordability stays unknown; max-level placeholders get no completion projection.
+Equality at round end does not prove ordering or usefulness. No advisor policy or executor changes.
+
+At r9.0 ticks 3807 to 5616 there was no reset. Hall rose 11 to 12, lumberyard/quarry 17 to 20,
+mine 15 to 18, farm 4 to 7 and storehouse 8 to 11. The covered report interval contains two
+defensive scouting reports and five defensive battles, all losses. Military buildings, troops
+and training remain empty. Current lumberyard construction ends at 5617, costing 4337 timber,
+5204 stone and 3469 iron; an attack arrives at 5725. All non-maxed option projections fit before
+round end 10800 at current durations, including options with unmet prerequisites. These are
+observations, not readiness or measured policy benefit. The previous review activated no guard;
+ordinary economic execution, attacks and snapshot timing confound attribution. Next compare
+a bounded guard to current policy in owner-created private sandboxes, especially completion
+boundaries, resource waits, queued Hall changes and fresh executor revalidation.
