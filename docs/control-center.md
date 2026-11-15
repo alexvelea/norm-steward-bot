@@ -28,6 +28,8 @@ Scores are deterministic integers:
 | Initial defence | 78 for an affordable batch of at most five toward ten owned Pikemen, then at most five Shieldmen where already unlocked; preserve the economic population buffer, with no resource reservation or prerequisite purchases |
 | First Barracks | 79 when unlocked and usable, below capacity/protection and ahead of discretionary Hall/production investment (ties prefer Barracks); no further military levels |
 | First defensive Smithy | 77 after ten owned Pikemen, with existing Hall/Barracks prerequisites and enough current resources and population for Smithy 1 plus the remaining complement of at most five Shieldmen; no resource reservation |
+| Initial raiding force | 76 for affordable batches of at most five toward ten owned Raiders, after ten Pikemen and five Shieldmen exist; existing unlocks, population buffer and 300 ticks for use required; no attacks |
+| Raiding Smithy unlock | 75 for Smithy 1→2 only, after the defensive complement exists, with construction plus the remaining ten-Raider force funded now and at least 600 ticks after construction; no prerequisite chain or resource reservation |
 | Great Hall | 70–79 only when Hall-first finishes the same useful upgrade sequence sooner after resource costs/waits and a safety margin; otherwise not-needed (30) |
 | Resource producer | 60 for lowest projected coverage, then 50 and 40; ties share a score |
 

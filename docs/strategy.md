@@ -99,6 +99,42 @@ battle losses or an optimal allocation.
 
 ## Priority: create useful military capability
 
+### Bounded raiding-force step
+
+The next enabling purchase is Smithy 2 (score 75), only after ten owned Pikemen and five
+owned Shieldmen exist, Smithy 1 is complete and the complete remaining force of at most ten
+Raiders is funded from current stock. Preserve max(50, 20% of capacity) free population
+after construction and recruitment. Buy no earlier Smithy levels, Hall prerequisites or
+further military upgrades for this proposal. Unavailable or unfunded paths never reserve
+the economy. Construction must leave at least 600 ticks, extended for the complete force's
+training, multiple Council intervals and 300 ticks for use.
+
+Recruitment is a separate President decision at score 76, at most five Raiders per batch
+toward ten home + away + queued. It requires the completed defensive complement, existing
+live prerequisites, current affordability, the population buffer, idle queues and no competing
+standing orders. Before starting a partial batch, current funding and population must fit
+the entire remaining force, whose training plus Council intervals must leave 300 ticks for use.
+The normal durable executor
+journals and reconciles construction and training. It sends no attacks.
+
+Run `node --import tsx scripts/experiment-raiding.ts` for matched useful/late private cases
+and restart reconciliation. `scripts/experiment-raiding-risk.ts` tests explicit scouting and
+combat fixtures using the authoritative non-mutating server simulator. These fixtures are
+not current enemy intelligence and do not establish profitable live raids. Live rules require
+Hall 10, Barracks 5 and Smithy 5 for Stable 1; this policy does not buy that prerequisite chain.
+Scouting, report freshness, target-risk evaluation and durable command execution remain
+subsequent steps under the pinned raiding workstream.
+
+Four matched final-source private cases verified the step. From tick 1200 to 1347,
+the useful candidate built Smithy 2 and trained two five-Raider batches for 827 timber,
+577 stone and 752 iron, increasing population from 79 to 92 of 200. The baseline spent
+239/286/191 on three Lumberyard upgrades and trained no Raiders. With only 599 ticks
+after the prospective Smithy completion, both policies retained Smithy 1 and no Raiders,
+making identical economic purchases. Candidate actions were journalled before writes and
+confirmed after paused restarts without duplicate submissions. Isolated server simulations
+showed ten Raiders surviving an undefended target with 120 total loot, but losing all ten
+against ten Pikemen and five Shieldmen. Those are explicit fixtures, not observed live targets.
+
 The observed land had no troops/training, no military infrastructure, repeated raids and 21/26
 retained defensive reports lost. The initial 17 scheduled reviews shipped only reports. Historical
 absence of battle details is not a reason to defer a controlled infrastructure/recruitment experiment.
