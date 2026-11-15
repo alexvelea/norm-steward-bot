@@ -3,7 +3,7 @@ import type { BuildingId, ReportsResponse, RulesResponse, StateResponse } from "
 const militaryBuildings = ["barracks", "smithy", "wall", "watchtower", "stable", "workshop"] as const;
 
 /** Observations only: no actions, combat model, or hypothetical recruitment target. */
-export function defenceReadiness(state: StateResponse, rules: RulesResponse, reports: ReportsResponse) {
+export function defenceReadiness(state: StateResponse, rules: RulesResponse, reports: ReportsResponse, previous?: StateResponse) {
   if (state.world.rulesVersion !== rules.version) throw new Error("Evidence rules version mismatch");
   const metadata = rules.rules.BUILDINGS as Record<BuildingId, { requires: Partial<Record<BuildingId, number>> }>;
   if (!metadata) throw new Error("Missing building prerequisites in evidence");
@@ -18,6 +18,7 @@ export function defenceReadiness(state: StateResponse, rules: RulesResponse, rep
       "Queue drain excludes polling, Council cooldown, standing orders, other villages and future actions; it is not a readiness forecast.",
     ],
     reports: { retained: reports.reports.length, hasOlderPage: reports.next !== null },
+    comparison: previous ? compareReadiness(state, previous, reports) : null,
     villages: state.villages.map(v => {
       const incoming = state.commands.incoming.filter(c => c.kind === "attack" && c.to.id === v.id);
       const battles = reports.reports.filter(r => r.kind === "battle" && r.role === "defender" && r.defender.id === v.id);
@@ -45,5 +46,38 @@ export function defenceReadiness(state: StateResponse, rules: RulesResponse, rep
         trainingOptions: v.options.train,
       };
     }),
+  };
+}
+
+/** Compare observations, never policy effectiveness. Reports have no epoch of their own. */
+function compareReadiness(state: StateResponse, previous: StateResponse, reports: ReportsResponse) {
+  const sameScope = state.world.id === previous.world.id && state.world.epoch === previous.world.epoch
+    && state.world.round === previous.world.round && state.player.id === previous.player.id;
+  if (!sameScope || previous.world.tick >= state.world.tick) {
+    return { status: "not-comparable" as const,
+      reason: "Different account/world/epoch/round, or previous tick is not earlier." };
+  }
+  const fromTick = previous.world.tick;
+  const toTick = state.world.tick;
+  // A page reaching the boundary (or exhausted history) covers this interval under the
+  // server's newest-first pagination contract. Deduplicate IDs before counting.
+  const retained = [...new Map(reports.reports.map(r => [r.id, r])).values()];
+  const intervalCovered = reports.next === null || retained.some(r => r.tick <= fromTick);
+  const interval = retained.filter(r => r.tick > fromTick && r.tick <= toTick);
+  return {
+    status: "comparable" as const, fromTick, toTick, elapsedTicks: toTick - fromTick,
+    reportIntervalCovered: intervalCovered,
+    limitation: "Observed changes are not policy effects; raids, operator actions and collection timing may confound them. Counts are lower bounds when reportIntervalCovered is false.",
+    villages: state.villages.map(v => {
+      const old = previous.villages.find(p => p.id === v.id);
+      const battles = interval.filter(r => r.kind === "battle" && r.role === "defender" && r.defender.id === v.id);
+      return { villageId: v.id, presentPreviously: !!old,
+        buildingLevelChanges: old ? Object.entries(v.buildings)
+          .filter(([id, level]) => level !== old.buildings[id as BuildingId])
+          .map(([id, level]) => ({ building: id, before: old.buildings[id as BuildingId], after: level })) : null,
+        observedDefensiveBattles: battles.length,
+        observedDefensiveLosses: battles.filter(r => r.outcome === "lost").length };
+    }),
+    missingPreviousVillageIds: previous.villages.filter(old => !state.villages.some(v => v.id === old.id)).map(v => v.id),
   };
 }

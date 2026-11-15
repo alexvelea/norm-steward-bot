@@ -23,6 +23,8 @@ outcomes from redacted evidence. Run it without a server or client credentials:
 
 ```bash
 node --import tsx scripts/defence-readiness.ts /path/to/run/evidence > /path/outside/git/defence-readiness.json
+# Optional: compare two evidence snapshots from the same server.
+node --import tsx scripts/defence-readiness.ts /path/to/current/evidence /path/to/previous/evidence > /path/outside/git/defence-comparison.json
 ```
 
 The report reads only `state.json`, `rules.json` and `reports.json`. It makes no requests and does
@@ -32,3 +34,17 @@ and queue drain is not a readiness forecast. Missing collection data or mismatch
 fail rather than imply safety. Next, obtain redacted battle detail and compare one bounded defence
 policy to the current policy in owner-created private sandboxes. Recruitment still requires extending
 the build-only proposal contract and durable executor through the President; this is unfinished.
+
+The optional comparison reads only the earlier `state.json`. It refuses different player/world/
+epoch/round scopes and non-forward ticks, reports building changes and village turnover, and counts
+unique defensive battle IDs in `(previous tick, current tick]`. Counts are observed lower bounds
+unless the retained report page reaches the earlier tick or exhausts history. Scouting, other
+villages and reports after the current snapshot tick are excluded. Inputs must come from the same
+server; state evidence does not identify the origin. No comparison attributes changes to policy.
+
+Review observation at r7.0 ticks 7535 to 9335: the page covers the interval and records 18 new
+defensive battles, all losses. Lumberyard rose 20 to 23, quarry 20 to 22, farm 7 to 8 and storehouse
+15 to 17; Hall stayed 6 and mine 20. No round reset occurred. The earlier readiness report helped
+expose prerequisites and queue constraints, but no military policy was activated and no combat
+benefit is measured. Raids, ordinary economic execution and snapshot timing confound policy
+attribution. Battle details and reproducible owner-sandbox comparisons remain the next defence step.

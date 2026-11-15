@@ -38,3 +38,50 @@ test("retained losses exclude scouting and other villages; pagination stays visi
   rules.version++;
   assert.throws(() => defenceReadiness(state, rules, reports), /version mismatch/);
 });
+
+test("comparison counts interval battles once and exposes truncated history", () => {
+  const { state, rules } = context();
+  const previous = structuredClone(state);
+  previous.world.tick = 50;
+  previous.villages[0].buildings.mine = 0;
+  const ref = { id: "v1", name: "Test", x: 1, y: 1, ownerId: "p1", ownerName: "Tester" };
+  const report = { id: "new", tick: 75, kind: "battle", role: "defender", commandId: null, attacker: ref, defender: ref, outcome: "lost", conquered: false, read: false } as const;
+  const reports: ReportsResponse = { reports: [report, report,
+    { ...report, id: "scout", kind: "scouting" },
+    { ...report, id: "foreign", defender: { ...ref, id: "other" } },
+    { ...report, id: "future", tick: 101 }], next: "older" };
+  const before = JSON.stringify({ state, previous, reports });
+  const comparison = defenceReadiness(state, rules, reports, previous).comparison!;
+  assert.equal(comparison.status, "comparable");
+  if (comparison.status !== "comparable") throw new Error("Expected comparison");
+  assert.equal(comparison.reportIntervalCovered, false);
+  assert.equal(comparison.elapsedTicks, 50);
+  assert.equal(comparison.villages[0].observedDefensiveLosses, 1);
+  assert.deepEqual(comparison.villages[0].buildingLevelChanges, [{ building: "mine", before: 0, after: 1 }]);
+  assert.equal(JSON.stringify({ state, previous, reports }), before);
+  reports.reports.push({ ...report, id: "boundary", tick: 50 });
+  const covered = defenceReadiness(state, rules, reports, previous).comparison!;
+  assert.equal(covered.status === "comparable" && covered.reportIntervalCovered, true);
+  assert.equal(covered.status === "comparable" && covered.villages[0].observedDefensiveLosses, 1);
+  reports.reports = [];
+  reports.next = null;
+  const empty = defenceReadiness(state, rules, reports, previous).comparison!;
+  assert.equal(empty.status === "comparable" && empty.reportIntervalCovered, true);
+});
+
+test("comparison refuses resets, account changes and non-forward clocks", () => {
+  const { state, rules } = context();
+  for (const mutate of [
+    (p: typeof state) => { p.world.epoch = "previous"; },
+    (p: typeof state) => { p.world.round++; },
+    (p: typeof state) => { p.world.id = "other"; },
+    (p: typeof state) => { p.player.id = "other"; },
+    (p: typeof state) => { p.world.tick = 100; },
+    (p: typeof state) => { p.world.tick = 101; },
+  ]) {
+    const previous = structuredClone(state);
+    previous.world.tick = 50;
+    mutate(previous);
+    assert.equal(defenceReadiness(state, rules, { reports: [], next: null }, previous).comparison?.status, "not-comparable");
+  }
+});
