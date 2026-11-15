@@ -167,3 +167,35 @@ Production upgrades now have an additional deadline: marginal output must repay 
 three-resource bill by round end, including funding waits and construction. The Hall's projected
 producer pipeline applies this gate too. Farm/storage/protection remain separate necessity tests.
 This avoids saving or spending for late investments whose gross return cannot cover their cost.
+
+## Bounded scouting readiness
+
+The Military Advisor can buy Stable 1 at score 73 and train up to two owned Scouts at score 74,
+only after ten Pikemen, five Shieldmen and ten Raiders are owned (home plus away). Scouts at home,
+away and queued all count toward the cap. Existing Stable levels also qualify for recruitment;
+no Stable upgrades or prerequisite chains are purchased. In particular, the live Stable prerequisites
+currently require Hall 10, Barracks 5 and Smithy 5, which this policy does not fund.
+
+The entire missing Scout complement and, if needed, Stable 1 must be funded from current stock.
+Keep the economic population buffer after construction and recruitment, respect live prerequisites,
+options, storage, batch limits, queues, standing orders, pause and Council cooldown. Construction
+must leave full-complement training, another Council interval and 600 ticks for use. Recruitment
+rechecks live state and also leaves 600 ticks. Unavailable paths never reserve the village budget.
+Both purchases use the existing President and durable build/train executor.
+
+Reproduce the matched policy and restart comparison with `scripts/experiment-scouting.ts`, and
+physical successful/failed scouting probes with `scripts/experiment-scouting-probes.ts`. These
+probes are private test commands, not a second live executor. Automatic scouting dispatch, report
+collection and freshness-aware target selection remain subsequent work. A retained success report
+is an observation at its report tick; it cannot establish current troops, resources or ownership.
+
+The useful matched private case completed Stable 1 and two Scouts in 63 ticks for 360 timber,
+350 stone and 310 iron, using 12 additional population. The deployed-policy baseline instead
+completed two Lumberyard upgrades for 141/169/113 at the same comparison tick. Both candidate
+operations were journalled before submission and confirmed after a paused restart without another
+POST. Separate physical probes returned a scouting success for two Scouts and a failed one-Scout
+run against one supplied defending Scout. The successful report retained its observation tick
+when read 814 ticks later; full intel details are not exposed by the managed sandbox read interface.
+These observations establish readiness and report age, not profitable live target selection.
+Both private policies rejected the new Scout path when full training would leave only 599 ticks
+for use, and made identical economic purchases for 159 timber, 155 stone and 114 iron instead.

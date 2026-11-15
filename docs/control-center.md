@@ -246,3 +246,10 @@ The service evaluates live state once per second. Account/world-list metadata is
 rules version, and are fetched again immediately before an action. Idle cycles avoid a redundant
 second state read. This stays within the upstream four-per-second dashboard read budget while the
 browser polls the local snapshot every second. Rate-limit/error backoff remains in effect.
+
+The bounded scouting readiness policy proposes Stable 1 (73) and up to two owned Scouts (74)
+after the defensive complement and ten Raiders exist. It buys no Stable prerequisite levels and
+requires current funding for infrastructure plus the entire missing Scout complement, the normal
+population buffer and 600 ticks after full training. It shares the same President, queue/order
+checks, persisted pause and durable build/train reconciliation. It never dispatches a command or
+treats an old scouting report as current target intelligence; see docs/strategy.md for reproduction.
