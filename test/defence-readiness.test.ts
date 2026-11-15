@@ -48,6 +48,10 @@ test("comparison counts interval battles once and exposes truncated history", ()
   const report = { id: "new", tick: 75, kind: "battle", role: "defender", commandId: null, attacker: ref, defender: ref, outcome: "lost", conquered: false, read: false } as const;
   const reports: ReportsResponse = { reports: [report, report,
     { ...report, id: "scout", kind: "scouting" },
+    { ...report, id: "scout", kind: "scouting" },
+    { ...report, id: "future-scout", kind: "scouting", tick: 101 },
+    { ...report, id: "foreign-scout", kind: "scouting", defender: { ...ref, id: "other" } },
+    { ...report, id: "outbound-scout", kind: "scouting", role: "attacker" },
     { ...report, id: "foreign", defender: { ...ref, id: "other" } },
     { ...report, id: "future", tick: 101 }], next: "older" };
   const before = JSON.stringify({ state, previous, reports });
@@ -56,17 +60,21 @@ test("comparison counts interval battles once and exposes truncated history", ()
   if (comparison.status !== "comparable") throw new Error("Expected comparison");
   assert.equal(comparison.reportIntervalCovered, false);
   assert.equal(comparison.elapsedTicks, 50);
+  assert.equal(comparison.villages[0].observedDefensiveScouting, 1);
   assert.equal(comparison.villages[0].observedDefensiveLosses, 1);
   assert.deepEqual(comparison.villages[0].buildingLevelChanges, [{ building: "mine", before: 0, after: 1 }]);
   assert.equal(JSON.stringify({ state, previous, reports }), before);
   reports.reports.push({ ...report, id: "boundary", tick: 50 });
+  reports.reports.push({ ...report, id: "old-scout", kind: "scouting", tick: 50 });
   const covered = defenceReadiness(state, rules, reports, previous).comparison!;
   assert.equal(covered.status === "comparable" && covered.reportIntervalCovered, true);
   assert.equal(covered.status === "comparable" && covered.villages[0].observedDefensiveLosses, 1);
+  assert.equal(covered.status === "comparable" && covered.villages[0].observedDefensiveScouting, 1);
   reports.reports = [];
   reports.next = null;
   const empty = defenceReadiness(state, rules, reports, previous).comparison!;
   assert.equal(empty.status === "comparable" && empty.reportIntervalCovered, true);
+  assert.equal(empty.status === "comparable" && empty.villages[0].observedDefensiveScouting, 0);
 });
 
 test("comparison refuses resets, account changes and non-forward clocks", () => {

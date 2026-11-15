@@ -16,6 +16,7 @@ export function defenceReadiness(state: StateResponse, rules: RulesResponse, rep
       "Snapshot observations only; options marked ok are not execution approval or a President allocation.",
       "Report summaries omit attack strength, troop losses and loot; no force target or combat benefit is inferred.",
       "Reports are a retained page matched to current village IDs, not a complete round loss rate; reports have no epoch field.",
+      "Observed defensive scouting counts reports of enemy reconnaissance, not battles, losses, or proof of a future attack.",
       "Queue drain excludes polling, Council cooldown, standing orders, other villages and future actions; it is not a readiness forecast.",
       "Training prerequisites are direct rule requirements at current levels; construction chains, costs and completion times are not projected. Server training blockers remain authoritative.",
     ],
@@ -91,6 +92,7 @@ function compareReadiness(state: StateResponse, previous: StateResponse, reports
         buildingLevelChanges: old ? Object.entries(v.buildings)
           .filter(([id, level]) => level !== old.buildings[id as BuildingId])
           .map(([id, level]) => ({ building: id, before: old.buildings[id as BuildingId], after: level })) : null,
+        observedDefensiveScouting: interval.filter(r => r.kind === "scouting" && r.role === "defender" && r.defender.id === v.id).length,
         observedDefensiveBattles: battles.length,
         observedDefensiveLosses: battles.filter(r => r.outcome === "lost").length };
     }),

@@ -54,3 +54,9 @@ defensive battles, all losses. Lumberyard rose 20 to 23, quarry 20 to 22, farm 7
 expose prerequisites and queue constraints, but no military policy was activated and no combat
 benefit is measured. Raids, ordinary economic execution and snapshot timing confound policy
 attribution. Battle details and reproducible owner-sandbox comparisons remain the next defence step.
+
+The interval comparison also counts unique defensive scouting reports separately from battles.
+At r8.0 ticks 5657 to 7473 the covered interval contains four scouting reports and zero defensive
+battles. Enemy reconnaissance does not establish attack intent or strength. Hall stayed 14 and
+military buildings, troops and training remained empty; no defence benefit is measured. The
+scouting count uses the same scope, interval and pagination limitations as the battle count.
