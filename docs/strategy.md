@@ -15,6 +15,19 @@ executor; no separate military spender or second live bot.
 - A managed owner-only sandbox helper and explicit work contract. Reviews must actively obtain
   evidence, implement a vertical step and test it. Repeated reporting is not gameplay delivery.
 
+## First military infrastructure candidate
+
+The Military Advisor now proposes only an unlocked first Barracks through the existing President
+and durable construction executor. Score 79 leaves urgent capacity and Cellar protection first,
+then enables a training path ahead of discretionary economic investment. Impossible prerequisites,
+storage and population constraints cannot reserve the economy. The live completion window must
+leave a 300-tick use horizon, extended for a longer Council interval plus one recruit's training.
+It does not buy Hall prerequisites, upgrade existing military facilities, or train troops.
+Reproduce the economic-only versus candidate server comparison with
+`node --import tsx scripts/experiment-military.ts` using the managed review environment.
+Activation and deployment verification remain the review wrapper's responsibility. Recruitment and
+combat evaluation are subsequent work; Barracks completion alone is not a measured combat gain.
+
 ## Priority: create useful military capability
 
 The observed land had no troops/training, no military infrastructure, repeated raids and 21/26

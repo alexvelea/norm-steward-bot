@@ -407,3 +407,39 @@ test("fresh revalidation stops spending when round completion no longer fits", a
       .proposals.some((p) => p.blockers.includes("ROUND_END_TOO_SOON")),
   );
 });
+
+test("Military Advisor uses the durable shared executor and confirms its first Barracks", async () => {
+  const x = await setup(), v = x.c.state.villages[0];
+  v.buildings.hall = 3; v.hidden = 1000;
+  await x.controller.cycle();
+  assert.equal(x.controller.snapshot().selection.selected?.advisor, "military");
+  await x.controller.setAutomatic(true);
+  await x.controller.cycle();
+  assert.equal(x.writes.length, 1);
+  assert.equal((x.writes[0][0] as Extract<Action, {type: "build"}>).building, "barracks");
+  assert.equal(x.storage.value?.pending?.proposal.advisor, "military");
+  v.buildQueue = []; v.buildings.barracks = 1;
+  await x.controller.setAutomatic(false);
+  await x.controller.cycle();
+  assert.ok(x.controller.snapshot().decisions.some((d) => d.kind === "confirmed" && d.text.includes("Barracks")));
+  assert.equal(x.writes.length, 1);
+});
+
+test("fresh military revalidation catches a lost prerequisite before spending", async () => {
+  const x = await setup(), v = x.c.state.villages[0];
+  v.buildings.hall = 3; v.hidden = 1000;
+  let reads = 0;
+  const remote: Remote = async <T>(s: Settings, p: string, b?: unknown) => {
+    if (p.endsWith("/state") && ++reads === 2) {
+      v.buildings.hall = 2;
+      // Keep the queue occupied by an operator as well, so no alternate build is sent.
+      v.orders.build = [{building: "hall", toLevel: 3}];
+    }
+    return x.request<T>(s, p, b);
+  };
+  const controller = await Controller.create(x.storage, settings, remote, Date.now, {execute: false});
+  await controller.cycle(); reads = 0;
+  await controller.setAutomatic(true); await controller.cycle();
+  assert.equal(x.writes.length, 0);
+  assert.equal(controller.snapshot().proposals.find((p) => p.advisor === "military")?.status, "not-needed");
+});

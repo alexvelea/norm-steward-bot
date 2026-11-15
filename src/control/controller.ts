@@ -17,6 +17,7 @@ import {
   trackProduction,
 } from "./production.js";
 import { economicAdvisor, forecastEconomy } from "../advisors/economic.js";
+import { militaryAdvisor } from "../advisors/military.js";
 import { selectProposal } from "../advisors/president.js";
 import type { AdvisorContext, Proposal } from "../advisors/types.js";
 import type { ControlStorage } from "./storage.js";
@@ -331,7 +332,7 @@ export class Controller {
       points: v.points,
     }));
     this.view.economicForecasts = context.state.villages.map(forecastEconomy);
-    this.view.proposals = economicAdvisor.evaluate(context);
+    this.view.proposals = [economicAdvisor, militaryAdvisor].flatMap((advisor) => advisor.evaluate(context));
     this.view.selection = selectProposal(this.view.proposals);
     if (this.saved.pending?.phase === "accepted") {
       const p = this.saved.pending.proposal;
@@ -550,7 +551,7 @@ export class Controller {
           {
             actions: [pending.action],
             returnState: true,
-            note: `Economic Advisor: ${pending.proposal.buildingName}; importance ${pending.proposal.importance}`,
+            note: `${pending.proposal.advisor} Advisor: ${pending.proposal.buildingName}; importance ${pending.proposal.importance}`,
           },
         );
         const result = response.results[0];

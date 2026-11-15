@@ -9,7 +9,7 @@ No LLM, model key, prompt or inference service participates in economic decision
 `src/advisors/types.ts` defines a small synchronous interface: evaluate live state and rules, return
 proposals. Each proposal names its advisor, village, action, target level, importance (0–100),
 reason, per-resource requirements, blockers, affordability tick, and ready/waiting/queued/not-needed status.
-Future army/war advisors can implement the same interface. Only Economic Advisor is registered.
+The Economic and Military Advisors are registered with the same President.
 The President is a sorted filter, not a planner. It submits at most one build per ten-second cycle.
 This first executor tracks one global operation until completion, so multi-village construction is
 conservative: an accepted advisor build finishes before another advisor build is submitted.
@@ -25,10 +25,11 @@ Scores are deterministic integers:
 | Farm | 100 if no free population, otherwise 95 **only** below max(50, 20% of capacity); sufficient buffer = not-needed (20) |
 | Storehouse | 90–99 **only** if current stock + 300 ticks of production exceeds capacity for any resource; otherwise not-needed (25) |
 | Cellar | 80 **only** if protection per resource is below the largest 300-tick production amount; otherwise not-needed (25) |
+| First Barracks | 79 when unlocked and usable, below capacity/protection and ahead of discretionary Hall/production investment (ties prefer Barracks); no further military levels |
 | Great Hall | 70–79 only when Hall-first finishes the same useful upgrade sequence sooner after resource costs/waits and a safety margin; otherwise not-needed (30) |
 | Resource producer | 60 for lowest projected coverage, then 50 and 40; ties share a score |
 
-90–100 = capacity, 70–89 = protection/construction speed, 40–69 = production. Lower scores are
+90–100 = capacity, 70–89 = protection/construction speed/first military infrastructure, 40–69 = production. Lower scores are
 informational and never executed. Not-needed proposals remain visible at the bottom. Ties use
 village ID then building ID. Population used includes reserved construction and training.
 
@@ -88,6 +89,16 @@ estimate and its tick range, and shows each village's inventory, projected suppl
 
 ## Allocation and waiting
 
+The Military Advisor proposes only Barracks 1 in villages without an existing or queued Barracks,
+Stable, Workshop or Court. It uses live build options and prerequisites; impossible prerequisites,
+storage bills, or population requirements are not-needed and do not reserve resources. Population
+must also leave room for one Pikeman under the live rules. A feasible resource-only wait can reserve
+the village budget. Construction must finish with at least 300 ticks remaining for use (or a longer
+live Council interval plus one recruit's training duration). The same completion window includes
+affordability and Council cooldown. Busy queues, external build orders, cooldown and non-running
+worlds prevent submission. Fresh executor revalidation applies both advisors again before writing.
+This step buys infrastructure only; it neither recruits troops nor promises combat improvement.
+
 - Affordability is per village. Resources are never pooled or automatically traded.
 - Existing construction blocks additional advisor builds in that village. The first iteration keeps
   queues shallow rather than paying in advance for a long speculative plan. Existing queued levels
@@ -101,8 +112,8 @@ estimate and its tick range, and shows each village's inventory, projected suppl
   (for example a producer bill larger than storage even though the five-minute storage target fits);
   it reports the constraint rather than overriding the explicit capacity policy.
 - Council cooldown, ended rounds, missing prerequisites and full queues are explicit waiting states.
-- Decisions are short-term heuristics, not ROI-optimal planning. Army needs and market exchanges are
-  not modelled yet. Manual orders and other clients can still consume the same resources.
+- Decisions are short-term heuristics, not ROI-optimal planning. Troop composition, recruitment and
+  market exchanges are not modelled yet. Manual orders and other clients can still consume resources.
 
 ## Execution and recovery
 
