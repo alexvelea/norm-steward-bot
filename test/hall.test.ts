@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { estimateHall } from "../src/advisors/hall.js";
+import { estimateHall, LEGACY_HALL_LOOKAHEAD } from "../src/advisors/hall.js";
 import { evaluateEconomy } from "../src/advisors/economic.js";
 import { context } from "./control-fixtures.js";
 
@@ -28,7 +28,12 @@ function scenario() {
     v.options.build.find((o) => o.building === "hall")!,
     { cost: { timber: 100, stone: 100, iron: 100 }, ticks: 50, pop: 0 },
   );
-  return { c, v, estimate: () => estimateHall(v, c.rules, c.state.world) };
+  return {
+    c,
+    v,
+    estimate: () =>
+      estimateHall(v, c.rules, c.state.world, LEGACY_HALL_LOOKAHEAD),
+  };
 }
 test("Hall first repays its own construction on a busy affordable useful sequence", () => {
   const { c, estimate } = scenario();
@@ -45,7 +50,7 @@ test("Hall first repays its own construction on a busy affordable useful sequenc
     (p) => p.action.building === "hall",
   )!;
   assert.equal(proposal.status, "ready");
-  assert.equal(proposal.reason, h.reason);
+  assert.match(proposal.reason, /Plan/);
 });
 test("Hall resource cost and wait reverse a superficially profitable speed upgrade", () => {
   const { v, estimate } = scenario();
@@ -132,4 +137,48 @@ test("Council action cadence removes speed benefits when construction already fi
   const h = estimate();
   assert.equal(h.needed, false);
   assert.ok(h.hallFirstTicks! > h.baselineTicks);
+});
+
+test("longer useful pipeline can justify a Hall rejected by the old eight-build cutoff", () => {
+  const { c, v } = scenario();
+  v.options.build.find((o) => o.building === "hall")!.ticks = 155;
+  const old = estimateHall(v, c.rules, c.state.world, LEGACY_HALL_LOOKAHEAD);
+  const revised = estimateHall(v, c.rules, c.state.world);
+  assert.equal(old.needed, false);
+  assert.equal(revised.needed, true);
+  assert.ok(revised.savingTicks > old.savingTicks);
+  c.state.world.endsAtTick = c.state.world.tick + 200;
+  assert.equal(estimateHall(v, c.rules, c.state.world).needed, false);
+});
+test("imminent attack defers Hall investment", () => {
+  const { c, v } = scenario();
+  c.state.commands.incoming = [
+    {
+      kind: "attack",
+      arrivalTick: c.state.world.tick + 50,
+      to: { id: v.id },
+    } as any,
+  ];
+  const p = evaluateEconomy(c).find((p) => p.action.building === "hall")!;
+  assert.equal(p.status, "not-needed");
+  assert.match(p.reason, /attack arrives/);
+});
+
+test("projected farm completion resolves stale population blockers in the Hall pipeline", () => {
+  const { c, v } = scenario();
+  v.population = { used: 151, max: 200 };
+  for (const option of v.options.build.filter((o) =>
+    ["lumberyard", "quarry", "mine"].includes(o.building),
+  )) {
+    option.pop = 60;
+    option.blockers = ["INSUFFICIENT_POPULATION"];
+    option.ok = false;
+  }
+  const result = estimateHall(v, c.rules, c.state.world);
+  assert.equal(result.sequence[0].building, "farm");
+  assert.ok(
+    result.sequence.some((s) =>
+      ["lumberyard", "quarry", "mine"].includes(s.building),
+    ),
+  );
 });

@@ -15,12 +15,23 @@ const producers = {
 } as const;
 const producerIds = Object.keys(producers) as (keyof typeof producers)[];
 /** A bounded client-side estimate, not a game simulation or a committed build plan. */
-export const HALL_LOOKAHEAD = {
+export const LEGACY_HALL_LOOKAHEAD = {
   maxUpgrades: 8,
   maxTicks: 3600,
   minimumSaving: 20,
   margin: 0.1,
 } as const;
+export const HALL_LOOKAHEAD = {
+  ...LEGACY_HALL_LOOKAHEAD,
+  maxUpgrades: 24,
+  maxTicks: 7200,
+} as const;
+export interface HallPolicy {
+  maxUpgrades: number;
+  maxTicks: number;
+  minimumSaving: number;
+  margin: number;
+}
 export interface HallEstimate {
   needed: boolean;
   importance: number;
@@ -48,6 +59,7 @@ export function estimateHall(
   v: VillageState,
   rules: RulesResponse,
   world: StateResponse["world"],
+  policy: HallPolicy = HALL_LOOKAHEAD,
 ): HallEstimate {
   const option = v.options.build.find((o) => o.building === "hall");
   const result: HallEstimate = {
@@ -73,11 +85,29 @@ export function estimateHall(
   if (option.blockers.some((b) => b !== "INSUFFICIENT_RESOURCES"))
     return skip(`Great Hall cannot be planned: ${option.blockers.join(", ")}.`);
   const horizon = Math.min(
-    HALL_LOOKAHEAD.maxTicks,
+    policy.maxTicks,
     world.endsAtTick === null ? Infinity : world.endsAtTick - world.tick,
   );
   if (horizon <= 0)
     return skip("There is no remaining round time for Great Hall payback.");
+  const unlocks = Object.entries(
+    rules.rules.BUILDINGS as Record<
+      string,
+      { name: string; requires: Partial<Record<BuildingId, number>> }
+    >,
+  )
+    .filter(
+      ([, rule]) =>
+        rule.requires?.hall === v.buildings.hall + 1 &&
+        Object.entries(rule.requires).every(
+          ([id, level]) =>
+            id === "hall" || v.buildings[id as BuildingId] >= level!,
+        ),
+    )
+    .map(([, rule]) => rule.name);
+  const unlockReason = unlocks.length
+    ? ` Also unlocks ${unlocks.join(", ")}; no speculative military value is assigned without a recruitment plan.`
+    : "";
   const initial = (): Projection => ({
     stock: Object.fromEntries(
       resources.map((r) => [r, v.resourcesMilli[r] / 1000]),
@@ -113,7 +143,17 @@ export function estimateHall(
       p.levels[id] === v.buildings[id]
         ? v.options.build.find((o) => o.building === id)
         : undefined;
-    if (live?.blockers.some((b) => b !== "INSUFFICIENT_RESOURCES"))
+    if (
+      live?.blockers.some(
+        (b) =>
+          ![
+            "INSUFFICIENT_RESOURCES",
+            "INSUFFICIENT_POPULATION",
+            "EXCEEDS_STORAGE",
+            "REQUIREMENTS_NOT_MET",
+          ].includes(b),
+      )
+    )
       return false;
     if (
       Object.entries(metadata[id]?.requires ?? {}).some(
@@ -198,7 +238,7 @@ export function estimateHall(
     })[0];
   };
   const baseline = initial();
-  for (let step = 0; step < HALL_LOOKAHEAD.maxUpgrades; step++) {
+  for (let step = 0; step < policy.maxUpgrades; step++) {
     const id = choose(baseline);
     if (!id) break;
     const target = baseline.levels[id] + 1;
@@ -209,7 +249,7 @@ export function estimateHall(
   result.baselineWaitTicks = baseline.waiting;
   if (!result.sequence.length)
     return skip(
-      "No feasible useful upgrade sequence within the next hour; retain resources rather than build Great Hall speculatively.",
+      "No feasible useful upgrade sequence within the remaining planning horizon; retain resources rather than build Great Hall speculatively.",
     );
   const hallFirst = initial();
   let feasible = build(hallFirst, "hall");
@@ -227,8 +267,8 @@ export function estimateHall(
   result.hallFirstWaitTicks = hallFirst.waiting;
   result.savingTicks = baseline.elapsed - hallFirst.elapsed;
   const requiredSaving = Math.max(
-    HALL_LOOKAHEAD.minimumSaving,
-    Math.ceil(option.ticks * HALL_LOOKAHEAD.margin),
+    policy.minimumSaving,
+    Math.ceil(option.ticks * policy.margin),
     Math.ceil(baseline.elapsed * 0.02),
   );
   result.needed = result.savingTicks >= requiredSaving;
@@ -240,6 +280,6 @@ export function estimateHall(
         Math.floor((result.savingTicks / Math.max(1, baseline.elapsed)) * 100),
       )
     : 30;
-  result.reason = `Plan (${result.sequence.length} upgrades, ≤${horizon} ticks): ${sequence}. Without Hall: ${baseline.elapsed} ticks (${baseline.waiting} waiting for resources). Hall first: ${hallFirst.elapsed} ticks (${hallFirst.waiting} resource wait), including its ${option.ticks}-tick build and all resource costs. Net ${result.savingTicks >= 0 ? "saving" : "delay"}: ${Math.abs(result.savingTicks)} ticks; require at least ${requiredSaving} saved. ${result.needed ? "Construction is the bottleneck; upgrade Great Hall before production." : "The Hall does not repay its cost and delay in this horizon; continue useful upgrades."}`;
+  result.reason = `Plan (${result.sequence.length} upgrades, ≤${horizon} ticks): ${sequence}. Without Hall: ${baseline.elapsed} ticks (${baseline.waiting} waiting for resources). Hall first: ${hallFirst.elapsed} ticks (${hallFirst.waiting} resource wait), including its ${option.ticks}-tick build and all resource costs. Net ${result.savingTicks >= 0 ? "saving" : "delay"}: ${Math.abs(result.savingTicks)} ticks; require at least ${requiredSaving} saved. ${result.needed ? "Construction is the bottleneck; upgrade Great Hall before production." : "The Hall does not repay its cost and delay in this horizon; continue useful upgrades."}${unlockReason}`;
   return result;
 }

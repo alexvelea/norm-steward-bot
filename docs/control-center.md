@@ -43,8 +43,8 @@ Equality at a capacity target does not trigger an upgrade.
 
 ## Great Hall payback
 
-`src/advisors/hall.ts` makes a bounded client-side projection: at most eight useful upgrades within
-3,600 game ticks, capped by the remaining round time. It does not submit or persist a build plan.
+`src/advisors/hall.ts` makes a bounded client-side projection: at most 24 useful upgrades within
+7,200 game ticks, capped by the remaining round time. It does not submit or persist a build plan.
 First construct a baseline sequence using the existing priorities: required farm/storage/cellar,
 then the producer with the lowest projected supply/cost coverage. Recompute costs and coverage
 after each hypothetical completion; do not assume three levels of every producer will be built.
@@ -63,7 +63,11 @@ small estimates and polling jitter. A positive comparison receives 70–79 based
 of baseline time saved; urgent farm/storage and required protection still outrank it. The reason
 shows the sequence, both completion times, resource waits and net saving. An infeasible Hall path,
 maxed-out economy, short round horizon or resource starvation does not create a Hall recommendation.
-Existing construction/standing orders defer the comparison until they finish.
+Existing construction/standing orders defer the comparison until they finish. Incoming attacks
+within 300 ticks defer Hall spending. The projected path rechecks resource, population, storage
+and building prerequisites at each step instead of reusing stale next-level blockers after a
+hypothetical capacity upgrade. Next-level Hall-gated unlocks are listed when other requirements
+are already met; they get no arbitrary bonus without a concrete military plan.
 
 This is a short-term estimate, not an engine or a search for the global optimum. It compares the
 same work to make the opportunity cost explicit; resource changes can cause the real sequence to
@@ -107,7 +111,8 @@ refreshing, multiple tabs and closing the browser do not create or stop executor
 executor lease (port 8790) prevents a second production process from starting, even at another HTTP
 port, and is released by the OS after crashes. Do not override this port for another live executor.
 
-Economic execution starts automatically with a valid configured connection and resumes after restart.
+Economic execution starts automatically for a fresh valid configuration. Its execution preference
+is persisted; service restarts and Settings edits preserve an operator pause.
 There is no browser execution toggle or prerequisite acknowledgement. The internal pause API remains
 available for diagnostics; authentication failures and an expired uncertain idempotency window pause
 submissions and show the actual error. Accepted construction continues in the game.
@@ -164,7 +169,7 @@ The game proxy uses the configured server/key, including the WebSocket hello, so
 not accidentally switch the service's account by forwarding an old Authorization header.
 
 - GET /control/state: masked settings, advisor status, recommendations and journal.
-- PUT /control/settings: origin, player key (optional replacement), world; revalidates and resumes the bot.
+- PUT /control/settings: origin, player key (optional replacement), world; revalidates while preserving the execution preference.
 - PUT /control/automatic: enabled boolean; internal diagnostic pause/resume, no browser switch.
 - POST /control/evaluate: request a bot cycle; this can execute the configured economic policy.
 - POST /control/key: explicitly reveal the saved key to the authenticated operator.

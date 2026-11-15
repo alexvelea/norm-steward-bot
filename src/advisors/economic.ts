@@ -95,6 +95,19 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal[] {
       (r) => f.coverage[r],
     );
     const hall = estimateHall(v, rules, state.world);
+    const imminentThreat = state.commands.incoming.some(
+      (c) =>
+        c.kind === "attack" &&
+        c.to.id === v.id &&
+        c.arrivalTick <= state.world.tick + 300,
+    );
+    if (imminentThreat) {
+      hall.needed = false;
+      hall.importance = 30;
+      hall.reason =
+        "An attack arrives within 300 ticks. Defer construction-speed investment; preserve resources for defence. " +
+        hall.reason;
+    }
     for (const building of ECONOMIC_BUILDINGS) {
       const option = v.options.build.find((o) => o.building === building),
         queued = v.buildQueue.find((q) => q.building === building);
