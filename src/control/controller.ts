@@ -241,7 +241,7 @@ export class Controller {
     this.backoffUntil = 0;
     await this.persist();
   }
-  start(intervalMs = 10000): void {
+  start(intervalMs = 1000): void {
     const run = async () => {
       if (this.stopped) return;
       await this.cycle();

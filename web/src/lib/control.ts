@@ -36,7 +36,7 @@ export function useControl() {
       } catch (e) {
         if (active) setError(e instanceof Error ? e.message : String(e));
       }
-      if (active) timeout = setTimeout(() => void poll(), 4000);
+      if (active) timeout = setTimeout(() => void poll(), 1000);
     };
     void poll();
     return () => {

@@ -230,7 +230,7 @@ function AdvisorPage({
           <small>
             {view.busy
               ? "Evaluation in progress"
-              : "Persistent service · every 10 seconds"}
+              : "Persistent service · every 1 second"}
           </small>
         </div>
       </section>

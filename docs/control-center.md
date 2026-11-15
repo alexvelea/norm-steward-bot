@@ -10,7 +10,7 @@ No LLM, model key, prompt or inference service participates in economic decision
 proposals. Each proposal names its advisor, village, action, target level, importance (0–100),
 reason, per-resource requirements, blockers, affordability tick, and ready/waiting/queued/not-needed status.
 The Economic and Military Advisors are registered with the same President.
-The President is a sorted filter, not a planner. It submits at most one build or training batch per ten-second cycle.
+The President is a sorted filter, not a planner. It submits at most one build or training batch per one-second cycle.
 This first executor tracks one global operation until completion, so multi-village construction is
 conservative: an accepted advisor build finishes before another advisor build is submitted.
 
