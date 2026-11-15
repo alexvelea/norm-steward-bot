@@ -185,8 +185,7 @@ Both purchases use the existing President and durable build/train executor.
 
 Reproduce the matched policy and restart comparison with `scripts/experiment-scouting.ts`, and
 physical successful/failed scouting probes with `scripts/experiment-scouting-probes.ts`. These
-probes are private test commands, not a second live executor. Automatic scouting dispatch, report
-collection and freshness-aware target selection remain subsequent work. A retained success report
+probes are private test commands, not a second live executor. Bounded automatic dispatch and report-summary freshness checks are implemented below; full intelligence collection and risk-gated raids remain subsequent work. A retained success report
 is an observation at its report tick; it cannot establish current troops, resources or ownership.
 
 The useful matched private case completed Stable 1 and two Scouts in 63 ticks for 360 timber,
@@ -199,3 +198,34 @@ when read 814 ticks later; full intel details are not exposed by the managed san
 These observations establish readiness and report age, not profitable live target selection.
 Both private policies rejected the new Scout path when full training would leave only 599 ticks
 for use, and made identical economic purchases for 159 timber, 155 stone and 114 iron instead.
+
+
+## Bounded scouting dispatch candidate
+
+After the existing defensive and raiding complements exist, a score-72 proposal dispatches exactly
+two home Scouts to the nearest unprotected house-bot village within 300 travel ticks. Preserve our
+own protection, allow one Scout command globally, wait 600 ticks per village between attempts, and
+leave the return trip plus 60 ticks before round end. Busy queues, standing orders, incoming attacks,
+Council cooldown and insufficient home Scouts skip the path without reserving resources. No human
+targets or combat troops are included. The President and existing persistent executor own the send.
+
+Command IDs and scoped historical observations survive restart. The executor confirms only from a
+matching report, suppresses uncertain duplicate sends after observed troop/command changes, retains
+exact IDs for safe retries, and pauses on an expired uncertain window. Observation use requires a
+successful attacker scouting report linked to the journalled command, matching owner and village,
+current account/server/world/epoch, age at most 300 ticks, and a map snapshot at most 30 ticks old.
+No report summary is treated as hidden troop/resource intelligence or evidence of a profitable raid.
+
+Reproduce with `node --import tsx scripts/experiment-scout-dispatch.ts`. The managed broker exposes
+report summaries and authoritative command refs but no map or full report detail; the experiment
+explicitly supplies a public-map fixture derived from a server-returned support destination and the
+configured Warden identity. All policy sends and reports are real private server results. This scope
+verifies durable dispatch and historical observation guards; full intel retrieval is the next step.
+
+The matched private pair started at tick 4882. At tick 5311 the candidate had obtained a successful
+scouting report at tick 5010 (128 travel ticks), returned both Scouts and spent no resources on the
+dispatch. The baseline completed Lumberyard 2 for 63 timber, 75 stone and 50 iron. A paused restart
+confirmed the candidate's matching report without another POST. Reuse was rejected after 301 ticks,
+a changed target owner or a different epoch scope. A second real send with a deliberately lost
+successful response was suppressed after a paused restart, with zero duplicate sends. All created
+worlds were deleted. These are reconnaissance/recovery results, not measured combat or loot gains.

@@ -1,3 +1,4 @@
+import type { ScoutObservation } from "../advisors/scout-dispatch.js";
 import type {
   Action,
   MeResponse,
@@ -14,7 +15,7 @@ export interface Settings {
 }
 export interface Pending {
   proposal: Proposal;
-  action: Extract<Action, { type: "build" | "train" }>;
+  action: Extract<Action, { type: "build" | "train" | "send" }>;
   accountId: string;
   worldId: string;
   epoch: string;
@@ -23,6 +24,7 @@ export interface Pending {
   expiresTick: number;
   phase: "prepared" | "submitted" | "uncertain" | "accepted";
   itemId?: string;
+  scout?: ScoutObservation;
 }
 export interface Decision {
   id: string;
@@ -47,6 +49,7 @@ export interface SavedControl {
   pending: Pending | null;
   decisions: Decision[];
   production?: ProductionLedger;
+  scouting?: ScoutObservation[];
   /** Persisted execution preference; service restarts must not override an operator pause. */
   automatic?: boolean;
 }

@@ -9,7 +9,7 @@ export interface AdvisorContext {
   state: StateResponse;
   rules: RulesResponse;
 }
-export type AdvisorAction = Extract<Action, { type: "build" | "train" }>;
+export type AdvisorAction = Extract<Action, { type: "build" | "train" | "send" }>;
 export interface Proposal<A extends AdvisorAction = AdvisorAction> {
   id: string;
   advisor: string;
@@ -42,8 +42,8 @@ export function compareProposals(a: Proposal, b: Proposal): number {
     Number(a.status === "not-needed") - Number(b.status === "not-needed") ||
     b.importance - a.importance ||
     a.villageId.localeCompare(b.villageId) ||
-    (a.action.type === "build" ? a.action.building : a.action.unit).localeCompare(
-      b.action.type === "build" ? b.action.building : b.action.unit
+    (a.action.type === "build" ? a.action.building : a.action.type === "train" ? a.action.unit : a.action.target).localeCompare(
+      b.action.type === "build" ? b.action.building : b.action.type === "train" ? b.action.unit : b.action.target
     )
   );
 }

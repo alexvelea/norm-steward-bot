@@ -10,7 +10,7 @@ No LLM, model key, prompt or inference service participates in economic decision
 proposals. Each proposal names its advisor, village, action, target level, importance (0–100),
 reason, per-resource requirements, blockers, affordability tick, and ready/waiting/queued/not-needed status.
 The Economic and Military Advisors are registered with the same President.
-The President is a sorted filter, not a planner. It submits at most one build or training batch per one-second cycle.
+The President is a sorted filter, not a planner. It submits at most one build, training batch or bounded scouting command per one-second cycle.
 This first executor tracks one global operation until completion, so multi-village construction is
 conservative: an accepted advisor build finishes before another advisor build is submitted.
 
@@ -251,5 +251,20 @@ The bounded scouting readiness policy proposes Stable 1 (73) and up to two owned
 after the defensive complement and ten Raiders exist. It buys no Stable prerequisite levels and
 requires current funding for infrastructure plus the entire missing Scout complement, the normal
 population buffer and 600 ticks after full training. It shares the same President, queue/order
-checks, persisted pause and durable build/train reconciliation. It never dispatches a command or
-treats an old scouting report as current target intelligence; see docs/strategy.md for reproduction.
+checks, persisted pause and durable build/train reconciliation. The separate bounded dispatch proposal (72) sends exactly two home Scouts to the nearest eligible
+house-bot village within 300 travel ticks. It waits until our protection expires, rejects protected
+or human targets, requires the existing defensive/raiding complement, idle queues and no standing
+orders or incoming attack, and leaves the round-trip duration plus 60 ticks before round end.
+One Scout command may be out globally, and each village waits 600 ticks between attempts.
+The President retains capacity, protection and recruitment priorities. No combat troops are sent.
+
+The same executor journals the exact send before POST and tracks the returned command ID until a
+matching report or command disappearance. Paused restarts reconcile without sending; uncertain
+Scout/command changes suppress replay, and expired uncertain IDs pause execution. Per-action errors
+remain rejected decisions. Up to 32 command observations are persisted under account/server/world/
+epoch scope. Only a successful attacker scouting summary linked to that command, from our village,
+with matching target ownership, age at most 300 ticks and map observation/snapshot ages at most 30
+ticks is usable as a historical scouting observation. Future timestamps, different epochs, failed
+scouting and ownership changes fail closed. Summaries do not establish hidden troops, resources or
+raid profitability; full intelligence collection and raid decisions remain separate work.
+Reproduce the matched private executor comparison with scripts/experiment-scout-dispatch.ts.
