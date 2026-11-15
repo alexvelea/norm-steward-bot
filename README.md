@@ -37,7 +37,7 @@ refresh the browser after a rebuild. For built files use `npm run build:web` the
 lease on port 8790, even if it chooses another UI port. No game engine runs here.
 
 The Economic Advisor runs automatically when a valid connection is configured, including after
-restarts. It automatically joins the selected world when a new round starts, and refounds if all
+restarts while preserving a persisted operator pause. It automatically joins the selected world when a new round starts, and refounds if all
 villages are lost. It never switches to unrelated world IDs. The persistent service owns execution; browsers only display its state. Existing server
 standing build orders make this advisor wait in that village. Do not run an independent starter
 bot on the same account alongside this executor.
@@ -56,6 +56,9 @@ at `/root/norm-steward-bot` and the existing private credential source `/root/ke
 ```bash
 npm ci
 npm run build:web
+# First install only: bootstrap the release path; subsequent reviews switch immutable releases.
+sudo mkdir -p /var/lib/norm-steward-deploy
+sudo ln -s /root/norm-steward-bot /var/lib/norm-steward-deploy/current
 sudo install -m 0644 deploy/norm-steward-control.service /etc/systemd/system/
 sudo systemctl daemon-reload
 # First install only; skip token initialization on later updates.
@@ -72,6 +75,11 @@ is no longer the deployment path. On edits rebuild UI and restart the control se
 changes (`systemctl restart norm-steward-control`). A restart resumes the economic policy and reconciles any tracked construction.
 Use `systemctl status norm-steward-control` and `journalctl -u norm-steward-control` to inspect it.
 Adapt paths and hostname for another machine; merge Caddy blocks if it hosts other sites.
+
+## Scheduled reviews
+
+Codex reviews strategy about every 30 minutes through a bounded systemd service, separately from
+continuous deterministic gameplay. See [review status, pause, logs and recovery](docs/reviews.md).
 
 ## Operator handoff
 

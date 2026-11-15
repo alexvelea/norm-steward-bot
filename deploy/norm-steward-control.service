@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/root/norm-steward-bot
+WorkingDirectory=/var/lib/norm-steward-deploy/current
 Environment=HOST=127.0.0.1
 Environment=PORT=8788
 Environment=STEWARD_CONTROL_DIR=/var/lib/norm-steward-bot

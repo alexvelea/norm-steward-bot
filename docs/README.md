@@ -1,6 +1,8 @@
 # Documentation
 
 - [Setup and hosting](../README.md): install, run, configure, and publish this client.
+- [Scheduled reviews](reviews.md): Codex timer, usage/backoff, durable backlog and deployment recovery.
+- [Strategy](strategy.md): priorities and next measurements.
 - [Control center](control-center.md): deterministic advisors, scoring, allocation, execution and credentials.
 - [Operator handoff](OPERATOR.md): instructions for an ad hoc scouting/troop agent.
 - [Dashboard](dashboard.md): imported hybrid UI, manual commands, town view, and visibility rules.

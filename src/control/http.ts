@@ -1,3 +1,4 @@
+import { ReviewStore } from "./reviews.js";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Controller } from "./controller.js";
@@ -5,7 +6,10 @@ import type { Controller } from "./controller.js";
 export class ControlHttp {
   private sessions = new Map<string, number>();
   private attempts = new Map<string, { at: number; count: number }>();
-  constructor(readonly controller: Controller) {}
+  constructor(
+    readonly controller: Controller,
+    readonly reviews = new ReviewStore(),
+  ) {}
   private equal(a: string, b: string): boolean {
     return timingSafeEqual(
       createHash("sha256").update(a).digest(),
@@ -116,6 +120,16 @@ export class ControlHttp {
       return;
     }
     try {
+      if (path === "/control/reviews" && req.method === "GET") {
+        this.reply(res, 200, await this.reviews.status());
+        return;
+      }
+      if (path === "/control/reviews" && req.method === "PUT") {
+        if (typeof body.paused !== "boolean")
+          throw new Error("paused must be a boolean.");
+        this.reply(res, 200, await this.reviews.pause(body.paused));
+        return;
+      }
       if (path === "/control/state" && req.method === "GET") {
         this.reply(res, 200, this.controller.snapshot());
         return;

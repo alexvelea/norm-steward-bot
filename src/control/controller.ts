@@ -104,7 +104,7 @@ export class Controller {
     };
     saved.settings.serverUrl = validateOrigin(saved.settings.serverUrl);
     const controller = new Controller(saved, storage, request, now);
-    controller.automatic = options.execute !== false;
+    controller.automatic = options.execute ?? saved.automatic ?? true;
     await controller.persist();
     return controller;
   }
@@ -132,7 +132,7 @@ export class Controller {
     };
   }
   private persist(): Promise<void> {
-    const value = structuredClone(this.saved);
+    const value = structuredClone({ ...this.saved, automatic: this.automatic });
     this.persistence = this.persistence
       .catch(() => undefined)
       .then(() => this.storage.save(value));
@@ -165,7 +165,6 @@ export class Controller {
     settings.serverUrl = validateOrigin(settings.serverUrl);
     if (!settings.worldId.trim() || !settings.apiKey.trim())
       throw new Error("A player key and world are required.");
-    this.automatic = true;
     this.revision++;
     this.backoffUntil = 0;
     this.saved.settings = settings;
@@ -188,7 +187,7 @@ export class Controller {
     };
     this.record(
       "waiting",
-      "Connection settings updated; the bot will revalidate the account and resume its economic policy.",
+      "Connection settings updated; revalidating the account with the current execution preference.",
     );
     await this.persist();
     await this.cycle();
@@ -251,7 +250,6 @@ export class Controller {
   }
   stop(): void {
     this.stopped = true;
-    this.automatic = false;
     this.revision++;
     if (this.timer) clearTimeout(this.timer);
   }
@@ -627,8 +625,10 @@ export class Controller {
       this.view.error = e instanceof Error ? e.message : "Evaluation failed.";
       const delay = e instanceof RemoteError ? e.retryMs : 10000;
       this.backoffUntil = this.now() + delay;
-      if (e instanceof RemoteError && (e.status === 401 || e.status === 403))
+      if (e instanceof RemoteError && (e.status === 401 || e.status === 403)) {
         this.automatic = false;
+        await this.persist().catch(() => undefined);
+      }
     } finally {
       this.busy = false;
     }

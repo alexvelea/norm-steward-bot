@@ -1,0 +1,12 @@
+[Unit]
+Description=Review Norn Steward strategy about every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00,30:00
+Persistent=true
+AccuracySec=20s
+RandomizedDelaySec=10s
+Unit=norm-steward-review.service
+
+[Install]
+WantedBy=timers.target

@@ -1,3 +1,4 @@
+import { ReviewPanel } from "./ReviewPanel";
 import { useEffect, useState } from "react";
 import {
   controlRequest,
@@ -282,6 +283,7 @@ function AdvisorPage({
           </Link>
         ))}
       </div>
+      <ReviewPanel />
       <section className="cc-card cc-production">
         <h2>Total production</h2>
         {view.production ? (

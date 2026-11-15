@@ -2240,3 +2240,7 @@ input.num {
 .cc-forecast-scroll { overflow-x:auto; }
 .cc-forecast { width:100%; border-collapse:collapse; font-size:13px; }
 .cc-forecast th, .cc-forecast td { text-align:left; padding:8px; border-bottom:1px solid var(--line, #393328); }
+
+.cc-reviews { margin:20px 0; }
+.cc-reviews summary { cursor:pointer; padding:10px 0; }
+.cc-reviews li { margin:10px 0; }

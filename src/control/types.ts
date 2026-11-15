@@ -47,6 +47,8 @@ export interface SavedControl {
   pending: Pending | null;
   decisions: Decision[];
   production?: ProductionLedger;
+  /** Persisted execution preference; service restarts must not override an operator pause. */
+  automatic?: boolean;
 }
 export interface ControlView {
   settings: Omit<Settings, "apiKey"> & {

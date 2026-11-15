@@ -359,3 +359,19 @@ test("key rotation preserves tracked work and lets the bot resume", async () => 
   assert.equal(x.controller.snapshot().pending?.phase, "accepted");
   assert.equal(x.writes.length, 1);
 });
+
+test("an operator pause survives service restart", async () => {
+  const x = await setup();
+  await x.controller.cycle();
+  await x.controller.setAutomatic(true);
+  await x.controller.setAutomatic(false);
+  const restarted = await Controller.create(
+    x.storage,
+    settings,
+    x.request,
+    () => 10000,
+  );
+  await restarted.cycle();
+  assert.equal(restarted.snapshot().automatic, false);
+  assert.equal(x.writes.length, 0);
+});

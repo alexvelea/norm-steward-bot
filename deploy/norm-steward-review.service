@@ -1,0 +1,18 @@
+[Unit]
+Description=Bounded Codex strategic review of Alex's Norn Steward land
+After=network-online.target norm-steward-control.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/lib/norm-steward-review
+ExecStart=/usr/bin/python3 /root/norm-steward-bot/scripts/review.py run
+TimeoutStartSec=25min
+TimeoutStopSec=15
+KillMode=control-group
+UMask=0077
+Nice=10
+CPUQuota=80%
+MemoryHigh=480M
+MemoryMax=650M
+NoNewPrivileges=true
