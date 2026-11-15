@@ -60,3 +60,15 @@ At r8.0 ticks 5657 to 7473 the covered interval contains four scouting reports a
 battles. Enemy reconnaissance does not establish attack intent or strength. Hall stayed 14 and
 military buildings, troops and training remained empty; no defence benefit is measured. The
 scouting count uses the same scope, interval and pagination limitations as the battle count.
+
+Attack timing now includes `globalConstructionDrainTicks`, the latest current construction end
+across owned villages relative to the snapshot tick, clamped to zero. Each incoming attack's
+`ticksAfterConstructionDrain` is arrival minus that global drain tick: negative means arrival
+precedes drain; zero does not establish same-tick action ordering. This makes other villages'
+construction visible alongside the executor's global construction constraint, but is a conservative
+queue horizon rather than the executor's tracked-operation state. These observations
+exclude new builds, recruitment, cooldown and polling; positive time does not establish readiness.
+At r8.0 tick 9275, the known attack arrives in 10 ticks and current construction drains in 216,
+giving -206 ticks. Military buildings, troops and training remain empty. This is timing evidence,
+not a tested defence policy. Five further defensive scouting reports and zero battles were observed
+since tick 7473 with complete interval coverage; no combat benefit is measured.

@@ -9,6 +9,7 @@ export function defenceReadiness(state: StateResponse, rules: RulesResponse, rep
   if (!metadata) throw new Error("Missing building prerequisites in evidence");
   const units = rules.rules.UNITS as Record<UnitId, { building: BuildingId; buildingLevel: number; smithyLevel: number }>;
   const tick = state.world.tick;
+  const constructionDrainTick = Math.max(tick, ...state.villages.flatMap(v => v.buildQueue.map(q => q.endTick)));
   return {
     world: { id: state.world.id, epoch: state.world.epoch, round: state.world.round, tick,
       remainingTicks: state.world.endsAtTick === null ? null : Math.max(0, state.world.endsAtTick - tick) },
@@ -17,10 +18,12 @@ export function defenceReadiness(state: StateResponse, rules: RulesResponse, rep
       "Report summaries omit attack strength, troop losses and loot; no force target or combat benefit is inferred.",
       "Reports are a retained page matched to current village IDs, not a complete round loss rate; reports have no epoch field.",
       "Observed defensive scouting counts reports of enemy reconnaissance, not battles, losses, or proof of a future attack.",
-      "Queue drain excludes polling, Council cooldown, standing orders, other villages and future actions; it is not a readiness forecast.",
+      "Per-village queue drain excludes polling, Council cooldown, standing orders, other villages and future actions; it is not a readiness forecast.",
+      "ticksAfterConstructionDrain compares arrival with the latest current construction end across all owned villages (or now if empty). Negative means arrival precedes drain; zero does not establish action ordering. This conservative queue horizon is not the executor's tracked-operation state. It excludes new construction, recruitment and executor delays and is not defence readiness.",
       "Training prerequisites are direct rule requirements at current levels; construction chains, costs and completion times are not projected. Server training blockers remain authoritative.",
     ],
     reports: { retained: reports.reports.length, hasOlderPage: reports.next !== null },
+    globalConstructionDrainTicks: constructionDrainTick - tick,
     comparison: previous ? compareReadiness(state, previous, reports) : null,
     villages: state.villages.map(v => {
       const incoming = state.commands.incoming.filter(c => c.kind === "attack" && c.to.id === v.id);
@@ -32,6 +35,7 @@ export function defenceReadiness(state: StateResponse, rules: RulesResponse, rep
         queueDrainTicks: Math.max(0, ...v.buildQueue.map(q => q.endTick - tick)),
         standingBuildOrders: v.orders.build.length,
         incoming: incoming.map(c => ({ id: c.id, ticksUntilArrival: c.arrivalTick - tick,
+          ticksAfterConstructionDrain: c.arrivalTick - constructionDrainTick,
           unitsKnown: c.units !== null, sighted: c.sighted })),
         retainedDefensiveBattles: battles.length,
         retainedDefensiveLosses: battles.filter(r => r.outcome === "lost").length,

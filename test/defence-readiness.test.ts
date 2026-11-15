@@ -32,11 +32,36 @@ test("retained losses exclude scouting and other villages; pagination stays visi
   assert.equal(result.villages[0].retainedDefensiveBattles, 1);
   assert.equal(result.villages[0].retainedDefensiveLosses, 1);
   assert.equal(result.reports.hasOlderPage, true);
-  assert.deepEqual(result.villages[0].incoming, [{ id: "incoming", ticksUntilArrival: 75, unitsKnown: false, sighted: null }]);
+  assert.deepEqual(result.villages[0].incoming, [{ id: "incoming", ticksUntilArrival: 75, ticksAfterConstructionDrain: 75, unitsKnown: false, sighted: null }]);
   state.world.endsAtTick = 50;
   assert.equal(defenceReadiness(state, rules, reports).world.remainingTicks, 0);
   rules.version++;
   assert.throws(() => defenceReadiness(state, rules, reports), /version mismatch/);
+});
+
+test("attack timing exposes construction in other villages without claiming readiness", () => {
+  const { state, rules } = context();
+  const village = state.villages[0];
+  const other = structuredClone(village);
+  other.id = "other";
+  other.buildQueue = [148, 120].map(endTick => ({ id: `q-${endTick}`, building: "mine", level: 2,
+    cost: { timber: 0, stone: 0, iron: 0 }, startTick: 90, endTick }));
+  state.villages.push(other);
+  const ref = { id: village.id, name: "Test", x: 1, y: 1, ownerId: "p1", ownerName: "Tester" };
+  state.commands.incoming = [110, 148, 175, 99].map(arrivalTick => ({ id: `a-${arrivalTick}`, seq: 1,
+    kind: "attack", from: ref, to: ref, sentTick: 90, arrivalTick, sighted: null, units: null }));
+  const report = () => defenceReadiness(state, rules, { reports: [], next: null });
+  const before = JSON.stringify(state);
+  assert.equal(report().globalConstructionDrainTicks, 48);
+  assert.equal(report().villages[0].queueDrainTicks, 0);
+  assert.deepEqual(report().villages[0].incoming.map(c => c.ticksAfterConstructionDrain), [-38, 0, 27, -49]);
+  assert.equal(JSON.stringify(state), before);
+  other.buildQueue = [];
+  assert.equal(report().globalConstructionDrainTicks, 0);
+  assert.deepEqual(report().villages[0].incoming.map(c => c.ticksAfterConstructionDrain), [10, 48, 75, -1]);
+  other.buildQueue = [{ id: "expired", building: "mine", level: 2,
+    cost: { timber: 0, stone: 0, iron: 0 }, startTick: 80, endTick: 99 }];
+  assert.equal(report().globalConstructionDrainTicks, 0);
 });
 
 test("comparison counts interval battles once and exposes truncated history", () => {
