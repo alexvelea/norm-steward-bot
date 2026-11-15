@@ -64,3 +64,48 @@ test("whole batch must finish with sixty ticks for use; Council delay is include
   c.state.world.endsAtTick = 200; c.state.player.nextActTick = 101;
   assert.equal(evaluateRecruitment(c)[0].status, "not-needed");
 });
+function shieldsReady() {
+  const c = ready(), v = c.state.villages[0];
+  v.units.home.pikeman = 10; v.buildings.smithy = 1;
+  v.options.train.push({unit:"shieldman", cost:{timber:35,stone:30,iron:65}, pop:1,ticksEach:11,maxCount:20,ok:true,blockers:[],affordableAtTick:null});
+  return c;
+}
+test("unlocked Shieldmen complement rather than replace ten Pikemen through the President", () => {
+  const c = shieldsReady(), v = c.state.villages[0];
+  const [p] = evaluateRecruitment(c);
+  assert.deepEqual(p.action, {type:"train",village:v.id,unit:"shieldman",count:5});
+  assert.equal(p.currentLevel,0); assert.equal(p.targetLevel,5);
+  assert.deepEqual(p.requirements,{timber:175,stone:150,iron:325});
+  assert.equal(selectProposal([...evaluateEconomy(c),p]).selected?.action.type,"train");
+  v.units.home.pikeman = 9;
+  assert.equal(evaluateRecruitment(c).some(p=>p.action.unit === "shieldman"), false);
+  v.units.away.pikeman = 1;
+  assert.equal(evaluateRecruitment(c)[0].action.unit,"shieldman");
+});
+test("Shieldman cap counts away and queued troops without buying or reserving prerequisites", () => {
+  const c = shieldsReady(), v = c.state.villages[0];
+  v.units.home.shieldman=2;v.units.away.shieldman=2;
+  assert.equal(evaluateRecruitment(c)[0].action.count,1);
+  v.units.away.shieldman=3;assert.deepEqual(evaluateRecruitment(c),[]);
+  v.units.away.shieldman=0;
+  v.training.barracks=[{id:"s",unit:"shieldman",count:3,remaining:3,costEach:{timber:35,stone:30,iron:65},nextTick:111,endTick:133}];
+  assert.deepEqual(evaluateRecruitment(c),[]);
+  v.training.barracks=[];v.buildings.smithy=0;
+  assert.equal(evaluateRecruitment(c)[0].status,"not-needed");
+  assert.deepEqual(selectProposal(evaluateRecruitment(c)).reservations,[]);
+});
+test("Shieldmen retain live affordability, population, queue, priority and full-batch horizon guards", () => {
+  const c=shieldsReady(),v=c.state.villages[0];
+  c.state.world.endsAtTick=215;assert.equal(evaluateRecruitment(c)[0].status,"ready");
+  c.state.world.endsAtTick=214;assert.equal(evaluateRecruitment(c)[0].status,"not-needed");
+  c.state.world.endsAtTick=10800;v.resourcesMilli.iron=0;
+  assert.equal(evaluateRecruitment(c)[0].status,"not-needed");
+  assert.deepEqual(selectProposal(evaluateRecruitment(c)).reservations,[]);
+  v.resourcesMilli.iron=1000000;v.population.used=149;
+  assert.equal(evaluateRecruitment(c)[0].action.count,1);
+  v.population.used=150;assert.equal(evaluateRecruitment(c)[0].status,"not-needed");
+  v.population.used=40;v.hidden=0;
+  assert.equal(selectProposal([...evaluateEconomy(c),...evaluateRecruitment(c)]).selected?.buildingName,"Cellar");
+  v.hidden=1000;v.orders.train=[{unit:"shieldman",keep:5}];
+  assert.equal(selectProposal(evaluateRecruitment(c)).selected,null);
+});

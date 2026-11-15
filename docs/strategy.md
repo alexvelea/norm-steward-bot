@@ -50,6 +50,30 @@ Both policies avoided recruitment when the full batch would leave only 59 ticks 
 before submission retained the exact batch payload; a lost successful response was reconciled from
 the observed training queue without another submission. Actual battle losses were not measured.
 
+## Bounded defensive composition candidate
+
+Keep the initial ten owned Pikemen and, only after they exist, allow at most five owned
+Shieldmen where Barracks/Smithy prerequisites are already satisfied. Count home, away and queued
+units separately for each cap. This adds no military infrastructure purchases or Hall prerequisite
+plan. The same President priority, durable training journal, population buffer, affordability,
+queue/order and full-batch round deadline checks apply. Lost Pikemen are replenished before adding
+Shieldmen. A village without Smithy 1 continues its existing Pikeman/economic policy.
+
+Reproduce the private baseline/candidate executor comparison and controlled server combat probes
+with `node --import tsx scripts/experiment-composition.ts`. The extra troops cost resources and
+population; distinguish isolated server simulations from battles containing a Warden's own defenders.
+This bounded complement is not a claim of improved live battle results or an optimal force size.
+
+The matched private comparison trained five Shieldmen from tick 800 to 855 for 175 timber,
+150 stone, 325 iron and five population; the baseline built Lumberyard 2. Journal-before-write
+and restart completion confirmation succeeded without duplicate submission. Both supported-village
+battles at tick 5255 lost zero of our defenders, so that fixture showed no casualty benefit.
+Isolated authoritative server probes against ten Raiders left two Pikemen and one Shieldman alive,
+where ten or sixteen Pikemen were wiped out. Against four Lancers, sixteen Pikemen lost fewer
+resources than the mixed force. The twelve-case matrix, including the rejected five-and-five
+replacement, is reproduced by `node --import tsx scripts/experiment-composition-matrix.ts`.
+Aggregate resource totals are comparisons, not exchange rates between timber, stone and iron.
+
 ## Priority: create useful military capability
 
 The observed land had no troops/training, no military infrastructure, repeated raids and 21/26

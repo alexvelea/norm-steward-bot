@@ -2,6 +2,7 @@ import type { Action, Resources, VillageState } from "../shared/api.js";
 import type { AdvisorContext, Proposal } from "./types.js";
 
 export const INITIAL_PIKEMEN = 10;
+export const INITIAL_SHIELDMEN = 5;
 export const RECRUIT_BATCH = 5;
 export const RECRUIT_USE_TICKS = 60;
 export function ownedPikemen(v: VillageState): number {
@@ -10,18 +11,24 @@ export function ownedPikemen(v: VillageState): number {
 /** A small initial defensive force, not an open-ended military budget or combat forecast. */
 export function evaluateRecruitment({ state, rules }: AdvisorContext): Proposal<Extract<Action, { type: "train" }>>[] {
   if (rules.version !== state.world.rulesVersion) throw new Error("Live rules do not match this world's rules version.");
-  const unit = (rules.rules.UNITS as Record<string, {
+  const units = rules.rules.UNITS as Record<string, {
     name: string; building: string; buildingLevel: number; smithyLevel: number;
-  }>).pikeman;
+  }>;
   const limit = (rules.rules.ECONOMY as { trainBatchMax: number }).trainBatchMax;
-  if (!unit || unit.building !== "barracks" || !Number.isSafeInteger(limit) || limit < 1)
+  if (!units.pikeman || !units.shieldman || !Number.isSafeInteger(limit) || limit < 1)
     throw new Error("Live recruitment rules are unavailable.");
   const proposals: Proposal<Extract<Action, { type: "train" }>>[] = [];
-  for (const v of state.villages) {
-    const owned = ownedPikemen(v);
-    const queued = Object.values(v.training).flat().filter((q) => q.unit === "pikeman").reduce((n, q) => n + q.remaining, 0);
-    if (owned + queued >= INITIAL_PIKEMEN) continue;
-    const option = v.options.train.find((o) => o.unit === "pikeman");
+  for (const v of state.villages) for (const unitId of ["pikeman", "shieldman"] as const) {
+    // Keep the existing spear wall. Add a small complement only after it is owned and
+    // the operator/economy has already unlocked Shields; never buy prerequisites.
+    if (unitId === "shieldman" && ownedPikemen(v) < INITIAL_PIKEMEN) continue;
+    const unit = units[unitId];
+    if (unit.building !== "barracks") continue;
+    const cap = unitId === "pikeman" ? INITIAL_PIKEMEN : INITIAL_SHIELDMEN;
+    const owned = (v.units.home[unitId] ?? 0) + (v.units.away[unitId] ?? 0);
+    const queued = Object.values(v.training).flat().filter((q) => q.unit === unitId).reduce((n, q) => n + q.remaining, 0);
+    if (owned + queued >= cap) continue;
+    const option = v.options.train.find((o) => o.unit === unitId);
     if (!option) continue;
     const blockers: string[] = [...option.blockers];
     const add = (b: string) => { if (!blockers.includes(b)) blockers.push(b); };
@@ -34,7 +41,7 @@ export function evaluateRecruitment({ state, rules }: AdvisorContext): Proposal<
     if (!option.ok || blockers.length) needed = false;
     const buffer = Math.max(50, Math.ceil(v.population.max * 0.2));
     const popCount = Math.max(0, Math.floor((v.population.max - v.population.used - buffer) / option.pop));
-    const count = Math.min(RECRUIT_BATCH, INITIAL_PIKEMEN - owned - queued, option.maxCount, popCount, limit);
+    const count = Math.min(RECRUIT_BATCH, cap - owned - queued, option.maxCount, popCount, limit);
     // No resource reservations: train only the currently affordable small batch.
     if (count < 1) skip("NO_BOUNDED_BATCH");
     const cost = Object.fromEntries((["timber", "stone", "iron"] as const).map((r) => [r, option.cost[r] * count])) as Resources;
@@ -50,12 +57,12 @@ export function evaluateRecruitment({ state, rules }: AdvisorContext): Proposal<
     if (state.world.status !== "running") add("WORLD_NOT_RUNNING");
     if (start > state.world.tick) add("COUNCIL_COOLDOWN");
     proposals.push({
-      id: `${state.world.epoch}:${v.id}:train:pikeman:${owned}:${count}`,
+      id: `${state.world.epoch}:${v.id}:train:${unitId}:${owned}:${count}`,
       advisor: "military", villageId: v.id, villageName: v.name,
-      action: { type: "train", village: v.id, unit: "pikeman", count },
+      action: { type: "train", village: v.id, unit: unitId, count },
       buildingName: `${unit.name} troops`, currentLevel: owned, targetLevel: owned + count,
       importance: 78,
-      reason: `Train ${count} Pikemen toward an initial cap of ${INITIAL_PIKEMEN} owned troops (including away and queued). Keep ${buffer} population free and ${RECRUIT_USE_TICKS} ticks after completion for use; capacity and protection take priority.`,
+      reason: `Train ${count} ${unit.name} toward an initial cap of ${cap} owned ${unit.name} troops (including away and queued).${unitId === "shieldman" ? " Complement ten owned Pikemen with at most five Shieldmen for infantry and ranged defence; use existing unlocks only." : ""} Keep ${buffer} population free and ${RECRUIT_USE_TICKS} ticks after completion for use; capacity and protection take priority.`,
       requirements: cost, blockers,
       status: !needed ? "not-needed" : blockers.length ? "waiting" : "ready",
       affordableAtTick: option.affordableAtTick,

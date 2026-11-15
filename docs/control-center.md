@@ -25,7 +25,7 @@ Scores are deterministic integers:
 | Farm | 100 if no free population, otherwise 95 **only** below max(50, 20% of capacity); sufficient buffer = not-needed (20) |
 | Storehouse | 90–99 **only** if current stock + 300 ticks of production exceeds capacity for any resource; otherwise not-needed (25) |
 | Cellar | 80 **only** if protection per resource is below the largest 300-tick production amount; otherwise not-needed (25) |
-| Initial Pikemen | 78 for a currently affordable batch of at most five toward ten owned troops, preserving the economic population buffer; no resource reservation |
+| Initial defence | 78 for an affordable batch of at most five toward ten owned Pikemen, then at most five Shieldmen where already unlocked; preserve the economic population buffer, with no resource reservation or prerequisite purchases |
 | First Barracks | 79 when unlocked and usable, below capacity/protection and ahead of discretionary Hall/production investment (ties prefer Barracks); no further military levels |
 | Great Hall | 70–79 only when Hall-first finishes the same useful upgrade sequence sooner after resource costs/waits and a safety margin; otherwise not-needed (30) |
 | Resource producer | 60 for lowest projected coverage, then 50 and 40; ties share a score |
