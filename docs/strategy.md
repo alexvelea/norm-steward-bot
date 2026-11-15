@@ -35,6 +35,12 @@ fail rather than imply safety. Next, obtain redacted battle detail and compare o
 policy to the current policy in owner-created private sandboxes. Recruitment still requires extending
 the build-only proposal contract and durable executor through the President; this is unfinished.
 
+Training readiness now also lists each offered unit's missing direct recruitment-building and
+smithy levels from the supplied rules. It preserves server options and blockers, and fails on
+missing or invalid unit prerequisites. This explains generic prerequisite rejections without
+assuming an unlock is affordable or projecting a construction chain. For example, the r8.0 tick
+5657 snapshot requires Barracks 1 for pikemen, and Barracks 1 plus Smithy 1 for shieldmen.
+
 The optional comparison reads only the earlier `state.json`. It refuses different player/world/
 epoch/round scopes and non-forward ticks, reports building changes and village turnover, and counts
 unique defensive battle IDs in `(previous tick, current tick]`. Counts are observed lower bounds

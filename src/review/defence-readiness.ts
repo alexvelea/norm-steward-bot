@@ -1,4 +1,4 @@
-import type { BuildingId, ReportsResponse, RulesResponse, StateResponse } from "../shared/api.js";
+import type { BuildingId, ReportsResponse, RulesResponse, StateResponse, UnitId } from "../shared/api.js";
 
 const militaryBuildings = ["barracks", "smithy", "wall", "watchtower", "stable", "workshop"] as const;
 
@@ -7,6 +7,7 @@ export function defenceReadiness(state: StateResponse, rules: RulesResponse, rep
   if (state.world.rulesVersion !== rules.version) throw new Error("Evidence rules version mismatch");
   const metadata = rules.rules.BUILDINGS as Record<BuildingId, { requires: Partial<Record<BuildingId, number>> }>;
   if (!metadata) throw new Error("Missing building prerequisites in evidence");
+  const units = rules.rules.UNITS as Record<UnitId, { building: BuildingId; buildingLevel: number; smithyLevel: number }>;
   const tick = state.world.tick;
   return {
     world: { id: state.world.id, epoch: state.world.epoch, round: state.world.round, tick,
@@ -16,6 +17,7 @@ export function defenceReadiness(state: StateResponse, rules: RulesResponse, rep
       "Report summaries omit attack strength, troop losses and loot; no force target or combat benefit is inferred.",
       "Reports are a retained page matched to current village IDs, not a complete round loss rate; reports have no epoch field.",
       "Queue drain excludes polling, Council cooldown, standing orders, other villages and future actions; it is not a readiness forecast.",
+      "Training prerequisites are direct rule requirements at current levels; construction chains, costs and completion times are not projected. Server training blockers remain authoritative.",
     ],
     reports: { retained: reports.reports.length, hasOlderPage: reports.next !== null },
     comparison: previous ? compareReadiness(state, previous, reports) : null,
@@ -44,6 +46,20 @@ export function defenceReadiness(state: StateResponse, rules: RulesResponse, rep
           };
         }),
         trainingOptions: v.options.train,
+        trainingPrerequisites: v.options.train.map(option => {
+          const definition = units?.[option.unit];
+          if (!definition || !(definition.building in v.buildings)
+            || !Number.isInteger(definition.buildingLevel) || definition.buildingLevel < 1
+            || !Number.isInteger(definition.smithyLevel) || definition.smithyLevel < 0) {
+            throw new Error(`Missing or invalid training prerequisites for ${option.unit}`);
+          }
+          const requirements = new Map<BuildingId, number>([[definition.building, definition.buildingLevel]]);
+          if (definition.smithyLevel > 0) requirements.set("smithy", Math.max(requirements.get("smithy") ?? 0, definition.smithyLevel));
+          return { unit: option.unit,
+            missingPrerequisites: [...requirements].filter(([building, required]) => v.buildings[building] < required)
+              .map(([building, required]) => ({ building, required, current: v.buildings[building] })),
+          };
+        }),
       };
     }),
   };

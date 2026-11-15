@@ -85,3 +85,27 @@ test("comparison refuses resets, account changes and non-forward clocks", () => 
     assert.equal(defenceReadiness(state, rules, { reports: [], next: null }, previous).comparison?.status, "not-comparable");
   }
 });
+
+test("training readiness explains rule prerequisites without overriding server blockers", () => {
+  const { state, rules } = context();
+  const village = state.villages[0];
+  village.options.train = ["pikeman", "shieldman", "archer", "scout"].map(unit => ({
+    unit, cost: { timber: 1, stone: 1, iron: 1 }, ticksEach: 8, pop: 1,
+    maxCount: 0, ok: false, blockers: ["REQUIREMENTS_NOT_MET"], affordableAtTick: null,
+  })) as typeof village.options.train;
+  const report = () => defenceReadiness(state, rules, { reports: [], next: null }).villages[0];
+  const before = JSON.stringify({ state, rules });
+  assert.deepEqual(report().trainingPrerequisites, [
+    { unit: "pikeman", missingPrerequisites: [{ building: "barracks", required: 1, current: 0 }] },
+    { unit: "shieldman", missingPrerequisites: [{ building: "barracks", required: 1, current: 0 }, { building: "smithy", required: 1, current: 0 }] },
+    { unit: "archer", missingPrerequisites: [{ building: "barracks", required: 5, current: 0 }, { building: "smithy", required: 5, current: 0 }] },
+    { unit: "scout", missingPrerequisites: [{ building: "stable", required: 1, current: 0 }] },
+  ]);
+  assert.equal(JSON.stringify({ state, rules }), before);
+  village.buildings.barracks = 5;
+  village.buildings.smithy = 5;
+  assert.deepEqual(report().trainingPrerequisites.slice(0, 3).map(o => o.missingPrerequisites), [[], [], []]);
+  assert.deepEqual(report().trainingOptions[0].blockers, ["REQUIREMENTS_NOT_MET"]);
+  delete (rules.rules.UNITS as Record<string, unknown>).pikeman;
+  assert.throws(report, /training prerequisites for pikeman/);
+});
