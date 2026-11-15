@@ -20,7 +20,7 @@ export function evaluateRecruitment({ state, rules }: AdvisorContext): Proposal<
   const proposals: Proposal<Extract<Action, { type: "train" }>>[] = [];
   for (const v of state.villages) for (const unitId of ["pikeman", "shieldman"] as const) {
     // Keep the existing spear wall. Add a small complement only after it is owned and
-    // the operator/economy has already unlocked Shields; never buy prerequisites.
+    // Shields are unlocked; infrastructure is a separate President proposal.
     if (unitId === "shieldman" && ownedPikemen(v) < INITIAL_PIKEMEN) continue;
     const unit = units[unitId];
     if (unit.building !== "barracks") continue;

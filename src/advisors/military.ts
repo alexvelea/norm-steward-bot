@@ -1,4 +1,5 @@
 import { evaluateRecruitment } from "./recruitment.js";
+import { evaluateDefensiveSmithy } from "./smithy.js";
 import { completionWindow } from "./completion.js";
 import type { Action, BuildingId, Resources } from "../shared/api.js";
 import type { Advisor, AdvisorContext, Proposal } from "./types.js";
@@ -63,5 +64,5 @@ export function evaluateMilitary({ state, rules }: AdvisorContext): Proposal<Ext
       affordableAtTick: option.affordableAtTick,
     });
   }
-  return proposals;
+  return [...proposals, ...evaluateDefensiveSmithy({ state, rules })];
 }

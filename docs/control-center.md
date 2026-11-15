@@ -27,6 +27,7 @@ Scores are deterministic integers:
 | Cellar | 80 **only** if protection per resource is below the largest 300-tick production amount; otherwise not-needed (25) |
 | Initial defence | 78 for an affordable batch of at most five toward ten owned Pikemen, then at most five Shieldmen where already unlocked; preserve the economic population buffer, with no resource reservation or prerequisite purchases |
 | First Barracks | 79 when unlocked and usable, below capacity/protection and ahead of discretionary Hall/production investment (ties prefer Barracks); no further military levels |
+| First defensive Smithy | 77 after ten owned Pikemen, with existing Hall/Barracks prerequisites and enough current resources and population for Smithy 1 plus the remaining complement of at most five Shieldmen; no resource reservation |
 | Great Hall | 70–79 only when Hall-first finishes the same useful upgrade sequence sooner after resource costs/waits and a safety margin; otherwise not-needed (30) |
 | Resource producer | 60 for lowest projected coverage, then 50 and 40; ties share a score |
 
@@ -104,6 +105,16 @@ training options determine costs, batch affordability, duration and population. 
 buffer stays at max(50, 20% of capacity), queues stay shallow, external build/training orders prevent
 recruitment, and the whole batch must finish at least 60 ticks before round end. Unavailable
 recruitment is not-needed and never reserves the economy. No combat improvement is claimed.
+
+After ten Pikemen are owned (home plus away), a separate score-77 proposal can build Smithy 1
+when its Hall/Barracks prerequisites already exist. It funds the complete remaining Shieldman
+complement from current stock without crediting future income, and preserves max(50, 20% of
+capacity) free population after construction and those troops. It skips unavailable infrastructure
+or training, caps the complement at five including home/away/queued units, and buys no Hall levels
+or Smithy upgrades. Construction and training queues and standing orders defer it. Construction
+must leave at least 300 ticks, extended when the Council interval plus full-batch training and
+60 ticks for use need longer. Actual recruitment remains a separate fresh President decision;
+the durable executor journals and reconciles both actions through its existing build/train paths.
 
 - Affordability is per village. Resources are never pooled or automatically traded.
 - Existing construction blocks additional advisor builds in that village. The first iteration keeps

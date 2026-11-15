@@ -54,8 +54,8 @@ the observed training queue without another submission. Actual battle losses wer
 
 Keep the initial ten owned Pikemen and, only after they exist, allow at most five owned
 Shieldmen where Barracks/Smithy prerequisites are already satisfied. Count home, away and queued
-units separately for each cap. This adds no military infrastructure purchases or Hall prerequisite
-plan. The same President priority, durable training journal, population buffer, affordability,
+units separately for each cap. Recruitment itself buys no infrastructure or Hall prerequisites.
+The same President priority, durable training journal, population buffer, affordability,
 queue/order and full-batch round deadline checks apply. Lost Pikemen are replenished before adding
 Shieldmen. A village without Smithy 1 continues its existing Pikeman/economic policy.
 
@@ -73,6 +73,29 @@ where ten or sixteen Pikemen were wiped out. Against four Lancers, sixteen Pikem
 resources than the mixed force. The twelve-case matrix, including the rejected five-and-five
 replacement, is reproduced by `node --import tsx scripts/experiment-composition-matrix.ts`.
 Aggregate resource totals are comparisons, not exchange rates between timber, stone and iron.
+
+## Bounded defensive Smithy unlock
+
+A separate Military Advisor proposal at score 77 enables Smithy 1 after ten owned Pikemen when
+Hall 5 and Barracks 1 already exist under live prerequisites. It buys no Hall levels or further
+Smithy levels. Current resources must cover both the Smithy and the entire remaining complement
+of at most five Shieldmen, with the recruitment population buffer preserved after both. An
+unfunded or impossible path is not-needed and never reserves the economy. Urgent capacity and
+Cellar protection keep priority; busy queues, standing orders, pause and Council cooldown defer
+submission. Construction must leave 300 ticks, or enough for a longer Council interval plus full
+complement training and 60 ticks for use. The existing President/executor revalidates recruitment
+after construction, so this is a bounded enabling purchase rather than an irrevocable troop plan.
+
+Reproduce the matched baseline/candidate useful and too-late cases with
+`node --import tsx scripts/experiment-smithy.ts` in the managed review environment. The comparison
+allows two President decisions per policy, then observes at an equal clock tick. From tick 800
+to 894, the candidate built Smithy 1 and trained five Shieldmen for 395 timber, 330 stone and
+565 iron, using 25 population (54 to 79 of 200). The baseline instead built two Lumberyard levels
+for 141 timber, 169 stone and 113 iron and retained ten Pikemen without Shieldmen. Both actions
+in the candidate were journalled before submission and confirmed after paused restarts without
+duplicate writes. The late case rejected the Smithy with only 299 ticks after its completion.
+These results demonstrate the additional troop path and its economic cost, not improved live
+battle losses or an optimal allocation.
 
 ## Priority: create useful military capability
 
