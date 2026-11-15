@@ -81,8 +81,8 @@ export function ReviewPanel() {
         </p>
       )}
       <p className="small muted">
-        Economic Advisor: continuous. Military, defence and raiding advisors:
-        planned.
+        Advisors run continuously. Their proposals explain the capabilities
+        currently implemented.
       </p>
       {view?.activeTask && (
         <div className="cc-review-task">

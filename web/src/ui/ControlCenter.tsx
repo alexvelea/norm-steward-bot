@@ -1,3 +1,4 @@
+import { compareProposals } from "../../../src/advisors/types";
 import { ReviewPanel } from "./ReviewPanel";
 import { useEffect, useState } from "react";
 import {
@@ -195,7 +196,7 @@ function AdvisorPage({
       <div className="cc-page-heading">
         <div>
           <p className="eyebrow">Your deterministic council</p>
-          <h1>Economic Advisor</h1>
+          <h1>Advisor council</h1>
           <p className="muted">
             Short-term upgrades, ranked by need. The President chooses one
             affordable action at a time.
@@ -370,7 +371,7 @@ function AdvisorPage({
             Not-needed upgrades are never built. Ties are deterministic.
           </p>
           <div className="cc-proposals">
-            {view.proposals.map((p, i) => (
+            {[...view.proposals].sort(compareProposals).map((p, i) => (
               <article
                 key={p.id}
                 className={`cc-proposal ${view.selection.selected?.id === p.id ? "is-selected" : ""}`}
@@ -383,7 +384,14 @@ function AdvisorPage({
                     <h3>
                       {p.buildingName} <span>→ {p.targetLevel}</span>
                     </h3>
-                    <small>{p.villageName} · Economic Advisor</small>
+                    <small>
+                      {p.villageName} ·{" "}
+                      {p.advisor === "military"
+                        ? "Military Advisor"
+                        : p.advisor === "economic"
+                          ? "Economic Advisor"
+                          : p.advisor}
+                    </small>
                   </div>
                   <div className="cc-score">
                     <strong>{p.importance}</strong>

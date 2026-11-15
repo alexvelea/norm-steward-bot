@@ -87,10 +87,28 @@ class ProgressTests(unittest.TestCase):
   for world in ['one','two']:
    for op in ['create','step','act']:receipts.append({'op':op,'worldId':world,'ok':True,'fingerprint':fingerprint(self.work),'actionResults':[{'ok':True}]})
   (self.run/'sandbox-events.jsonl').write_text(''.join(json.dumps(e)+'\n' for e in receipts))
-  artifact=self.run/'comparison.json';artifact.write_text(json.dumps({'results':[{'worldId':'one','policy':'baseline'},{'worldId':'two','policy':'candidate'}]}));self.report['artifacts']=[str(artifact)];self.report['activate']=True
+  artifact=self.run/'comparison.json';artifact.write_text(json.dumps({'passed':True,'results':[{'worldId':'one','policy':'baseline'},{'worldId':'two','policy':'candidate'}]}));self.report['artifacts']=[str(artifact)];self.report['activate']=True;self.report['verdict']='supports-change'
   self.assertFalse(assess(self.report,self.task,['src/advisors/policy.ts'],self.run,self.work,True)['needsRetry'])
+  self.report['verdict']='rejects-change'
+  self.assertTrue(assess(self.report,self.task,['src/advisors/policy.ts'],self.run,self.work,True)['needsRetry'])
+  self.report['verdict']='supports-change'
+  artifact.write_text(json.dumps({'passed':False,'results':[{'worldId':'one','policy':'baseline'},{'worldId':'two','policy':'candidate'}]}))
+  self.assertTrue(assess(self.report,self.task,['src/advisors/policy.ts'],self.run,self.work,True)['needsRetry'])
+  artifact.write_text(json.dumps({'passed':True,'results':[{'worldId':'one','policy':'baseline'},{'worldId':'two','policy':'candidate'}]}))
   policy.write_text('changed after experiment')
   self.assertEqual(assess(self.report,self.task,['src/advisors/policy.ts'],self.run,self.work,True)['kind'],'validation-missing')
+ def test_recovered_rate_limit_is_not_a_real_blocker(self):
+  from progress import assess
+  (self.run/'sandbox-events.jsonl').write_text(json.dumps({'op':'rate-limit','ok':False,'retryAfterSeconds':1})+'\n')
+  self.report['blocker']={'kind':'rate-limit','message':'A past retry','attemptLog':'sandbox-events.jsonl'}
+  self.assertTrue(assess(self.report,self.task,[],self.run,self.work,False)['needsRetry'])
+ def test_only_implementation_ready_plus_successful_delivery_closes_work(self):
+  from progress import delivered
+  task={**self.task,'requiredPaths':['src/advisors/army.ts']};paths=['src/advisors/army.ts'];report={'implementationComplete':True}
+  self.assertEqual(delivered(task,report,paths,{'commit':'ok','status':'healthy'})['stage'],'complete')
+  self.assertNotEqual(delivered(task,report,[],{'commit':'ok','status':'healthy'})['stage'],'complete')
+  self.assertNotEqual(delivered(task,report,paths,{'commit':'bad','status':'rolled-back'})['stage'],'complete')
+  self.assertNotEqual(delivered(task,{'implementationComplete':False},paths,{'commit':'partial','status':'healthy'})['stage'],'complete')
  def test_old_pending_runtime_diff_does_not_turn_new_reporting_into_progress(self):
   from progress import assess
   result=assess(self.report,self.task,['src/advisors/pending.ts','src/review/report.ts'],self.run,self.work,True,['src/review/report.ts'])

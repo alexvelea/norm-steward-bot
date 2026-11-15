@@ -5,7 +5,7 @@ sys.path.insert(0,str(pathlib.Path(__file__).resolve().parent/'review'))
 from usage import read_usage, budget_pause
 from evidence import collect, settings, CONTROL
 from deploy import activate, atomic
-from progress import select_task, source_digest, assess, advance, runtime_change, snapshot, policy_change
+from progress import select_task, source_digest, assess, advance, runtime_change, snapshot, policy_change, delivered
 from sandbox import Broker
 ROOT=pathlib.Path(os.environ.get('STEWARD_REVIEW_REPO','/root/norm-steward-bot'))
 DATA=pathlib.Path(os.environ.get('STEWARD_REVIEW_DIR','/var/lib/norm-steward-review'))
@@ -90,7 +90,7 @@ def allowed_changes(paths):return all(not any(p==prefix or p.startswith(prefix) 
 
 def validate_report(report):
     if not isinstance(report,dict) or not isinstance(report.get('activate'),bool):return False
-    return all(isinstance(report.get(k),str) for k in ['summary','expectedEffect','measuredOutcome','nextMeasure']) and isinstance(report.get('evidence'),list) and isinstance(report.get('backlog'),list) and isinstance(report.get('taskId'),str) and report.get('outcome') in ['implementation','experiment','instrumentation','blocked','no-change'] and isinstance(report.get('artifacts'),list) and isinstance(report.get('taskComplete'),bool) and report.get('verdict') in ['supports-change','rejects-change','inconclusive','not-applicable']
+    return all(isinstance(report.get(k),str) for k in ['summary','expectedEffect','measuredOutcome','nextMeasure']) and isinstance(report.get('evidence'),list) and isinstance(report.get('backlog'),list) and isinstance(report.get('taskId'),str) and report.get('outcome') in ['implementation','experiment','instrumentation','blocked','no-change'] and isinstance(report.get('artifacts'),list) and isinstance(report.get('implementationComplete',report.get('taskComplete')),bool) and report.get('verdict') in ['supports-change','rejects-change','inconclusive','not-applicable']
 
 def review(probe=False):
     DATA.mkdir(parents=True,exist_ok=True,mode=0o700);os.chmod(DATA,0o700)
@@ -219,10 +219,8 @@ def review(probe=False):
         update(status='deploying')
         if runtime_change(paths):
             deployment=activate(WORK,commit)
-            can_complete=task.get('delivery','gameplay')!='gameplay' or policy_change(paths)
-            can_complete=can_complete and all(path in paths for path in task.get('requiredPaths',[]))
-            if report.get('taskComplete') and can_complete:
-                task['stage']='complete'
+            task=delivered(task,report,paths,deployment)
+            if task['stage']=='complete':
                 pending=load(DATA/'backlog.json',[])
                 pending=[b for b in pending if b.get('id')!=task['id'] and b.get('title')!=task['title']]
                 atomic(DATA/'backlog.json',pending)

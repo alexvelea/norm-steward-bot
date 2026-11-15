@@ -82,9 +82,6 @@
         "not-applicable"
       ]
     },
-    "taskComplete": {
-      "type": "boolean"
-    },
     "blocker": {
       "anyOf": [
         {
@@ -111,6 +108,9 @@
           ]
         }
       ]
+    },
+    "implementationComplete": {
+      "type": "boolean"
     }
   },
   "required": [
@@ -125,7 +125,7 @@
     "outcome",
     "artifacts",
     "verdict",
-    "taskComplete",
+    "implementationComplete",
     "blocker"
   ]
 }

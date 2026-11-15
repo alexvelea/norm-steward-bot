@@ -163,3 +163,12 @@ STEWARD_REVIEW_RUN=/var/lib/norm-steward-review/manual-experiment \
 Use a fresh private run directory for each bounded experiment. The next pinned implementation step
 is military infrastructure through the shared President, followed by recruitment via the durable
 executor. A barracks is only an enabling step; no combat gain is claimed until usable troops exist.
+
+Implementation readiness and publication are separate protocol states. The model returns
+`implementationComplete` for code/tests/experiment acceptance; it does not wait for its own commit
+or deployment (both belong to the wrapper). Only after successful publication and healthy activation
+does the wrapper close that task, also checking its required paths. A partial implementation remains
+pinned. A legacy `taskComplete` value is accepted for saved reports. The first repaired unattended
+run shipped the Military Advisor, four actual sandbox comparisons and 109 checks; its post-deploy
+acceptance was audited during this protocol migration. Subsequent runs use the unambiguous field.
+Failed comparison artifacts and rejected/inconclusive verdicts cannot authorize policy activation.

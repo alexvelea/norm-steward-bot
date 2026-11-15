@@ -41,7 +41,7 @@ def sandbox_evidence(run,work):
     created={e['worldId'] for e in entries if e.get('op')=='create' and e.get('ok') and e.get('fingerprint')==current}
     advanced={e['worldId'] for e in entries if e.get('op')=='step' and e.get('ok') and e.get('fingerprint')==current}
     acted={e['worldId'] for e in entries if e.get('op')=='act' and e.get('ok') and e.get('fingerprint')==current and any(r.get('ok') for r in e.get('actionResults',[]))}
-    return {'worlds':sorted(created&advanced),'successfulActionWorlds':sorted(created&acted),'failedAttempts':[e for e in entries if e.get('ok') is False]}
+    return {'worlds':sorted(created&advanced),'successfulActionWorlds':sorted(created&acted),'failedAttempts':[e for e in entries if e.get('ok') is False and e.get('op')!='rate-limit']}
 
 def valid_artifacts(report,run,work):
     roots=[pathlib.Path(run).resolve(),pathlib.Path(work).resolve()]
@@ -62,7 +62,7 @@ def assess(report,task,paths,run,work,changed,changed_paths=None):
         try:
             value=json.loads(pathlib.Path(path).read_text());cases=value.get('cases',value.get('results',[]))
             matching=[c for c in cases if isinstance(c,dict) and c.get('worldId') in receipt['worlds'] and c.get('policy') in ['baseline','candidate']]
-            if {'baseline','candidate'}<=set(c['policy'] for c in matching):comparisons.append(path)
+            if value.get('passed') is True and {'baseline','candidate'}<=set(c['policy'] for c in matching):comparisons.append(path)
         except (ValueError,AttributeError,TypeError):pass
     experimented=len(receipt['worlds'])>=2 and bool(receipt['successfulActionWorlds']) and bool(comparisons)
     has_runtime=runtime_change(paths if changed_paths is None else changed_paths)
@@ -74,8 +74,8 @@ def assess(report,task,paths,run,work,changed,changed_paths=None):
     elif real_blocker:kind='blocked'
     else:kind='no-progress'
     credit=kind in ['implementation','experiment'] or kind=='instrumentation' and task.get('instrumentationRuns',0)==0
-    if report.get('activate') and policy_change(paths) and not experimented:
-        return {'kind':'validation-missing','credit':False,'needsRetry':True,'error':'Run the candidate against the current policy in two managed private sandboxes. Fresh broker receipts and a comparison artifact are required.','receipt':receipt}
+    if report.get('activate') and policy_change(paths) and (not experimented or report.get('verdict')!='supports-change'):
+        return {'kind':'validation-missing','credit':False,'needsRetry':True,'error':'Run the candidate against the current policy in two managed private sandboxes. Fresh broker receipts, a passed comparison artifact and supports-change verdict are required.','receipt':receipt}
     return {'kind':kind,'credit':credit,'needsRetry':not credit and not real_blocker,'error':None,'receipt':receipt}
 
 def advance(task,result,report):
@@ -86,3 +86,11 @@ def advance(task,result,report):
     elif result['kind']=='implementation':task['stage']='verify'
     task['nextAction']=report.get('nextMeasure') or task['nextAction']
     return task
+
+def delivered(task,report,paths,deployment):
+    result=dict(task);result['lastDeployedCommit']=deployment['commit']
+    ready=report.get('implementationComplete',report.get('taskComplete',False))
+    matches=result.get('delivery','gameplay')!='gameplay' or policy_change(paths)
+    if deployment.get('status')=='healthy' and ready and matches and all(p in paths for p in result.get('requiredPaths',[])):
+        result['stage']='complete'
+    return result
