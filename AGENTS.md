@@ -15,3 +15,5 @@ This is a personal client repository: a hybrid dashboard and autonomous API bots
 The persistent control service owns the only advisor executor. Run the configured economic policy on startup while respecting its persisted pause, journal action IDs before writes, and never add browser execution loops. Local private connection settings are client configuration, not a game account store.
 
 Scheduled reviews use docs/reviews.md and docs/strategy.md. Preserve the persisted gameplay execution setting during reviews, Settings changes and deployment; never silently resume an operator pause. The review timer and its pause switch are independent of gameplay. Compare strategy changes in owner-created private sandboxes before automatic activation. Keep review logs and credentials outside Git.
+
+Scheduled work is pinned in work.json. The reviewer owns obtaining missing evidence: use the managed PrivateSandbox helper without reading credentials. Repeated offline reports or unchanged checks do not complete gameplay tasks. Follow docs/reviews.md work-contract and experiment receipt requirements; keep the President as the only allocator.

@@ -93,3 +93,73 @@ to create the first release. Install the two review units and the gameplay unit 
 Use `systemd-run --wait --pipe --collect -p WorkingDirectory=/var/lib/norm-steward-review
 /usr/bin/python3 /root/norm-steward-bot/scripts/review.py probe` to check the real noninteractive
 service environment. No enabled review timer requires an open browser or terminal.
+
+## Work contracts and anti-stall repair (2026-11-15)
+
+The initial schedule produced 17 reviews, six reporting deployments and zero scheduled gameplay
+changes. It repeatedly waited for sandbox evidence rather than obtaining it. This is now explicitly
+an implementation loop, with one pinned work item in `work.json`: stable ID, acceptance criteria,
+required delivery paths, stage, next action, attempts and a consecutive no-progress counter.
+Reordering or rephrasing the backlog cannot silently abandon an unfinished task.
+
+Each result includes taskId, outcome, artifacts, experiment verdict, completion claim and a concrete
+blocker (or null). The wrapper classifies actual changes and managed experiment receipts instead
+of treating a self-reported successful review as gameplay progress. Reporting-only work is credited
+at most once per task. An unchanged snapshot/test replay is no progress. After a no-progress result,
+a corrective Codex attempt runs immediately within the SAME 15-minute total budget; another deferral
+becomes visibly `stalled`, retains its task and resumes on the next tick. No arbitrary code change is
+required: a genuinely new, reproducible negative experiment is useful, and incomplete implementation
+can remain safely unactivated. Missing input is an instruction to collect/test, not a blocker.
+
+Gameplay tasks are only complete after a verified policy/executor change is deployed and their
+required paths are present. UI/reporting changes cannot complete a gameplay task. History labels
+`gameplay-shipped`, `ui-shipped`, `instrumentation-published`, `experiment`, or `no-progress`.
+Reporting-only commits are checked and pushed but do not restart the gameplay service. The dashboard
+shows active work, attempts/stalls, the last gameplay shipment and recent review history.
+
+### Credential-safe experiments
+
+The reviewer is authorized to create its own experiments. It uses `PrivateSandbox` from
+`src/review/sandbox-client.ts`, backed by trusted `scripts/sandbox.py`. The broker reads configured
+credentials internally; callers see no key and cannot write to a live or foreign world. Each run
+has a durable registry of worlds it created, ownership checks before operations, stable action IDs,
+HTTP-429 backoff, and an fsynced `sandbox-events.jsonl`. At most eight worlds can be created per run
+(two may be active on the upstream account). Cleanup runs in the agent's finally and again in the
+wrapper's finally; cleanup errors are visible. Expired worlds can be inspected in their registry.
+
+The wrapper injects STEWARD_REVIEW_RUN and STEWARD_REVIEW_TOOLS. The pinned task/prompt includes
+an executable example, not merely a demand for results. A policy activation requires at least two
+created-and-stepped owner sandboxes, a successful ordinary action, a JSON baseline/candidate
+comparison referencing those worlds, and receipts matching the current advisor/executor code
+fingerprint. Changing policy after testing invalidates that evidence. New experiments belong in
+scripts/experiment-*.ts and can be committed; raw results stay under the private run directory.
+The broker and reviewer control scripts remain protected against unattended modifications.
+
+`python3 scripts/review.py collect --output <run>/evidence --details` fetches up to five retained
+battle detail reports as well as snapshots; reading an owner's battle detail marks it read. Normal
+reviews request these automatically. Unknown live enemy strength is not a prerequisite for a
+controlled sandbox test of basic military infrastructure. The default model uses high reasoning
+within the existing ChatGPT login; there is still no additional paid model or credential switching.
+
+### First repaired delivery
+
+The stalled construction guard is now implemented in the Economic Advisor and therefore in fresh
+executor revalidation. On an idle queue, it rejects the earliest live-duration completion when it
+falls AFTER the round end, accounting for known affordability and Council cooldown. Existing queued
+work remains tracked; queued Hall changes are reevaluated on completion rather than projected as an
+execution guarantee. Snapshot/network races remain subject to the upstream server's final decision.
+
+Six managed private sandboxes compare the exact old evaluator at 03a2a89 with the candidate at
+completion end-1, end, and end+1. The engine confirmed that exact end-tick completion DOES complete,
+so equality is allowed. The old evaluator spent 160 resources on an end+1 Cellar which never
+completed; the new evaluator spent zero. Both still build successfully at end-1 and end. Results
+are in `/var/lib/norm-steward-review/repair-completion-equality/`. Reproduce with:
+
+```bash
+STEWARD_REVIEW_RUN=/var/lib/norm-steward-review/manual-experiment \
+  node --import tsx scripts/experiment-completion.ts
+```
+
+Use a fresh private run directory for each bounded experiment. The next pinned implementation step
+is military infrastructure through the shared President, followed by recruitment via the durable
+executor. A barracks is only an enabling step; no combat gain is claimed until usable troops exist.

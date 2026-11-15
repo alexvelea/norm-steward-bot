@@ -2244,3 +2244,7 @@ input.num {
 .cc-reviews { margin:20px 0; }
 .cc-reviews summary { cursor:pointer; padding:10px 0; }
 .cc-reviews li { margin:10px 0; }
+
+.cc-review-task { border-left:2px solid #88743d; padding-left:14px; margin:18px 0; }
+.cc-review-history { max-height:440px; overflow-y:auto; }
+.cc-review-history article { border-bottom:1px solid #393328; padding:8px 0; }

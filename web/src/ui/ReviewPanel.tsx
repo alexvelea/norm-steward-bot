@@ -84,6 +84,40 @@ export function ReviewPanel() {
         Economic Advisor: continuous. Military, defence and raiding advisors:
         planned.
       </p>
+      {view?.activeTask && (
+        <div className="cc-review-task">
+          <h3>Active work: {view.activeTask.title}</h3>
+          <p className="small muted">
+            Stage: {view.activeTask.stage} · {view.activeTask.attempts} attempts
+            · {view.activeTask.noProgressStreak} consecutive attempts without
+            substantive progress
+          </p>
+          <p>
+            <strong>Done means:</strong> {view.activeTask.acceptance}
+          </p>
+          <p>
+            <strong>Next action:</strong> {view.activeTask.nextAction}
+          </p>
+          {view.activeTask.noProgressStreak > 0 && (
+            <p className="warn-line">
+              The reviewer is required to advance the implementation or run its
+              experiment, rather than repeat reporting.
+            </p>
+          )}
+        </div>
+      )}
+      {view?.lastGameplayChange && (
+        <p className="small muted">
+          <strong>Last gameplay shipment:</strong>{" "}
+          {new Date(view.lastGameplayChange.at).toLocaleString()} ·{" "}
+          {view.lastGameplayChange.summary}
+        </p>
+      )}
+      {view?.cleanupError && (
+        <p className="warn-line">
+          Sandbox cleanup needs attention: {view.cleanupError}
+        </p>
+      )}
       {view?.latestReview && (
         <details open>
           <summary>{view.latestReview.summary}</summary>
@@ -102,6 +136,23 @@ export function ReviewPanel() {
               ))}
             </ul>
           </details>
+        </details>
+      )}
+      {!!view?.reviewHistory?.length && (
+        <details>
+          <summary>Review history · shipped changes and experiments</summary>
+          <div className="cc-review-history">
+            {[...view.reviewHistory].reverse().map((r, i) => (
+              <article key={i}>
+                <p className="small muted">
+                  {new Date(r.at).toLocaleString()} ·{" "}
+                  <strong>{r.outcome.replaceAll("-", " ")}</strong>
+                  {r.commit ? ` · ${r.commit.slice(0, 7)}` : ""}
+                </p>
+                <p>{r.summary}</p>
+              </article>
+            ))}
+          </div>
         </details>
       )}
       {!!view?.backlog?.length && (

@@ -1,3 +1,4 @@
+import { completionWindow } from "./completion.js";
 import { estimateHall } from "./hall.js";
 import type { BuildingId, Resources, VillageState } from "../shared/api.js";
 import {
@@ -147,9 +148,16 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal[] {
         importance = hall.importance;
         reason = hall.reason;
       }
+      const window = queued ? null : completionWindow(state, v, option);
+      const tooLate = !!window && !window.fits;
+      if (tooLate && needed) {
+        needed = false;
+        reason += ` Earliest snapshot completion is tick ${window!.completionTick}; the round ends at ${window!.endsAtTick}. Save these resources rather than buy construction that cannot finish by round end.`;
+      }
       const blockers: string[] = queued
         ? ["ALREADY_QUEUED"]
         : [...option.blockers];
+      if (tooLate && !queued) blockers.push("ROUND_END_TOO_SOON");
       if (!needed && !queued) blockers.push("NOT_NEEDED");
       if (
         !queued &&

@@ -18,13 +18,21 @@ def control(path="/control/state",body=None,method=None):
     opener.open(urllib.request.Request(base+"/control/session",json.dumps({"apiKey":settings()["apiKey"]}).encode(),{"Content-Type":"application/json"}),timeout=15).read()
     with opener.open(urllib.request.Request(base+path,None if body is None else json.dumps(body).encode(),{"Content-Type":"application/json"},method=method),timeout=20) as response:return json.load(response)
 
-def collect(directory):
+def collect(directory,details=False):
     directory=pathlib.Path(directory);directory.mkdir(parents=True,exist_ok=True,mode=0o700)
     s=settings();prefix="/worlds/"+urllib.parse.quote(s["worldId"],safe="")
     results={}
     for name,path in {"state":prefix+"/state","rules":prefix+"/rules","history":prefix+"/history","reports":prefix+"/reports?limit=50","activity":prefix+"/activity?after=0&limit=1000"}.items():
         try: results[name]=game(path)
         except Exception as error: results[name]={"collectionError":type(error).__name__}
+    if details:
+        battle_details=[]
+        for report in results.get("reports",{}).get("reports",[]):
+            if report.get("kind")!="battle":continue
+            try:battle_details.append(game(prefix+"/reports/"+urllib.parse.quote(report['id'],safe="")))
+            except Exception as error:battle_details.append({"id":report['id'],"collectionError":type(error).__name__})
+            if len(battle_details)>=5:break
+        results['battle-details']={'reports':battle_details,'note':'Latest five retained battle details; reading marks those owner reports read.'}
     try: results["control"]=control()
     except Exception as error: results["control"]={"collectionError":type(error).__name__}
     for name,data in results.items():(directory/(name+".json")).write_text(json.dumps(data,indent=2))

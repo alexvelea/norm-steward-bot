@@ -33,6 +33,11 @@ export class ReviewStore {
       "finishedAt",
       "usage",
       "deployment",
+      "activeTask",
+      "reviewHistory",
+      "lastGameplayChange",
+      "cleanupError",
+      "attempt",
     ];
     const safe = Object.fromEntries(
       allowed.filter((k) => state?.[k] !== undefined).map((k) => [k, state[k]]),

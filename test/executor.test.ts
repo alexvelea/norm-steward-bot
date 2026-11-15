@@ -375,3 +375,35 @@ test("an operator pause survives service restart", async () => {
   assert.equal(restarted.snapshot().automatic, false);
   assert.equal(x.writes.length, 0);
 });
+
+test("fresh revalidation stops spending when round completion no longer fits", async () => {
+  const x = await setup();
+  x.c.state.world.endsAtTick = 110;
+  for (const o of x.c.state.villages[0].options.build) o.ticks = 5;
+  let reads = 0;
+  const remote: Remote = async <T>(
+    settings: Settings,
+    path: string,
+    body?: unknown,
+  ) => {
+    if (path.endsWith("/state") && ++reads === 2) x.c.state.world.tick = 109;
+    return x.request<T>(settings, path, body);
+  };
+  const controller = await Controller.create(
+    x.storage,
+    settings,
+    remote,
+    Date.now,
+    { execute: false },
+  );
+  await controller.cycle();
+  reads = 0;
+  await controller.setAutomatic(true);
+  await controller.cycle();
+  assert.equal(x.writes.length, 0);
+  assert.ok(
+    controller
+      .snapshot()
+      .proposals.some((p) => p.blockers.includes("ROUND_END_TOO_SOON")),
+  );
+});

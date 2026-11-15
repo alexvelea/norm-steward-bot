@@ -32,4 +32,25 @@ export interface ReviewStatus {
     nextStep: string;
   }[];
   deployment?: { commit: string; status: string };
+  activeTask?: {
+    id: string;
+    title: string;
+    acceptance: string;
+    stage: string;
+    attempts: number;
+    noProgressStreak: number;
+    nextAction: string;
+    lastOutcome?: string;
+  };
+  reviewHistory?: {
+    at: string;
+    summary: string;
+    taskId?: string;
+    outcome: string;
+    commit?: string;
+    activate: boolean;
+  }[];
+  lastGameplayChange?: { at: string; summary: string; commit?: string };
+  cleanupError?: string | null;
+  attempt?: number;
 }

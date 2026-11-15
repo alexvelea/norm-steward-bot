@@ -5,6 +5,8 @@ sys.path.insert(0,str(pathlib.Path(__file__).resolve().parent/'review'))
 from usage import read_usage, budget_pause
 from evidence import collect, settings, CONTROL
 from deploy import activate, atomic
+from progress import select_task, source_digest, assess, advance, runtime_change, snapshot, policy_change
+from sandbox import Broker
 ROOT=pathlib.Path(os.environ.get('STEWARD_REVIEW_REPO','/root/norm-steward-bot'))
 DATA=pathlib.Path(os.environ.get('STEWARD_REVIEW_DIR','/var/lib/norm-steward-review'))
 WORK=DATA/'worktree'
@@ -39,6 +41,8 @@ def run_agent(args,prompt,run,timeout=RUN_SECONDS):
     """Drain both pipes, redact before logging, terminate the entire process group on pause/time limit."""
     env=os.environ.copy()
     for key in ['OPENAI_API_KEY','CODEX_API_KEY','AZURE_OPENAI_API_KEY','STEWARD_KEY']:env.pop(key,None)
+    env['STEWARD_REVIEW_RUN']=str(run.parent if run.name.startswith('attempt-') else run)
+    env['STEWARD_REVIEW_TOOLS']=str(ROOT)
     process=subprocess.Popen(args,cwd=WORK,env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
     process.stdin.write(prompt.encode());process.stdin.close()
     selector=selectors.DefaultSelector()
@@ -81,12 +85,12 @@ def run_agent(args,prompt,run,timeout=RUN_SECONDS):
             process.wait();process.stdout.close();process.stderr.close()
     return reason or ('completed' if process.returncode==0 else 'failed'),usage
 
-FORBIDDEN=('AGENTS.md','src/rules/','src/shared/','scripts/review','deploy/','package.json','package-lock.json','.github/')
+FORBIDDEN=('src/review/sandbox-client.ts','scripts/sandbox.py','AGENTS.md','src/rules/','src/shared/','scripts/review','deploy/','package.json','package-lock.json','.github/')
 def allowed_changes(paths):return all(not any(p==prefix or p.startswith(prefix) for prefix in FORBIDDEN) and not p.startswith(('/', '..')) for p in paths)
 
 def validate_report(report):
     if not isinstance(report,dict) or not isinstance(report.get('activate'),bool):return False
-    return all(isinstance(report.get(k),str) for k in ['summary','expectedEffect','measuredOutcome','nextMeasure']) and isinstance(report.get('evidence'),list) and isinstance(report.get('backlog'),list)
+    return all(isinstance(report.get(k),str) for k in ['summary','expectedEffect','measuredOutcome','nextMeasure']) and isinstance(report.get('evidence'),list) and isinstance(report.get('backlog'),list) and isinstance(report.get('taskId'),str) and report.get('outcome') in ['implementation','experiment','instrumentation','blocked','no-change'] and isinstance(report.get('artifacts'),list) and isinstance(report.get('taskComplete'),bool) and report.get('verdict') in ['supports-change','rejects-change','inconclusive','not-applicable']
 
 def review(probe=False):
     DATA.mkdir(parents=True,exist_ok=True,mode=0o700);os.chmod(DATA,0o700)
@@ -102,27 +106,66 @@ def review(probe=False):
         except Exception: raise RuntimeError('Existing ChatGPT login unavailable; repair codex login on this machine')
         if 'ChatGPT' not in auth:raise RuntimeError('Unattended reviews require the existing ChatGPT login; run codex login interactively on this machine')
         usage=read_usage();atomic(run/'usage.json',usage)
-        update(status='preparing',startedAt=now(),run=str(run),usage=usage,error=None,nextScheduledAt=next_calendar(started))
+        update(status='preparing',startedAt=now(),run=str(run),usage=usage,error=None,cleanupError=None,nextScheduledAt=next_calendar(started))
         retry=budget_pause(usage,time.time())
         if retry:
             update(status='budget-paused',retryAt=retry,error='Backend reports usage unavailable; will recheck after backoff.');return 'budget-paused'
         if not probe:
-            collect(run/'evidence')
+            atomic(run/'previous-state.json',state)
+            collect(run/'evidence',details=True)
         if not WORK.exists():run_command(['git','worktree','add','-b','review/continuous',str(WORK),'master'])
         # Never reset durable progress or an unpublished local commit.
         if not run_command(['git','status','--porcelain'],cwd=WORK):run_command(['git','merge','--ff-only','master'],cwd=WORK)
         if not (WORK/'node_modules').exists():run_command(['npm','ci'],cwd=WORK,timeout=180)
-        if probe:
-            prompt='Read no files and run no tools. Reply with exactly UNATTENDED_AUTH_OK.'
-            args=['codex','exec','--ignore-user-config','-s','read-only','--json','-C',str(WORK),'-o',str(run/'last.txt'),'-']
-        else:
-            prompt=(ROOT/'scripts/review/prompt.md').read_text()+f'\nReview context: previous state {DATA}/state.json; backlog {DATA}/backlog.json; previous report {state.get("latestReportPath","none")}; usage {run}/usage.json; gameplay evidence {run}/evidence.\n'
-            args=['codex','exec','--ignore-user-config','--dangerously-bypass-approvals-and-sandbox','--json','-C',str(WORK),'--output-schema',str(ROOT/'scripts/review/result.schema.json'),'-o',str(run/'result.json'),'-']
-        update(status='running',retryAt=0)
-        outcome,tokens=run_agent(args,prompt,run,timeout=60 if probe else RUN_SECONDS)
-        update(lastUsage=tokens)
+        # Recover only worlds previously created by this reviewer, never unrelated owner sandboxes.
+        for registry in sorted((DATA/'runs').glob('*/sandboxes.json')):
+            previous=load(registry,{})
+            if any(not w.get('deleted') for w in previous.get('worlds',{}).values()):
+                try:Broker(registry.parent,WORK).call({'op':'cleanup'})
+                except Exception as error:update(cleanupError=safe(str(error))[:500])
+        task=None
+        if not probe:
+            backlog=load(DATA/'backlog.json',[])
+            for item in backlog:
+                if not item.get('id'):item['id']=select_task(None,[item])['id']
+            atomic(DATA/'backlog.json',backlog)
+            task=select_task(load(DATA/'work.json'),backlog)
+            atomic(DATA/'work.json',task);update(activeTask=task)
+        deadline=time.monotonic()+(60 if probe else RUN_SECONDS)
+        assessment=None;report=None;outcome=None;before_digest=source_digest(WORK);before_snapshot=snapshot(WORK)
+        for attempt in range(1,2 if probe else 3):
+            attempt_dir=run/f'attempt-{attempt}';attempt_dir.mkdir(mode=0o700)
+            if probe:
+                prompt='Read no files and run no tools. Reply with exactly UNATTENDED_AUTH_OK.'
+                args=['codex','exec','--ignore-user-config','-s','read-only','--json','-C',str(WORK),'-o',str(attempt_dir/'last.txt'),'-']
+            else:
+                correction='' if attempt==1 else f"\nCORRECTIVE RETRY: {assessment['error'] or 'No substantive implementation or managed sandbox experiment occurred.'} You own obtaining the missing evidence. Do not repeat offline snapshots or unchanged test suites. Execute the experiment or implement the bounded candidate now. Previous result: {run}/attempt-1/result.json."
+                prompt=(ROOT/'scripts/review/prompt.md').read_text()+f'\nPinned task: {DATA}/work.json; previous state {run}/previous-state.json; backlog {DATA}/backlog.json; previous report {state.get("latestReportPath","none")}; usage {run}/usage.json; gameplay evidence {run}/evidence; experiment artifacts {run}. Remaining total seconds: {max(0,int(deadline-time.monotonic()))}.\n'+correction
+                args=['codex','exec','--ignore-user-config','-c','model_reasoning_effort="high"','--dangerously-bypass-approvals-and-sandbox','--json','-C',str(WORK),'--output-schema',str(ROOT/'scripts/review/result.schema.json'),'-o',str(attempt_dir/'result.json'),'-']
+            update(status='running',retryAt=0,attempt=attempt)
+            outcome,tokens=run_agent(args,prompt,attempt_dir,timeout=max(1,deadline-time.monotonic()))
+            update(lastUsage=tokens)
+            last=attempt_dir/('last.txt' if probe else 'result.json')
+            if last.exists():last.write_text(safe(last.read_text()))
+            if probe or outcome!='completed':break
+            report=load(last)
+            if not validate_report(report):raise RuntimeError('Review returned an invalid work report; no activation')
+            paths=run_command(['git','diff','--name-only','master'],cwd=WORK).splitlines()+run_command(['git','ls-files','--others','--exclude-standard'],cwd=WORK).splitlines()
+            after_snapshot=snapshot(WORK)
+            changed_paths=[p for p in set(before_snapshot)|set(after_snapshot) if before_snapshot.get(p)!=after_snapshot.get(p)]
+            assessment=assess(report,task,paths,run,WORK,source_digest(WORK)!=before_digest,changed_paths)
+            task=advance(task,assessment,report);atomic(DATA/'work.json',task);update(activeTask=task)
+            atomic(attempt_dir/'assessment.json',assessment)
+            if not assessment['needsRetry'] or attempt==2 or deadline-time.monotonic()<60:break
+            actual=read_usage();atomic(run/'usage-retry.json',actual)
+            retry=budget_pause(actual,time.time())
+            if retry:update(status='budget-paused',usage=actual,retryAt=retry);outcome='budget-paused';break
+        # Preserve the familiar top-level report/log locations for operators and history.
+        if report is not None:atomic(run/'result.json',report)
+        if outcome=='completed' and not probe:
+            task['lastRun']=str(run);atomic(DATA/'work.json',task)
         # Last-message output is also redacted before retaining it.
-        last=run/('last.txt' if probe else 'result.json')
+        last=last if probe else run/'result.json'
         if last.exists():last.write_text(safe(last.read_text()))
         if outcome!='completed':
             if outcome=='budget-paused':
@@ -138,7 +181,19 @@ def review(probe=False):
         if not validate_report(report):raise RuntimeError('Review returned an invalid report; work is preserved, no deployment')
         atomic(DATA/'backlog.json',report['backlog']);atomic(run/'report.json',report)
         update(latestReview=report,latestReportPath=str(run/'report.json'),finishedAt=now(),failures=0,status='verifying',error=None)
-        if not report['activate'] or (DATA/'paused').exists():update(status='paused' if (DATA/'paused').exists() else 'observed');return 'observed'
+        history=state.get('reviewHistory',[])
+        row={'at':now(),'summary':report['summary'],'taskId':task['id'],'outcome':assessment['kind'],'activate':False}
+        history=(history+[row])[-24:]
+        update(reviewHistory=history)
+        if assessment['needsRetry']:
+            update(status='stalled',error='Review made no verified task progress. The pinned task remains active; next review must execute its experiment or implementation.',activeTask=task)
+            return 'stalled'
+        if assessment['kind']=='blocked':
+            waits=[e.get('at',time.time())+e.get('retryAfterSeconds',0) for e in assessment['receipt']['failedAttempts'] if e.get('retryAfterSeconds')]
+            update(status='blocked',error=safe(report['blocker'].get('message','Experiment API failed')),retryAt=max(waits) if waits else time.time()+1800,activeTask=task)
+            return 'blocked'
+        if not report['activate'] or (DATA/'paused').exists():
+            update(status='paused' if (DATA/'paused').exists() else 'in-progress',activeTask=task);return 'in-progress'
         if run_command(['git','status','--porcelain'],cwd=ROOT):raise RuntimeError('Live source checkout has uncommitted work; candidate retained')
         paths=run_command(['git','diff','--name-only','master'],cwd=WORK).splitlines()+run_command(['git','ls-files','--others','--exclude-standard'],cwd=WORK).splitlines()
         if not allowed_changes(paths):raise RuntimeError('Candidate touches protected scheduler/rules/dependency files; manual review required')
@@ -162,24 +217,42 @@ def review(probe=False):
         run_command(['git','push','origin','HEAD:master'],cwd=WORK,timeout=60)
         run_command(['git','merge','--ff-only',commit],cwd=ROOT)
         update(status='deploying')
-        deployment=activate(WORK,commit)
-        update(status='idle',deployment=deployment,finishedAt=now(),nextScheduledAt=next_calendar(time.time()),retryAt=0)
-        return 'deployed'
+        if runtime_change(paths):
+            deployment=activate(WORK,commit)
+            can_complete=task.get('delivery','gameplay')!='gameplay' or policy_change(paths)
+            can_complete=can_complete and all(path in paths for path in task.get('requiredPaths',[]))
+            if report.get('taskComplete') and can_complete:
+                task['stage']='complete'
+                pending=load(DATA/'backlog.json',[])
+                pending=[b for b in pending if b.get('id')!=task['id'] and b.get('title')!=task['title']]
+                atomic(DATA/'backlog.json',pending)
+            row.update(outcome='gameplay-shipped' if policy_change(paths) else 'ui-shipped',activate=True,commit=commit)
+            update(deployment=deployment)
+            if policy_change(paths):update(lastGameplayChange=row)
+        else:
+            row.update(outcome='instrumentation-published',commit=commit)
+        atomic(DATA/'work.json',task)
+        update(status='idle',activeTask=task,reviewHistory=history,finishedAt=now(),nextScheduledAt=next_calendar(time.time()),retryAt=0)
+        return 'deployed' if runtime_change(paths) else 'published'
     except Exception as error:
         message=safe(str(error))[:1800];auth_error='ChatGPT login' in message or 'authentication' in message.lower()
         update(status='authentication-paused' if auth_error else 'error',error=message,finishedAt=now(),retryAt=time.time()+3600)
         return 'error'
-    finally:lock.close()
+    finally:
+        if not probe:
+            try:Broker(run,WORK).call({'op':'cleanup'})
+            except Exception as error:update(cleanupError=safe(str(error))[:500])
+        lock.close()
 
 def main():
     os.umask(0o077)
-    parser=argparse.ArgumentParser();parser.add_argument('command',choices=['run','probe','status','pause','resume','collect','usage','deploy']);parser.add_argument('--output');parser.add_argument('--commit');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('command',choices=['run','probe','status','pause','resume','collect','usage','deploy']);parser.add_argument('--output');parser.add_argument('--commit');parser.add_argument('--details',action='store_true');args=parser.parse_args()
     DATA.mkdir(parents=True,exist_ok=True,mode=0o700)
     if args.command=='pause':(DATA/'paused').write_text(now());print('Reviews paused. Gameplay unchanged.');return
     if args.command=='resume':(DATA/'paused').unlink(missing_ok=True);print('Reviews resumed. Quota/auth backoff remains in effect.');return
     if args.command=='status':print(json.dumps({**load(DATA/'state.json',{}),'paused':(DATA/'paused').exists(),'backlog':load(DATA/'backlog.json',[])},indent=2));return
     if args.command=='usage':print(json.dumps(read_usage(),indent=2));return
-    if args.command=='collect':collect(args.output or str(DATA/'manual-evidence'));print('Read-only evidence collected.');return
+    if args.command=='collect':collect(args.output or str(DATA/'manual-evidence'),details=args.details);print('Read-only evidence collected.');return
     if args.command=='deploy':print(json.dumps(activate(ROOT,args.commit or run_command(['git','rev-parse','HEAD']))));return
     print(review(probe=args.command=='probe'))
 def interrupted(_signal,_frame):

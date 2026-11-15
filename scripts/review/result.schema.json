@@ -1,1 +1,131 @@
-{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}},"expectedEffect":{"type":"string"},"measuredOutcome":{"type":"string"},"nextMeasure":{"type":"string"},"activate":{"type":"boolean"},"backlog":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"priority":{"type":"integer"},"title":{"type":"string"},"effortPoints":{"type":"integer"},"nextStep":{"type":"string"}},"required":["priority","title","effortPoints","nextStep"]}}},"required":["summary","evidence","expectedEffect","measuredOutcome","nextMeasure","activate","backlog"]}
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "expectedEffect": {
+      "type": "string"
+    },
+    "measuredOutcome": {
+      "type": "string"
+    },
+    "nextMeasure": {
+      "type": "string"
+    },
+    "activate": {
+      "type": "boolean"
+    },
+    "backlog": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "priority": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "effortPoints": {
+            "type": "integer"
+          },
+          "nextStep": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "priority",
+          "title",
+          "effortPoints",
+          "nextStep",
+          "id"
+        ]
+      }
+    },
+    "taskId": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "implementation",
+        "experiment",
+        "instrumentation",
+        "blocked",
+        "no-change"
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "supports-change",
+        "rejects-change",
+        "inconclusive",
+        "not-applicable"
+      ]
+    },
+    "taskComplete": {
+      "type": "boolean"
+    },
+    "blocker": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "attemptLog": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "attemptLog"
+          ]
+        }
+      ]
+    }
+  },
+  "required": [
+    "summary",
+    "evidence",
+    "expectedEffect",
+    "measuredOutcome",
+    "nextMeasure",
+    "activate",
+    "backlog",
+    "taskId",
+    "outcome",
+    "artifacts",
+    "verdict",
+    "taskComplete",
+    "blocker"
+  ]
+}
