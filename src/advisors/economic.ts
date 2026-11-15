@@ -1,3 +1,4 @@
+import { productionPayback } from "./payback.js";
 import { completionWindow } from "./completion.js";
 import { estimateHall } from "./hall.js";
 import type { BuildingId, Resources, VillageState } from "../shared/api.js";
@@ -148,6 +149,27 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal[] {
         importance = hall.importance;
         reason = hall.reason;
       }
+      const payback =
+        building in producers && !queued && !v.buildQueue.length
+          ? productionPayback({
+              cost: option.cost,
+              stockMilli: v.resourcesMilli,
+              ratesMilli: v.productionPerTickMilli,
+              resource: producers[building as keyof typeof producers],
+              currentLevel: v.buildings[building],
+              targetLevel: option.level,
+              production: rules.tables.production,
+              tick: state.world.tick,
+              endTick: state.world.endsAtTick,
+              buildTicks: option.ticks,
+              nextActTick: state.player.nextActTick,
+              affordableAtTick: option.affordableAtTick,
+            })
+          : null;
+      if (payback) {
+        reason += " " + payback.reason;
+        if (!payback.repays) needed = false;
+      }
       const window = queued ? null : completionWindow(state, v, option);
       const tooLate = !!window && !window.fits;
       if (tooLate && needed) {
@@ -157,6 +179,8 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal[] {
       const blockers: string[] = queued
         ? ["ALREADY_QUEUED"]
         : [...option.blockers];
+      if (payback && !payback.repays)
+        blockers.push("NO_PAYBACK_BEFORE_ROUND_END");
       if (tooLate && !queued) blockers.push("ROUND_END_TOO_SOON");
       if (!needed && !queued) blockers.push("NOT_NEEDED");
       if (

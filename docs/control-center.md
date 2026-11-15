@@ -190,3 +190,32 @@ not accidentally switch the service's account by forwarding an old Authorization
 Initialize the owner key locally using STEWARD_KEY_FILE or STEWARD_KEY. There is no public signup
 or first-visitor claim flow. Local files are trusted operator storage, not encrypted at rest; protect
 machine access. Keep credentials, runtime files, browser captures and logs out of Git.
+
+## Production investment payback
+
+Lumberyard, quarry and iron mine upgrades are eligible only if their **additional gross output**
+can repay the sum of timber + stone + iron spent by the current world's round-end tick. All three
+resource types count as one resource unit each. Existing production does not count as the return
+on a new investment. Using live integer milli-resource rates and tables:
+
+`repayment tick = earliest affordable/cooldown start + live build ticks + ceil(total cost × 1000 / additional milli-resources per tick)`
+
+The start includes each resource's shortfall/production wait and any later server affordability or
+Council tick. A zero/unknown increment or an unfundable cost does not establish payback. Equality
+at round end is allowed. Resource multipliers observed in state are retained when projecting the
+next level. Accepted construction is not cancelled; queued work is reevaluated after it finishes.
+Fresh executor state is checked again before spending. Rejected investments are `not-needed` with
+`NO_PAYBACK_BEFORE_ROUND_END`, so they do not reserve resources or block military proposals.
+
+For example, Lumberyard 1→2 costs 63 + 75 + 50 = 188. Live rates rise from 1.867 to 2.175 timber/tick:
++0.308. Repayment takes 611 earning ticks after the 11-tick Hall-1 build, plus any funding delay.
+Six owner-only sandbox cases test the exact old policy against the candidate one tick before,
+exactly at, and one tick after the repayment deadline, verifying live cost and rate changes.
+Run `scripts/experiment-payback.ts` with STEWARD_REVIEW_RUN pointing to a fresh private run directory.
+
+Hall planning applies the same rule to projected producer upgrades, using projected stocks/rates
+and live next-level costs, so it cannot justify a Hall using unprofitable future production work.
+Hall itself retains its construction-time payback comparison. Farm, storehouse and cellar retain
+their explicit capacity/protection rules: they do not directly generate a resource stream. This is
+a gross-production estimate, not a guarantee of retained inventory: overflow, raids, trades, future
+bonuses or later upgrades can change actual returns. No speculative future benefits are credited.

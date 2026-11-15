@@ -180,6 +180,13 @@ test("Bramwell regression: abundant farm and storage never become cheap filler u
   const ps = evaluateEconomy(c).filter((p) => p.action.building !== "hall");
   for (let i = 0; i < 10; i++) {
     assert.equal(selectProposal(ps).selected, null);
-    assert.equal(selectProposal(ps).reservations.length, 1);
+    assert.equal(selectProposal(ps).reservations.length, 0);
+    assert.ok(
+      ps
+        .filter((p) =>
+          ["lumberyard", "quarry", "mine"].includes(p.action.building),
+        )
+        .every((p) => p.status === "not-needed"),
+    );
   }
 });

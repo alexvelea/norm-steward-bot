@@ -57,3 +57,8 @@ Measure production, construction/resource waits, overflow, Hall spend, infrastru
 strength and battle losses by world epoch. Separate expected effect from actual observation, and
 separate round resets, manual activity and raids from policy effects. Older readiness/horizon reports
 remain useful tools, not prerequisites that someone else must satisfy before implementation.
+
+Production upgrades now have an additional deadline: marginal output must repay the complete
+three-resource bill by round end, including funding waits and construction. The Hall's projected
+producer pipeline applies this gate too. Farm/storage/protection remain separate necessity tests.
+This avoids saving or spending for late investments whose gross return cannot cover their cost.

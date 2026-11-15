@@ -1,3 +1,4 @@
+import { productionPayback } from "./payback.js";
 import type {
   BuildingId,
   LevelRow,
@@ -20,17 +21,20 @@ export const LEGACY_HALL_LOOKAHEAD = {
   maxTicks: 3600,
   minimumSaving: 20,
   margin: 0.1,
+  producerPayback: false,
 } as const;
 export const HALL_LOOKAHEAD = {
   ...LEGACY_HALL_LOOKAHEAD,
   maxUpgrades: 24,
   maxTicks: 7200,
+  producerPayback: true,
 } as const;
 export interface HallPolicy {
   maxUpgrades: number;
   maxTicks: number;
   minimumSaving: number;
   margin: number;
+  producerPayback?: boolean;
 }
 export interface HallEstimate {
   needed: boolean;
@@ -175,7 +179,11 @@ export function estimateHall(
     }
     // The first Hall uses its actual option duration; future work uses the projected Hall level.
     const duration =
-      id === "hall" ? option.ticks : row.ticksByHall[p.levels.hall];
+      id === "hall"
+        ? option.ticks
+        : p.levels.hall === v.buildings.hall
+          ? (live?.ticks ?? row.ticksByHall[p.levels.hall])
+          : row.ticksByHall[p.levels.hall];
     if (!Number.isFinite(duration) || p.elapsed + wait + duration > horizon)
       return false;
     const cooldownWait = Math.max(0, p.nextActAt - p.elapsed);
@@ -223,7 +231,35 @@ export function estimateHall(
       available("cellar")
     )
       return "cellar";
-    const candidates = producerIds.filter(available);
+    const candidates = producerIds.filter((id) => {
+      if (!available(id)) return false;
+      if (!policy.producerPayback) return true;
+      const row = rowFor(p, id)!;
+      const live =
+        p.levels[id] === v.buildings[id]
+          ? v.options.build.find((o) => o.building === id)
+          : undefined;
+      return productionPayback({
+        cost: live?.cost ?? row.cost,
+        stockMilli: Object.fromEntries(
+          resources.map((r) => [r, p.stock[r] * 1000]),
+        ) as Resources,
+        ratesMilli: Object.fromEntries(
+          resources.map((r) => [r, p.rates[r] * 1000]),
+        ) as Resources,
+        resource: producers[id],
+        currentLevel: p.levels[id],
+        targetLevel: row.level,
+        production: rules.tables.production,
+        tick: world.tick + p.elapsed,
+        endTick: world.endsAtTick,
+        buildTicks:
+          p.levels.hall === v.buildings.hall
+            ? (live?.ticks ?? row.ticksByHall[p.levels.hall])
+            : row.ticksByHall[p.levels.hall],
+        nextActTick: world.tick + p.nextActAt,
+      }).repays;
+    });
     const coverage = (id: keyof typeof producers) => {
       const r = producers[id];
       const demand = candidates.reduce(

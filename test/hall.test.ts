@@ -46,6 +46,8 @@ test("Hall first repays its own construction on a busy affordable useful sequenc
   assert.ok(h.importance > 60 && h.importance < 80);
   assert.match(h.reason, /including its 50-tick build and all resource costs/);
   assert.deepEqual(estimate(), h);
+  for (const p of c.rules.tables.production)
+    p.perTickMilli = 1000 + p.level * 200;
   const proposal = evaluateEconomy(c).find(
     (p) => p.action.building === "hall",
   )!;
@@ -143,6 +145,8 @@ test("longer useful pipeline can justify a Hall rejected by the old eight-build 
   const { c, v } = scenario();
   v.options.build.find((o) => o.building === "hall")!.ticks = 155;
   const old = estimateHall(v, c.rules, c.state.world, LEGACY_HALL_LOOKAHEAD);
+  for (const p of c.rules.tables.production)
+    p.perTickMilli = 1000 + p.level * 200;
   const revised = estimateHall(v, c.rules, c.state.world);
   assert.equal(old.needed, false);
   assert.equal(revised.needed, true);
@@ -174,6 +178,8 @@ test("projected farm completion resolves stale population blockers in the Hall p
     option.blockers = ["INSUFFICIENT_POPULATION"];
     option.ok = false;
   }
+  for (const p of c.rules.tables.production)
+    p.perTickMilli = 1000 + p.level * 200;
   const result = estimateHall(v, c.rules, c.state.world);
   assert.equal(result.sequence[0].building, "farm");
   assert.ok(
@@ -181,4 +187,11 @@ test("projected farm completion resolves stale population blockers in the Hall p
       ["lumberyard", "quarry", "mine"].includes(s.building),
     ),
   );
+});
+
+test("Hall cannot justify itself with producer upgrades that cannot repay before round end", () => {
+  const { c, v } = scenario();
+  const estimate = estimateHall(v, c.rules, c.state.world);
+  assert.equal(estimate.needed, false);
+  assert.equal(estimate.sequence.length, 0);
 });
