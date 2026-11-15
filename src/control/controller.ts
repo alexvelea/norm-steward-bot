@@ -228,7 +228,7 @@ export class Controller {
     if (!pending) return;
     if (pending.phase === "accepted")
       throw new Error(
-        "Accepted construction is still tracked; wait for completion or cancel it in Town view.",
+        "Accepted work is still tracked; wait for completion or cancel it in Town view.",
       );
     this.record(
       "uncertain",
@@ -339,7 +339,7 @@ export class Controller {
       this.view.selection = {
         ...this.view.selection,
         selected: null,
-        reason: `Wait for accepted ${p.buildingName} level ${p.targetLevel} in ${p.villageName} to finish. This first executor tracks one advisor construction globally at a time.`,
+        reason: `Wait for accepted ${p.buildingName} target ${p.targetLevel} in ${p.villageName} to finish. The executor tracks one advisor operation globally at a time.`,
       };
     }
     this.view.conflicts = context.state.villages
@@ -391,16 +391,21 @@ export class Controller {
       await this.persist();
       return;
     }
+    if (p.action.type === "train") {
+      await this.reconcileTraining(context, p);
+      return;
+    }
+    const building = p.action.building;
     const item = p.itemId
       ? v.buildQueue.find((q) => q.id === p.itemId)
       : undefined;
     if (p.phase === "accepted") {
       if (item) return;
       this.record(
-        v.buildings[p.action.building] >= p.proposal.targetLevel
+        v.buildings[building] >= p.proposal.targetLevel
           ? "confirmed"
           : "cancelled",
-        v.buildings[p.action.building] >= p.proposal.targetLevel
+        v.buildings[building] >= p.proposal.targetLevel
           ? `${p.proposal.buildingName} reached level ${p.proposal.targetLevel}, confirmed by fresh server state.`
           : "Accepted construction disappeared without reaching its target; it may have been cancelled by another actor.",
         p.proposal,
@@ -412,8 +417,8 @@ export class Controller {
       return;
     }
     if (
-      v.buildings[p.action.building] !== p.proposal.currentLevel ||
-      v.buildQueue.some((q) => q.building === p.action.building)
+      v.buildings[building] !== p.proposal.currentLevel ||
+      v.buildQueue.some((q) => q.building === building)
     ) {
       this.record(
         "uncertain",
@@ -438,6 +443,34 @@ export class Controller {
       this.backoffUntil = this.now() + 60000;
       await this.persist();
     }
+  }
+  /** Counts include away troops; marching a batch must never trigger replacement spending. */
+  private async reconcileTraining(context: AdvisorContext, p: Pending): Promise<void> {
+    if (p.action.type !== "train") return;
+    const { unit, count } = p.action;
+    const v = context.state.villages.find((v) => v.id === p.proposal.villageId)!;
+    const queues = Object.values(v.training).flat();
+    const owned = (v.units.home[unit] ?? 0) + (v.units.away[unit] ?? 0);
+    if (p.phase === "accepted") {
+      if (queues.some((q) => q.id === p.itemId)) return;
+      const complete = owned >= p.proposal.currentLevel + count;
+      this.record(complete ? "confirmed" : "cancelled", complete
+        ? `${count} ${p.proposal.buildingName} completed training, confirmed by fresh server state.`
+        : "Accepted training disappeared without its expected troops; cancellation or losses may have occurred.",
+        p.proposal, p.action.clientId, context.state.world.tick);
+      this.saved.pending = null;
+    } else if (owned !== p.proposal.currentLevel || queues.some((q) => q.unit === unit)) {
+      // Observed changes cannot prove attribution, but must suppress a duplicate order.
+      this.record("uncertain", "Troops or training changed after an uncertain request; another actor may have acted. Do not replay this batch.",
+        p.proposal, p.action.clientId, context.state.world.tick);
+      this.saved.pending = null;
+    } else if (context.state.world.tick >= p.expiresTick) {
+      this.automatic = false;
+      this.backoffUntil = this.now() + 60000;
+      this.record("uncertain", "Training idempotency window expired. Automatic execution is paused; inspect activity before clearing this operation.",
+        p.proposal, p.action.clientId, context.state.world.tick);
+    }
+    await this.persist();
   }
   async cycle(): Promise<void> {
     if (this.busy || this.stopped || this.now() < this.backoffUntil) return;
@@ -528,7 +561,7 @@ export class Controller {
         this.saved.pending = pending;
         this.record(
           "prepared",
-          `${selected.buildingName} level ${selected.targetLevel} prepared; journalling its request ID before any network write.`,
+          `${selected.buildingName} target ${selected.targetLevel} prepared; journalling its request ID before any network write.`,
           selected,
           pending.action.clientId,
           fresh.state.world.tick,
@@ -540,7 +573,7 @@ export class Controller {
         pending.phase = "submitted";
         this.record(
           "submitted",
-          `${pending.proposal.buildingName} level ${pending.proposal.targetLevel} handed to the API; awaiting its result.`,
+          `${pending.proposal.buildingName} target ${pending.proposal.targetLevel} handed to the API; awaiting its result.`,
           pending.proposal,
           pending.action.clientId,
           fresh.state.world.tick,
@@ -573,12 +606,13 @@ export class Controller {
           this.backoffUntil =
             this.now() +
             Math.max(10000, Number(result.error.details?.retryAfterMs) || 0);
-        } else if ("item" in result.data) {
+        } else if ((pending.action.type === "build" && "item" in result.data) ||
+          (pending.action.type === "train" && "batch" in result.data)) {
           pending.phase = "accepted";
-          pending.itemId = result.data.item.id;
+          pending.itemId = "item" in result.data ? result.data.item.id : "batch" in result.data ? result.data.batch.id : undefined;
           this.record(
             "accepted",
-            `${selected.buildingName} level ${selected.targetLevel} accepted into construction queue; completion is not confirmed yet.`,
+            `${selected.buildingName} target ${selected.targetLevel} accepted into ${pending.action.type === "train" ? "training" : "construction"} queue; completion is not confirmed yet.`,
             selected,
             pending.action.clientId,
             response.tick,

@@ -1,10 +1,11 @@
+import { evaluateRecruitment } from "./recruitment.js";
 import { completionWindow } from "./completion.js";
-import type { BuildingId, Resources } from "../shared/api.js";
+import type { Action, BuildingId, Resources } from "../shared/api.js";
 import type { Advisor, AdvisorContext, Proposal } from "./types.js";
 
-/** Infrastructure only. Recruitment remains a separate President/executor step. */
-export const militaryAdvisor: Advisor = { id: "military", evaluate: evaluateMilitary };
-export function evaluateMilitary({ state, rules }: AdvisorContext): Proposal[] {
+/** Bounded military proposals share the President and its durable executor. */
+export const militaryAdvisor: Advisor = { id: "military", evaluate: (context) => [...evaluateMilitary(context), ...evaluateRecruitment(context)] };
+export function evaluateMilitary({ state, rules }: AdvisorContext): Proposal<Extract<Action, {type: "build"}>>[] {
   if (rules.version !== state.world.rulesVersion)
     throw new Error("Live rules do not match this world's rules version.");
   const metadata = (rules.rules.BUILDINGS as Record<BuildingId, {
@@ -15,7 +16,7 @@ export function evaluateMilitary({ state, rules }: AdvisorContext): Proposal[] {
     trainTime: number; pop: number; cost: Resources;
   }>).pikeman;
   if (!metadata || !pikeman) throw new Error("Live military rules are unavailable.");
-  const proposals: Proposal[] = [];
+  const proposals: Proposal<Extract<Action, {type: "build"}>>[] = [];
   for (const v of state.villages) {
     // Never buy further levels or duplicate an existing military training path.
     const facilities = ["barracks", "stable", "workshop", "court"] as const;

@@ -1,10 +1,10 @@
 import { compareProposals, type Proposal, type Selection } from "./types.js";
 
 /** Keep each village's budget for its highest-priority needed action, including production. */
-export function selectProposal(proposals: Proposal[]): Selection {
+export function selectProposal<P extends Proposal>(proposals: P[]): Selection<P["action"]> {
   const ranked = [...proposals].sort(compareProposals);
   const reservations: Selection["reservations"] = [],
-    candidates: Proposal[] = [];
+    candidates: P[] = [];
   for (const villageId of new Set(ranked.map((p) => p.villageId))) {
     const top = ranked.find(
       (p) =>
@@ -21,7 +21,7 @@ export function selectProposal(proposals: Proposal[]): Selection {
       reservations.push({
         villageId,
         proposalId: top.id,
-        reason: `Save for ${top.buildingName} ${top.targetLevel} in ${top.villageName} (score ${top.importance}). Keep the budget for this needed upgrade instead of spending on a lower priority.`,
+        reason: `Save for ${top.buildingName} ${top.targetLevel} in ${top.villageName} (score ${top.importance}). Keep the budget for this needed action instead of spending on a lower priority.`,
       });
   }
   const selected = candidates.sort(compareProposals)[0] ?? null;
@@ -37,6 +37,6 @@ export function selectProposal(proposals: Proposal[]): Selection {
           ? `Wait for ${blocked.buildingName}: ${blocked.blockers.map((b) => b.toLowerCase().replaceAll("_", " ")).join(", ")}.`
           : ranked.some((p) => p.status === "queued")
             ? "Construction is in progress; reassess when it finishes."
-            : "No upgrade is currently needed; retain resources.",
+            : "No action is currently needed; retain resources.",
   };
 }

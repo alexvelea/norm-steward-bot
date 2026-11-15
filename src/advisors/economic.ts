@@ -1,7 +1,7 @@
 import { productionPayback } from "./payback.js";
 import { completionWindow } from "./completion.js";
 import { estimateHall } from "./hall.js";
-import type { BuildingId, Resources, VillageState } from "../shared/api.js";
+import type { Action, BuildingId, Resources, VillageState } from "../shared/api.js";
 import {
   compareProposals,
   type Advisor,
@@ -77,14 +77,14 @@ export const economicAdvisor: Advisor = {
   id: "economic",
   evaluate: evaluateEconomy,
 };
-export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal[] {
+export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extract<Action, {type: "build"}>>[] {
   const metadata = rules.rules.BUILDINGS as Record<
     BuildingId,
     { name: string; maxLevel: number }
   >;
   if (!metadata || rules.version !== state.world.rulesVersion)
     throw new Error("Live rules do not match this world's rules version.");
-  const proposals: Proposal[] = [];
+  const proposals: Proposal<Extract<Action, {type: "build"}>>[] = [];
   for (const v of state.villages) {
     const f = forecastEconomy(v);
     const needsFarm = f.freePopulation < f.requiredFreePopulation;

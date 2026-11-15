@@ -22,11 +22,33 @@ and durable construction executor. Score 79 leaves urgent capacity and Cellar pr
 then enables a training path ahead of discretionary economic investment. Impossible prerequisites,
 storage and population constraints cannot reserve the economy. The live completion window must
 leave a 300-tick use horizon, extended for a longer Council interval plus one recruit's training.
-It does not buy Hall prerequisites, upgrade existing military facilities, or train troops.
+It does not buy Hall prerequisites or upgrade existing military facilities. Recruitment is evaluated separately after completion.
 Reproduce the economic-only versus candidate server comparison with
 `node --import tsx scripts/experiment-military.ts` using the managed review environment.
-Activation and deployment verification remain the review wrapper's responsibility. Recruitment and
-combat evaluation are subsequent work; Barracks completion alone is not a measured combat gain.
+Activation and deployment verification remain the review wrapper's responsibility. Barracks completion alone is not a measured combat gain.
+
+## Initial defensive recruitment candidate
+
+The Military Advisor also proposes Pikemen through the same President and durable executor, at
+score 78. Buy only a currently affordable batch of at most five toward ten owned Pikemen per
+village, counting home, away and queued troops. Preserve the economic population buffer
+(maximum of 50 or 20% of capacity), live prerequisites/costs/storage, idle construction and training
+queues, standing orders, Council cooldown and a 60-tick use window after the entire batch finishes.
+Unavailable recruitment never reserves resources. Capacity and Cellar protection retain priority.
+
+The executor journals training action IDs before POST, tracks accepted batch IDs, counts away
+troops during completion reconciliation, and suppresses uncertain replay after observed troop or
+queue changes. Restarts retain the same action payload and ID; an expired uncertain idempotency
+window pauses execution. Reproduce baseline/candidate and lost-response recovery with
+`node --import tsx scripts/experiment-recruitment.ts`. This initial force is an enabling defensive
+capability, not evidence of fewer battle losses. Composition and combat effectiveness remain to test.
+
+Four matched owner-only server cases verified this candidate. From tick 86 to 166, the candidate
+trained two batches of five for 450 timber, 350 stone and 150 iron, with population rising from
+41 to 51 of 200. The baseline instead completed Lumberyard 2 and Cellar 3 and recruited no troops.
+Both policies avoided recruitment when the full batch would leave only 59 ticks for use. A restart
+before submission retained the exact batch payload; a lost successful response was reconciled from
+the observed training queue without another submission. Actual battle losses were not measured.
 
 ## Priority: create useful military capability
 

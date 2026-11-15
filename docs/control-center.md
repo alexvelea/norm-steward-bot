@@ -10,7 +10,7 @@ No LLM, model key, prompt or inference service participates in economic decision
 proposals. Each proposal names its advisor, village, action, target level, importance (0–100),
 reason, per-resource requirements, blockers, affordability tick, and ready/waiting/queued/not-needed status.
 The Economic and Military Advisors are registered with the same President.
-The President is a sorted filter, not a planner. It submits at most one build per ten-second cycle.
+The President is a sorted filter, not a planner. It submits at most one build or training batch per ten-second cycle.
 This first executor tracks one global operation until completion, so multi-village construction is
 conservative: an accepted advisor build finishes before another advisor build is submitted.
 
@@ -25,6 +25,7 @@ Scores are deterministic integers:
 | Farm | 100 if no free population, otherwise 95 **only** below max(50, 20% of capacity); sufficient buffer = not-needed (20) |
 | Storehouse | 90–99 **only** if current stock + 300 ticks of production exceeds capacity for any resource; otherwise not-needed (25) |
 | Cellar | 80 **only** if protection per resource is below the largest 300-tick production amount; otherwise not-needed (25) |
+| Initial Pikemen | 78 for a currently affordable batch of at most five toward ten owned troops, preserving the economic population buffer; no resource reservation |
 | First Barracks | 79 when unlocked and usable, below capacity/protection and ahead of discretionary Hall/production investment (ties prefer Barracks); no further military levels |
 | Great Hall | 70–79 only when Hall-first finishes the same useful upgrade sequence sooner after resource costs/waits and a safety margin; otherwise not-needed (30) |
 | Resource producer | 60 for lowest projected coverage, then 50 and 40; ties share a score |
@@ -97,7 +98,12 @@ the village budget. Construction must finish with at least 300 ticks remaining f
 live Council interval plus one recruit's training duration). The same completion window includes
 affordability and Council cooldown. Busy queues, external build orders, cooldown and non-running
 worlds prevent submission. Fresh executor revalidation applies both advisors again before writing.
-This step buys infrastructure only; it neither recruits troops nor promises combat improvement.
+After infrastructure completes, a separate Military Advisor proposal recruits an initial defensive
+force: at most five Pikemen per batch toward ten owned per village (home + away + queued). Live
+training options determine costs, batch affordability, duration and population. The population
+buffer stays at max(50, 20% of capacity), queues stay shallow, external build/training orders prevent
+recruitment, and the whole batch must finish at least 60 ticks before round end. Unavailable
+recruitment is not-needed and never reserves the economy. No combat improvement is claimed.
 
 - Affordability is per village. Resources are never pooled or automatically traded.
 - Existing construction blocks additional advisor builds in that village. The first iteration keeps
@@ -112,8 +118,7 @@ This step buys infrastructure only; it neither recruits troops nor promises comb
   (for example a producer bill larger than storage even though the five-minute storage target fits);
   it reports the constraint rather than overriding the explicit capacity policy.
 - Council cooldown, ended rounds, missing prerequisites and full queues are explicit waiting states.
-- Decisions are short-term heuristics, not ROI-optimal planning. Troop composition, recruitment and
-  market exchanges are not modelled yet. Manual orders and other clients can still consume resources.
+- Decisions are short-term heuristics, not ROI-optimal planning. Broader troop composition and market exchanges are not modelled yet. Manual orders and other clients can still consume resources.
 
 ## Execution and recovery
 
@@ -149,8 +154,11 @@ resolving uncertain operations. A changed world epoch or account drops stale req
 respect Retry-After; per-action errors inside a 200 are rejected outcomes, not successes.
 
 The history distinguishes recommendation, prepared (request ID journalled), submitted (API attempted), accepted, confirmed, rejected, uncertain,
-waiting and cancelled. Accepted means queued. Confirmed means a fresh state reached the accepted
-level after its queue item disappeared. If it disappears without that level, record cancellation.
+waiting and cancelled. Accepted means queued. Construction is confirmed when fresh state reached the accepted level after
+its queue item disappeared. Training is confirmed when its accepted batch disappears and owned
+troops (home plus away) reach the pre-order count plus batch count. Missing troops are recorded as
+cancellation/possible losses, not false confirmation. Uncertain training retries retain the exact
+count and ID; observed troop or queue changes suppress replay without claiming attribution.
 The last 100 decisions and any pending request survive restarts in `control.json` (mode 0600).
 
 ## Existing starter bots and operator agent

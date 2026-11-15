@@ -14,7 +14,7 @@ export interface Settings {
 }
 export interface Pending {
   proposal: Proposal;
-  action: Extract<Action, { type: "build" }>;
+  action: Extract<Action, { type: "build" | "train" }>;
   accountId: string;
   worldId: string;
   epoch: string;

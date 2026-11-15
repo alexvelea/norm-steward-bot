@@ -52,8 +52,15 @@ async function setup() {
       fail = null;
       throw error;
     }
-    const action = actions[0] as Extract<Action, { type: "build" }>;
+    const action = actions[0];
     const v = c.state.villages[0];
+    if (action.type === "train") {
+      const batch = { id: "training-accepted", unit: action.unit, count: action.count, remaining: action.count,
+        costEach: {timber: 45, stone: 35, iron: 15}, nextTick: c.state.world.tick + 8, endTick: c.state.world.tick + 8 * action.count };
+      v.training.barracks.push(batch);
+      return {tick: c.state.world.tick, results: [{ok: true, type: "train", data: {batch}}]} as T;
+    }
+    if (action.type !== "build") throw new Error("Unexpected action");
     const level = v.buildings[action.building] + 1;
     const item: BuildQueueItem = {
       id: "q-accepted",
@@ -128,6 +135,8 @@ test("one submission survives concurrent evaluation and accepted construction is
   await x.controller.cycle();
   assert.equal(x.writes.length, 1);
   const pending = x.controller.snapshot().pending!;
+  assert.equal(pending.action.type, "build");
+  if (pending.action.type !== "build") throw new Error("Expected build");
   x.c.state.villages[0].buildQueue = [];
   x.c.state.villages[0].buildings[pending.action.building] =
     pending.proposal.targetLevel;
@@ -201,6 +210,7 @@ test("an uncertain operation never adds another level if state has already chang
   x.failNext();
   await x.controller.cycle();
   const p = x.controller.snapshot().pending!;
+  if (p.action.type !== "build") throw new Error("Expected build");
   x.c.state.villages[0].buildQueue = [
     {
       id: "observed",
@@ -491,17 +501,97 @@ test("fresh revalidation stops a producer whose payback crosses round end while 
     { execute: false },
   );
   await controller.cycle();
-  assert.equal(
-    controller.snapshot().selection.selected?.action.building,
-    "lumberyard",
-  );
+  const selected = controller.snapshot().selection.selected;
+  assert.equal(selected?.action.type, "build");
+  assert.ok(selected?.action.type === "build");
+  assert.equal(selected.action.building, "lumberyard");
   reads = 0;
   await controller.setAutomatic(true);
   await controller.cycle();
   assert.equal(x.writes.length, 0);
   const p = controller
     .snapshot()
-    .proposals.find((p) => p.action.building === "lumberyard")!;
+    .proposals.find((p) => p.action.type === "build" && p.action.building === "lumberyard")!;
   assert.ok(p.blockers.includes("NO_PAYBACK_BEFORE_ROUND_END"));
   assert.ok(!p.blockers.includes("ROUND_END_TOO_SOON"));
+});
+
+function allowRecruitment(x: Awaited<ReturnType<typeof setup>>) {
+  const v = x.c.state.villages[0];
+  v.buildings.hall = 3; v.buildings.barracks = 1; v.hidden = 1000;
+  v.options.train = [{unit: "pikeman", cost: {timber: 45, stone: 35, iron: 15}, ticksEach: 8, pop: 1, maxCount: 20, ok: true, blockers: [], affordableAtTick: null}];
+}
+test("training is journalled, accepted once and confirmed after the batch finishes", async () => {
+  const x = await setup(); allowRecruitment(x);
+  const save = x.storage.save.bind(x.storage);
+  let prepared = false;
+  x.storage.save = async (v) => { if (v.pending?.phase === "prepared") prepared = true; await save(v); };
+  await x.controller.cycle(); await x.controller.setAutomatic(true); await x.controller.cycle();
+  assert.equal(prepared, true);
+  assert.equal(x.writes[0][0].type, "train");
+  assert.equal(x.storage.value?.pending?.phase, "accepted");
+  await x.controller.cycle(); assert.equal(x.writes.length, 1);
+  const v = x.c.state.villages[0]; v.training.barracks = []; v.units.away.pikeman = 5;
+  await x.controller.setAutomatic(false); await x.controller.cycle();
+  assert.equal(x.controller.snapshot().pending, null);
+  assert.ok(x.controller.snapshot().decisions.some((d) => d.kind === "confirmed" && d.text.includes("training")));
+});
+test("uncertain training survives restart and retries the identical batch ID and count", async () => {
+  const x = await setup(); allowRecruitment(x);
+  await x.controller.cycle(); await x.controller.setAutomatic(true); x.failNext(); await x.controller.cycle();
+  const first = structuredClone(x.writes[0]);
+  const restarted = await Controller.create(x.storage, settings, x.request, () => 10000);
+  await restarted.cycle();
+  assert.deepEqual(x.writes[1], first);
+  assert.equal(restarted.snapshot().pending?.phase, "accepted");
+});
+test("observed training suppresses an uncertain replay; disappearance is not false confirmation", async () => {
+  const x = await setup(); allowRecruitment(x);
+  await x.controller.cycle(); await x.controller.setAutomatic(true); x.failNext(); await x.controller.cycle();
+  x.c.state.villages[0].training.barracks = [{id: "observed", unit: "pikeman", count: 5, remaining: 5,
+    costEach: {timber:45, stone:35, iron:15}, nextTick:108, endTick:140}];
+  x.advance(); await x.controller.cycle(); assert.equal(x.writes.length, 1);
+  assert.equal(x.controller.snapshot().pending, null);
+  x.c.state.villages[0].training.barracks = [];
+  await x.controller.cycle(); assert.equal(x.writes.length, 2);
+  x.c.state.villages[0].training.barracks = [];
+  await x.controller.setAutomatic(false); await x.controller.cycle();
+  assert.ok(x.controller.snapshot().decisions.some((d) => d.kind === "cancelled" && d.text.includes("training")));
+  assert.ok(!x.controller.snapshot().decisions.some((d) => d.kind === "confirmed"));
+});
+test("fresh recruitment revalidation rejects lost population before the write", async () => {
+  const x = await setup(); allowRecruitment(x); let reads = 0;
+  const remote: Remote = async <T>(s: Settings, p: string, b?: unknown) => {
+    if (p.endsWith("/state") && ++reads === 2) { x.c.state.villages[0].population.used = 200; x.c.state.villages[0].orders.build = [{building:"farm", toLevel:2}]; }
+    return x.request<T>(s, p, b);
+  };
+  const c = await Controller.create(x.storage, settings, remote, Date.now, {execute:false});
+  await c.cycle(); reads = 0; await c.setAutomatic(true); await c.cycle();
+  assert.equal(x.writes.length, 0);
+});
+
+test("uncertain training expiry pauses execution and a new world never replays it", async () => {
+  const x = await setup(); allowRecruitment(x);
+  await x.controller.cycle(); await x.controller.setAutomatic(true); x.failNext(); await x.controller.cycle();
+  x.c.state.world.tick = x.controller.snapshot().pending!.expiresTick;
+  x.advance(); await x.controller.cycle();
+  assert.equal(x.controller.snapshot().automatic, false); assert.equal(x.writes.length, 1);
+  x.c.state.world.epoch = "new-round";
+  for (let i=0; i<6; i++) x.advance();
+  await x.controller.cycle();
+  assert.equal(x.controller.snapshot().pending, null); assert.equal(x.writes.length, 1);
+});
+test("training HTTP 429 retains payload through backoff; per-action rejection remains visible", async () => {
+  const x = await setup(); allowRecruitment(x);
+  await x.controller.cycle(); await x.controller.setAutomatic(true); x.failNext(429,20000); await x.controller.cycle();
+  const first = structuredClone(x.writes[0]); x.advance(); await x.controller.cycle();
+  assert.equal(x.writes.length,1); x.advance(); await x.controller.cycle(); assert.deepEqual(x.writes[1],first);
+  const y = await setup(); allowRecruitment(y);
+  const remote: Remote = async <T>(s:Settings,p:string,b?:unknown) => p.endsWith("/actions")
+    ? {tick:100,results:[{ok:false,type:"train",error:{code:"POPULATION_FULL",message:"Population changed"}}]} as T : y.request<T>(s,p,b);
+  const c = await Controller.create(y.storage,settings,remote,Date.now,{execute:false});
+  await c.cycle(); await c.setAutomatic(true); await c.cycle();
+  assert.equal(c.snapshot().pending,null);
+  assert.ok(c.snapshot().decisions.some(d=>d.kind==="rejected" && d.text.includes("POPULATION_FULL")));
+  assert.ok(!c.snapshot().decisions.some(d=>d.kind==="accepted"));
 });

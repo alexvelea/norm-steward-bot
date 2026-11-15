@@ -9,12 +9,13 @@ export interface AdvisorContext {
   state: StateResponse;
   rules: RulesResponse;
 }
-export interface Proposal {
+export type AdvisorAction = Extract<Action, { type: "build" | "train" }>;
+export interface Proposal<A extends AdvisorAction = AdvisorAction> {
   id: string;
   advisor: string;
   villageId: string;
   villageName: string;
-  action: Extract<Action, { type: "build" }>;
+  action: A;
   buildingName: string;
   currentLevel: number;
   targetLevel: number;
@@ -30,8 +31,8 @@ export interface Advisor {
   id: string;
   evaluate(context: AdvisorContext): Proposal[];
 }
-export interface Selection {
-  selected: Proposal | null;
+export interface Selection<A extends AdvisorAction = AdvisorAction> {
+  selected: Proposal<A> | null;
   reason: string;
   reservations: { villageId: string; proposalId: string; reason: string }[];
 }
@@ -41,6 +42,8 @@ export function compareProposals(a: Proposal, b: Proposal): number {
     Number(a.status === "not-needed") - Number(b.status === "not-needed") ||
     b.importance - a.importance ||
     a.villageId.localeCompare(b.villageId) ||
-    a.action.building.localeCompare(b.action.building)
+    (a.action.type === "build" ? a.action.building : a.action.unit).localeCompare(
+      b.action.type === "build" ? b.action.building : b.action.unit
+    )
   );
 }
