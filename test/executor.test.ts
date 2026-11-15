@@ -55,10 +55,20 @@ async function setup() {
     const action = actions[0];
     const v = c.state.villages[0];
     if (action.type === "train") {
-      const batch = { id: "training-accepted", unit: action.unit, count: action.count, remaining: action.count,
-        costEach: {timber: 45, stone: 35, iron: 15}, nextTick: c.state.world.tick + 8, endTick: c.state.world.tick + 8 * action.count };
+      const batch = {
+        id: "training-accepted",
+        unit: action.unit,
+        count: action.count,
+        remaining: action.count,
+        costEach: { timber: 45, stone: 35, iron: 15 },
+        nextTick: c.state.world.tick + 8,
+        endTick: c.state.world.tick + 8 * action.count,
+      };
       v.training.barracks.push(batch);
-      return {tick: c.state.world.tick, results: [{ok: true, type: "train", data: {batch}}]} as T;
+      return {
+        tick: c.state.world.tick,
+        results: [{ ok: true, type: "train", data: { batch } }],
+      } as T;
     }
     if (action.type !== "build") throw new Error("Unexpected action");
     const level = v.buildings[action.building] + 1;
@@ -511,87 +521,247 @@ test("fresh revalidation stops a producer whose payback crosses round end while 
   assert.equal(x.writes.length, 0);
   const p = controller
     .snapshot()
-    .proposals.find((p) => p.action.type === "build" && p.action.building === "lumberyard")!;
+    .proposals.find(
+      (p) => p.action.type === "build" && p.action.building === "lumberyard",
+    )!;
   assert.ok(p.blockers.includes("NO_PAYBACK_BEFORE_ROUND_END"));
   assert.ok(!p.blockers.includes("ROUND_END_TOO_SOON"));
 });
 
 function allowRecruitment(x: Awaited<ReturnType<typeof setup>>) {
   const v = x.c.state.villages[0];
-  v.buildings.hall = 3; v.buildings.barracks = 1; v.hidden = 1000;
-  v.options.train = [{unit: "pikeman", cost: {timber: 45, stone: 35, iron: 15}, ticksEach: 8, pop: 1, maxCount: 20, ok: true, blockers: [], affordableAtTick: null}];
+  v.buildings.hall = 3;
+  v.buildings.barracks = 1;
+  v.hidden = 1000;
+  v.options.train = [
+    {
+      unit: "pikeman",
+      cost: { timber: 45, stone: 35, iron: 15 },
+      ticksEach: 8,
+      pop: 1,
+      maxCount: 20,
+      ok: true,
+      blockers: [],
+      affordableAtTick: null,
+    },
+  ];
 }
 test("training is journalled, accepted once and confirmed after the batch finishes", async () => {
-  const x = await setup(); allowRecruitment(x);
+  const x = await setup();
+  allowRecruitment(x);
   const save = x.storage.save.bind(x.storage);
   let prepared = false;
-  x.storage.save = async (v) => { if (v.pending?.phase === "prepared") prepared = true; await save(v); };
-  await x.controller.cycle(); await x.controller.setAutomatic(true); await x.controller.cycle();
+  x.storage.save = async (v) => {
+    if (v.pending?.phase === "prepared") prepared = true;
+    await save(v);
+  };
+  await x.controller.cycle();
+  await x.controller.setAutomatic(true);
+  await x.controller.cycle();
   assert.equal(prepared, true);
   assert.equal(x.writes[0][0].type, "train");
   assert.equal(x.storage.value?.pending?.phase, "accepted");
-  await x.controller.cycle(); assert.equal(x.writes.length, 1);
-  const v = x.c.state.villages[0]; v.training.barracks = []; v.units.away.pikeman = 5;
-  await x.controller.setAutomatic(false); await x.controller.cycle();
+  await x.controller.cycle();
+  assert.equal(x.writes.length, 1);
+  const v = x.c.state.villages[0];
+  v.training.barracks = [];
+  v.units.away.pikeman = 5;
+  await x.controller.setAutomatic(false);
+  await x.controller.cycle();
   assert.equal(x.controller.snapshot().pending, null);
-  assert.ok(x.controller.snapshot().decisions.some((d) => d.kind === "confirmed" && d.text.includes("training")));
+  assert.ok(
+    x.controller
+      .snapshot()
+      .decisions.some(
+        (d) => d.kind === "confirmed" && d.text.includes("training"),
+      ),
+  );
 });
 test("uncertain training survives restart and retries the identical batch ID and count", async () => {
-  const x = await setup(); allowRecruitment(x);
-  await x.controller.cycle(); await x.controller.setAutomatic(true); x.failNext(); await x.controller.cycle();
+  const x = await setup();
+  allowRecruitment(x);
+  await x.controller.cycle();
+  await x.controller.setAutomatic(true);
+  x.failNext();
+  await x.controller.cycle();
   const first = structuredClone(x.writes[0]);
-  const restarted = await Controller.create(x.storage, settings, x.request, () => 10000);
+  const restarted = await Controller.create(
+    x.storage,
+    settings,
+    x.request,
+    () => 10000,
+  );
   await restarted.cycle();
   assert.deepEqual(x.writes[1], first);
   assert.equal(restarted.snapshot().pending?.phase, "accepted");
 });
 test("observed training suppresses an uncertain replay; disappearance is not false confirmation", async () => {
-  const x = await setup(); allowRecruitment(x);
-  await x.controller.cycle(); await x.controller.setAutomatic(true); x.failNext(); await x.controller.cycle();
-  x.c.state.villages[0].training.barracks = [{id: "observed", unit: "pikeman", count: 5, remaining: 5,
-    costEach: {timber:45, stone:35, iron:15}, nextTick:108, endTick:140}];
-  x.advance(); await x.controller.cycle(); assert.equal(x.writes.length, 1);
+  const x = await setup();
+  allowRecruitment(x);
+  await x.controller.cycle();
+  await x.controller.setAutomatic(true);
+  x.failNext();
+  await x.controller.cycle();
+  x.c.state.villages[0].training.barracks = [
+    {
+      id: "observed",
+      unit: "pikeman",
+      count: 5,
+      remaining: 5,
+      costEach: { timber: 45, stone: 35, iron: 15 },
+      nextTick: 108,
+      endTick: 140,
+    },
+  ];
+  x.advance();
+  await x.controller.cycle();
+  assert.equal(x.writes.length, 1);
   assert.equal(x.controller.snapshot().pending, null);
   x.c.state.villages[0].training.barracks = [];
-  await x.controller.cycle(); assert.equal(x.writes.length, 2);
+  await x.controller.cycle();
+  assert.equal(x.writes.length, 2);
   x.c.state.villages[0].training.barracks = [];
-  await x.controller.setAutomatic(false); await x.controller.cycle();
-  assert.ok(x.controller.snapshot().decisions.some((d) => d.kind === "cancelled" && d.text.includes("training")));
-  assert.ok(!x.controller.snapshot().decisions.some((d) => d.kind === "confirmed"));
+  await x.controller.setAutomatic(false);
+  await x.controller.cycle();
+  assert.ok(
+    x.controller
+      .snapshot()
+      .decisions.some(
+        (d) => d.kind === "cancelled" && d.text.includes("training"),
+      ),
+  );
+  assert.ok(
+    !x.controller.snapshot().decisions.some((d) => d.kind === "confirmed"),
+  );
 });
 test("fresh recruitment revalidation rejects lost population before the write", async () => {
-  const x = await setup(); allowRecruitment(x); let reads = 0;
+  const x = await setup();
+  allowRecruitment(x);
+  let reads = 0;
   const remote: Remote = async <T>(s: Settings, p: string, b?: unknown) => {
-    if (p.endsWith("/state") && ++reads === 2) { x.c.state.villages[0].population.used = 200; x.c.state.villages[0].orders.build = [{building:"farm", toLevel:2}]; }
+    if (p.endsWith("/state") && ++reads === 2) {
+      x.c.state.villages[0].population.used = 200;
+      x.c.state.villages[0].orders.build = [{ building: "farm", toLevel: 2 }];
+    }
     return x.request<T>(s, p, b);
   };
-  const c = await Controller.create(x.storage, settings, remote, Date.now, {execute:false});
-  await c.cycle(); reads = 0; await c.setAutomatic(true); await c.cycle();
+  const c = await Controller.create(x.storage, settings, remote, Date.now, {
+    execute: false,
+  });
+  await c.cycle();
+  reads = 0;
+  await c.setAutomatic(true);
+  await c.cycle();
   assert.equal(x.writes.length, 0);
 });
 
 test("uncertain training expiry pauses execution and a new world never replays it", async () => {
-  const x = await setup(); allowRecruitment(x);
-  await x.controller.cycle(); await x.controller.setAutomatic(true); x.failNext(); await x.controller.cycle();
-  x.c.state.world.tick = x.controller.snapshot().pending!.expiresTick;
-  x.advance(); await x.controller.cycle();
-  assert.equal(x.controller.snapshot().automatic, false); assert.equal(x.writes.length, 1);
-  x.c.state.world.epoch = "new-round";
-  for (let i=0; i<6; i++) x.advance();
+  const x = await setup();
+  allowRecruitment(x);
   await x.controller.cycle();
-  assert.equal(x.controller.snapshot().pending, null); assert.equal(x.writes.length, 1);
+  await x.controller.setAutomatic(true);
+  x.failNext();
+  await x.controller.cycle();
+  x.c.state.world.tick = x.controller.snapshot().pending!.expiresTick;
+  x.advance();
+  await x.controller.cycle();
+  assert.equal(x.controller.snapshot().automatic, false);
+  assert.equal(x.writes.length, 1);
+  x.c.state.world.epoch = "new-round";
+  for (let i = 0; i < 6; i++) x.advance();
+  await x.controller.cycle();
+  assert.equal(x.controller.snapshot().pending, null);
+  assert.equal(x.writes.length, 1);
 });
 test("training HTTP 429 retains payload through backoff; per-action rejection remains visible", async () => {
-  const x = await setup(); allowRecruitment(x);
-  await x.controller.cycle(); await x.controller.setAutomatic(true); x.failNext(429,20000); await x.controller.cycle();
-  const first = structuredClone(x.writes[0]); x.advance(); await x.controller.cycle();
-  assert.equal(x.writes.length,1); x.advance(); await x.controller.cycle(); assert.deepEqual(x.writes[1],first);
-  const y = await setup(); allowRecruitment(y);
-  const remote: Remote = async <T>(s:Settings,p:string,b?:unknown) => p.endsWith("/actions")
-    ? {tick:100,results:[{ok:false,type:"train",error:{code:"POPULATION_FULL",message:"Population changed"}}]} as T : y.request<T>(s,p,b);
-  const c = await Controller.create(y.storage,settings,remote,Date.now,{execute:false});
-  await c.cycle(); await c.setAutomatic(true); await c.cycle();
-  assert.equal(c.snapshot().pending,null);
-  assert.ok(c.snapshot().decisions.some(d=>d.kind==="rejected" && d.text.includes("POPULATION_FULL")));
-  assert.ok(!c.snapshot().decisions.some(d=>d.kind==="accepted"));
+  const x = await setup();
+  allowRecruitment(x);
+  await x.controller.cycle();
+  await x.controller.setAutomatic(true);
+  x.failNext(429, 20000);
+  await x.controller.cycle();
+  const first = structuredClone(x.writes[0]);
+  x.advance();
+  await x.controller.cycle();
+  assert.equal(x.writes.length, 1);
+  x.advance();
+  await x.controller.cycle();
+  assert.deepEqual(x.writes[1], first);
+  const y = await setup();
+  allowRecruitment(y);
+  const remote: Remote = async <T>(s: Settings, p: string, b?: unknown) =>
+    p.endsWith("/actions")
+      ? ({
+          tick: 100,
+          results: [
+            {
+              ok: false,
+              type: "train",
+              error: { code: "POPULATION_FULL", message: "Population changed" },
+            },
+          ],
+        } as T)
+      : y.request<T>(s, p, b);
+  const c = await Controller.create(y.storage, settings, remote, Date.now, {
+    execute: false,
+  });
+  await c.cycle();
+  await c.setAutomatic(true);
+  await c.cycle();
+  assert.equal(c.snapshot().pending, null);
+  assert.ok(
+    c
+      .snapshot()
+      .decisions.some(
+        (d) => d.kind === "rejected" && d.text.includes("POPULATION_FULL"),
+      ),
+  );
+  assert.ok(!c.snapshot().decisions.some((d) => d.kind === "accepted"));
+});
+
+test("one-second idle cycles refresh state without repeatedly fetching metadata or unchanged rules", async () => {
+  const x = await setup();
+  const calls: string[] = [];
+  const remote: Remote = async <T>(s: Settings, p: string, b?: unknown) => {
+    calls.push(p);
+    return x.request<T>(s, p, b);
+  };
+  const controller = await Controller.create(
+    x.storage,
+    settings,
+    remote,
+    () => 0,
+    { execute: false },
+  );
+  for (let i = 0; i < 12; i++) await controller.cycle();
+  assert.equal(calls.filter((p) => p === "/me").length, 1);
+  assert.equal(calls.filter((p) => p === "/worlds").length, 1);
+  assert.equal(calls.filter((p) => p.endsWith("/rules")).length, 1);
+  assert.equal(calls.filter((p) => p.endsWith("/state")).length, 12);
+  x.c.state.world.epoch = "next-round";
+  await controller.cycle();
+  assert.equal(calls.filter((p) => p.endsWith("/rules")).length, 2);
+});
+test("version changes invalidate rule cache and metadata refreshes at its bounded TTL", async () => {
+  const x = await setup();
+  let now = 0;
+  const calls: string[] = [];
+  const remote: Remote = async <T>(s: Settings, p: string, b?: unknown) => {
+    calls.push(p);
+    return x.request<T>(s, p, b);
+  };
+  const controller = await Controller.create(
+    x.storage,
+    settings,
+    remote,
+    () => now,
+    { execute: false },
+  );
+  await controller.cycle();
+  x.c.state.world.rulesVersion++;
+  x.c.rules.version++;
+  now = 31000;
+  await controller.cycle();
+  assert.equal(calls.filter((p) => p === "/me").length, 2);
+  assert.equal(calls.filter((p) => p.endsWith("/rules")).length, 2);
 });

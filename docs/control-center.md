@@ -227,3 +227,9 @@ Hall itself retains its construction-time payback comparison. Farm, storehouse a
 their explicit capacity/protection rules: they do not directly generate a resource stream. This is
 a gross-production estimate, not a guarantee of retained inventory: overflow, raids, trades, future
 bonuses or later upgrades can change actual returns. No speculative future benefits are credited.
+
+The service evaluates live state once per second. Account/world-list metadata is cached for at most
+30 seconds; joining forces a refresh. Rules are cached by configuration revision, world, epoch and
+rules version, and are fetched again immediately before an action. Idle cycles avoid a redundant
+second state read. This stays within the upstream four-per-second dashboard read budget while the
+browser polls the local snapshot every second. Rate-limit/error backoff remains in effect.

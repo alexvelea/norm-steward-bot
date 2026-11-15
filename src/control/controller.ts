@@ -56,6 +56,19 @@ export class Controller {
   private stopped = false;
   private backoffUntil = 0;
   private lastPlan = "";
+  private metadata: {
+    revision: number;
+    at: number;
+    me: MeResponse;
+    worlds: WorldSummary[];
+  } | null = null;
+  private cachedRules: {
+    revision: number;
+    epoch: string;
+    worldId: string;
+    version: number;
+    rules: RulesResponse;
+  } | null = null;
   private persistence: Promise<void> = Promise.resolve();
   private view: Omit<
     ControlView,
@@ -257,18 +270,49 @@ export class Controller {
   private path(suffix: string): string {
     return `/worlds/${encodeURIComponent(this.saved.settings.worldId)}${suffix}`;
   }
-  private async readContext(): Promise<AdvisorContext> {
-    const settings = this.settings;
-    const [state, rules] = await Promise.all([
-      this.request<StateResponse>(settings, this.path("/state")),
-      this.request<RulesResponse>(settings, this.path("/rules")),
+  private async readMetadata(force = false) {
+    if (
+      !force &&
+      this.metadata?.revision === this.revision &&
+      this.now() - this.metadata.at < 30000
+    )
+      return this.metadata;
+    const [me, worlds] = await Promise.all([
+      this.request<MeResponse>(this.settings, "/me"),
+      this.request<WorldSummary[]>(this.settings, "/worlds"),
     ]);
+    this.metadata = { revision: this.revision, at: this.now(), me, worlds };
+    return this.metadata;
+  }
+  private async readContext(forceRules = false): Promise<AdvisorContext> {
+    const settings = this.settings;
+    const state = await this.request<StateResponse>(
+      settings,
+      this.path("/state"),
+    );
     if (state.world.id !== settings.worldId)
       throw new Error("Returned state belongs to another world.");
+    const cached = this.cachedRules;
+    const valid =
+      cached?.revision === this.revision &&
+      cached.worldId === state.world.id &&
+      cached.epoch === state.world.epoch &&
+      cached.version === state.world.rulesVersion;
+    const rules =
+      valid && !forceRules
+        ? cached.rules
+        : await this.request<RulesResponse>(settings, this.path("/rules"));
     if (rules.version !== state.world.rulesVersion)
       throw new Error(
         "Rules version mismatch; wait for compatible live rules.",
       );
+    this.cachedRules = {
+      revision: this.revision,
+      worldId: state.world.id,
+      epoch: state.world.epoch,
+      version: rules.version,
+      rules,
+    };
     return { state, rules };
   }
   /** Join is idempotent upstream: retries return the existing village, never another one. */
@@ -286,6 +330,7 @@ export class Controller {
         throw error;
       missing = error;
     }
+    worlds = (await this.readMetadata(true)).worlds;
     const world = worlds.find((w) => w.id === this.settings.worldId);
     if (
       !this.automatic ||
@@ -332,7 +377,9 @@ export class Controller {
       points: v.points,
     }));
     this.view.economicForecasts = context.state.villages.map(forecastEconomy);
-    this.view.proposals = [economicAdvisor, militaryAdvisor].flatMap((advisor) => advisor.evaluate(context));
+    this.view.proposals = [economicAdvisor, militaryAdvisor].flatMap(
+      (advisor) => advisor.evaluate(context),
+    );
     this.view.selection = selectProposal(this.view.proposals);
     if (this.saved.pending?.phase === "accepted") {
       const p = this.saved.pending.proposal;
@@ -445,30 +492,53 @@ export class Controller {
     }
   }
   /** Counts include away troops; marching a batch must never trigger replacement spending. */
-  private async reconcileTraining(context: AdvisorContext, p: Pending): Promise<void> {
+  private async reconcileTraining(
+    context: AdvisorContext,
+    p: Pending,
+  ): Promise<void> {
     if (p.action.type !== "train") return;
     const { unit, count } = p.action;
-    const v = context.state.villages.find((v) => v.id === p.proposal.villageId)!;
+    const v = context.state.villages.find(
+      (v) => v.id === p.proposal.villageId,
+    )!;
     const queues = Object.values(v.training).flat();
     const owned = (v.units.home[unit] ?? 0) + (v.units.away[unit] ?? 0);
     if (p.phase === "accepted") {
       if (queues.some((q) => q.id === p.itemId)) return;
       const complete = owned >= p.proposal.currentLevel + count;
-      this.record(complete ? "confirmed" : "cancelled", complete
-        ? `${count} ${p.proposal.buildingName} completed training, confirmed by fresh server state.`
-        : "Accepted training disappeared without its expected troops; cancellation or losses may have occurred.",
-        p.proposal, p.action.clientId, context.state.world.tick);
+      this.record(
+        complete ? "confirmed" : "cancelled",
+        complete
+          ? `${count} ${p.proposal.buildingName} completed training, confirmed by fresh server state.`
+          : "Accepted training disappeared without its expected troops; cancellation or losses may have occurred.",
+        p.proposal,
+        p.action.clientId,
+        context.state.world.tick,
+      );
       this.saved.pending = null;
-    } else if (owned !== p.proposal.currentLevel || queues.some((q) => q.unit === unit)) {
+    } else if (
+      owned !== p.proposal.currentLevel ||
+      queues.some((q) => q.unit === unit)
+    ) {
       // Observed changes cannot prove attribution, but must suppress a duplicate order.
-      this.record("uncertain", "Troops or training changed after an uncertain request; another actor may have acted. Do not replay this batch.",
-        p.proposal, p.action.clientId, context.state.world.tick);
+      this.record(
+        "uncertain",
+        "Troops or training changed after an uncertain request; another actor may have acted. Do not replay this batch.",
+        p.proposal,
+        p.action.clientId,
+        context.state.world.tick,
+      );
       this.saved.pending = null;
     } else if (context.state.world.tick >= p.expiresTick) {
       this.automatic = false;
       this.backoffUntil = this.now() + 60000;
-      this.record("uncertain", "Training idempotency window expired. Automatic execution is paused; inspect activity before clearing this operation.",
-        p.proposal, p.action.clientId, context.state.world.tick);
+      this.record(
+        "uncertain",
+        "Training idempotency window expired. Automatic execution is paused; inspect activity before clearing this operation.",
+        p.proposal,
+        p.action.clientId,
+        context.state.world.tick,
+      );
     }
     await this.persist();
   }
@@ -484,10 +554,7 @@ export class Controller {
       this.view.connection = this.view.account
         ? this.view.connection
         : "connecting";
-      const [me, worlds] = await Promise.all([
-        this.request<MeResponse>(this.settings, "/me"),
-        this.request<WorldSummary[]>(this.settings, "/worlds"),
-      ]);
+      const { me, worlds } = await this.readMetadata();
       this.view.account = me.account;
       this.view.worlds = worlds;
       const context = await this.readJoinedContext(worlds, revision);
@@ -520,7 +587,8 @@ export class Controller {
       if (!this.automatic || revision !== this.revision || this.stopped) return;
       if (this.saved.pending?.phase === "accepted") return;
       // Read state and live rules again immediately before sending: manual commands may have won the race.
-      const fresh = await this.readContext();
+      if (!this.view.selection.selected) return;
+      const fresh = await this.readContext(true);
       this.saved.production = trackProduction(
         this.saved.production,
         productionScope(this.settings.serverUrl, me.account.id, fresh.state),
@@ -606,10 +674,17 @@ export class Controller {
           this.backoffUntil =
             this.now() +
             Math.max(10000, Number(result.error.details?.retryAfterMs) || 0);
-        } else if ((pending.action.type === "build" && "item" in result.data) ||
-          (pending.action.type === "train" && "batch" in result.data)) {
+        } else if (
+          (pending.action.type === "build" && "item" in result.data) ||
+          (pending.action.type === "train" && "batch" in result.data)
+        ) {
           pending.phase = "accepted";
-          pending.itemId = "item" in result.data ? result.data.item.id : "batch" in result.data ? result.data.batch.id : undefined;
+          pending.itemId =
+            "item" in result.data
+              ? result.data.item.id
+              : "batch" in result.data
+                ? result.data.batch.id
+                : undefined;
           this.record(
             "accepted",
             `${selected.buildingName} target ${selected.targetLevel} accepted into ${pending.action.type === "train" ? "training" : "construction"} queue; completion is not confirmed yet.`,
