@@ -53,8 +53,7 @@ export function evaluateScoutDispatch({ state, rules }: AdvisorContext, scouting
     const owned = (unit: "pikeman" | "shieldman" | "raider") => (v.units.home[unit] ?? 0) + (v.units.away[unit] ?? 0);
     if ((v.units.home.scout ?? 0) < 2 || (v.units.away.scout ?? 0) > 0 || owned("pikeman") < 10 || owned("shieldman") < 5 || owned("raider") < 10) continue;
     // Recruitment adds future troops; dispatch uses only the forces already home.
-    // Construction still defers commands because it can change production/headroom.
-    if (v.buildQueue.length || v.orders.build.length || v.orders.train.length || v.orders.raids.length || v.orders.paused.length) continue;
+    if (v.orders.build.length || v.orders.train.length || v.orders.raids.length || v.orders.paused.length) continue;
     if (state.commands.incoming.some(c => c.kind === "attack" && c.to.id === v.id)) continue;
     if ((state.player.nextActTick ?? state.world.tick) > state.world.tick) continue;
     const target = map.villages.filter(t => {
@@ -71,6 +70,11 @@ export function evaluateScoutDispatch({ state, rules }: AdvisorContext, scouting
       const distance = Math.hypot(t.x - v.x, t.y - v.y);
       const travel = Math.ceil(distance * speed);
       if (!Number.isSafeInteger(travel) || travel < 1 || travel > 300 || state.world.tick + 2 * travel + 60 > state.world.endsAtTick) return false;
+      // Scout travel may overlap paid construction only when every queued item
+      // finishes by observation arrival. Raids still require an empty build queue
+      // and fresh post-construction production/storage state before spending intel.
+      if (v.buildQueue.some(q => !Number.isSafeInteger(q.endTick) || q.endTick < state.world.tick ||
+          q.endTick > state.world.tick + travel)) return false;
       // Reconnaissance must leave a usable raid window after the report arrives.
       // Preserve the separate Scout return check; the combat force may leave while
       // Scouts are returning. Use live speeds and the raid policy's 60-tick margin.

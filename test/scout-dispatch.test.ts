@@ -60,13 +60,32 @@ test("scouting overlaps recruitment using only Scouts already home", () => {
   v.units.home.scout = 1;
   assert.deepEqual(evaluateScoutDispatch(x.c, x.scouting), [], "queued Scouts do not count");
   v.units.home.scout = 2; v.buildQueue.push({ building: "lumberyard", endTick: 150 } as never);
-  assert.deepEqual(evaluateScoutDispatch(x.c, x.scouting), [], "construction still defers dispatch");
+  assert.deepEqual(evaluateScoutDispatch(x.c, x.scouting), [], "construction extending past arrival defers dispatch");
   v.buildQueue = []; v.orders.train.push({} as never);
   assert.deepEqual(evaluateScoutDispatch(x.c, x.scouting), [], "standing training orders still defer dispatch");
 });
 
-async function executor(mode: "ok" | "lost" | "reject" | "unapplied" = "ok") {
+test("Scout travel overlaps construction only when the entire queue finishes by arrival", () => {
+  const x = fixture(), v = x.c.state.villages[0], target = x.scouting.map.villages[0];
+  const arrival = x.c.state.world.tick + Math.ceil(Math.hypot(target.x-v.x, target.y-v.y) *
+    (x.c.rules.rules.UNITS as Record<string, {speed:number}>).scout.speed);
+  v.buildQueue = [{building:"lumberyard",endTick:arrival-1},{building:"storehouse",endTick:arrival}] as never;
+  assert.equal(evaluateScoutDispatch(x.c,x.scouting).length,1,"all paid work completes at or before observation");
+  for (const endTick of [arrival+1, NaN, 99]) {
+    v.buildQueue[0].endTick = endTick;
+    assert.deepEqual(evaluateScoutDispatch(x.c,x.scouting),[],"late or invalid queue timing defers dispatch");
+  }
+  v.buildQueue[0].endTick=arrival;
+  v.orders.build.push({} as never);
+  assert.deepEqual(evaluateScoutDispatch(x.c,x.scouting),[],"standing orders cannot guarantee the queue will drain");
+});
+
+async function executor(mode: "ok" | "lost" | "reject" | "unapplied" = "ok", overlap = false) {
   const x = fixture(); let saved: SavedControl | null = null; let now = 0; const writes: Action[] = []; let fail = true;
+  if (overlap) {
+    x.c.state.villages[0].buildQueue = [{building: "storehouse", endTick: 109}] as never;
+    x.c.state.villages[0].training.barracks = [{unit: "pikeman", remaining: 6, endTick: 170}] as never;
+  }
   const storage = { load: async () => structuredClone(saved), save: async (v: SavedControl) => { saved = structuredClone(v); } };
   const settings: Settings = { serverUrl: "https://sandbox.invalid", worldId: x.c.state.world.id, apiKey: "test" };
   const request: Remote = async <T>(_s: Settings, path: string, body?: unknown): Promise<T> => {
@@ -96,6 +115,15 @@ test("shared executor journals dispatch and confirms a report across a paused re
   await restarted.cycle(); assert.equal(x.writes.length, 1); assert.equal(restarted.snapshot().automatic, false);
   assert.equal(x.saved().pending, null); assert.equal(x.saved().scouting?.[0].report?.id, "report");
   assert.ok(restarted.snapshot().decisions.some(d => d.kind === "confirmed" && d.text.includes("Scouting report")));
+});
+test("President and executor dispatch during paid construction and recruitment", async () => {
+  const x = await executor("ok", true);
+  assert.equal(x.writes.length, 1);
+  assert.deepEqual(x.writes[0], x.saved().pending?.action);
+  assert.equal(x.writes[0].type, "send");
+  assert.equal(x.saved().pending?.phase, "accepted");
+  assert.equal(x.c.state.villages[0].buildQueue.length, 1);
+  assert.equal(x.c.state.villages[0].training.barracks.length, 1);
 });
 test("lost send response suppresses duplicates, rejected actions stay visible, retries preserve exact IDs", async () => {
   const lost = await executor("lost"); await lost.controller.setAutomatic(false); lost.advance(); await lost.controller.cycle();

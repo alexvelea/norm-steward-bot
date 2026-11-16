@@ -41,6 +41,30 @@ intentionally in the economy-only stage; do not call that recruitment starvation
 throughput tests at producer >=10 with income sufficient for the live Barracks speed and the
 construction allowance. Threat response, opportunity cost and the 20% allowance remain to evaluate.
 
+## Scouting during paid construction (2026-11-16)
+
+Scouts already at home may travel while construction and recruitment continue, provided every
+paid construction item has a valid completion tick at or before Scout arrival. Standing orders
+still defer dispatch. Raids retain their empty-construction-queue check and revalidate current
+production/storage before spending intelligence. This uses the existing President and durable
+executor; it adds no troop purchases or starter quotas.
+
+The matched seed-73421 comparison used producers 11/10/10, Barracks 5, Smithy 5 and an existing
+paid force (the live Stable prerequisite chain requires these higher military levels). Full-time
+3Pi1Sh left 26.8%/32.2%/44.8% timber/stone/iron income for construction. Both worlds had the same
+paid Storehouse upgrade and 6-Pikeman/2-Shieldman queue. With one-second decisions until dispatch, the candidate
+dispatched at tick 6600 and received a successful report at 6728; baseline waited until 6610 and
+received its report at 6738. Policy action spending was zero for both. Final resources, buildings,
+population and troops were identical. Both preserved a paused restart and reconciled their reports.
+All three worlds, including the initial fixture correction, were deleted.
+
+Reproduce with `node --import tsx scripts/experiment-scout-construction.ts` in a managed review run.
+The default baseline is `82bce40`; `STEWARD_BASELINE_COMMIT` can select it explicitly. Raw results,
+current-code broker receipts and the initial fixture's failed comparison are under
+`/var/lib/norm-steward-review/runs/20261116T160016Z/`. This establishes ten ticks less command/report
+latency with existing forces. It does not measure combat gain or full-round allocation; the latter
+remains the next measurement under the phased economy.
+
 ## Historical implementation and experiments
 
 The following sections record earlier policies and measurements; the current policy above is

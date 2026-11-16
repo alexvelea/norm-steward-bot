@@ -53,9 +53,10 @@ per-village construction and per-training-building queues. Construction, Barrack
 can overlap. Each occupied queue is excluded from normal allocation until its work completes.
 
 Scouting and risk-checked raids can use troops already at home while recruitment continues.
-Queued troops never count toward a dispatch or its home garrison. Construction and standing
-orders still defer these commands; construction can change production and the loot headroom
-calculation. The President allocates commands through the same durable executor and command lane.
+Queued troops never count toward a dispatch or its home garrison. Scouts may also travel during
+already-paid construction when every queued item has a valid end tick at or before Scout arrival. Standing orders still defer dispatch. Raids wait for an empty
+construction queue and fresh production/storage state before checking loot headroom. The President
+allocates commands through the same durable executor and command lane.
 
 The Economic Advisor considers Great Hall, lumberyard, quarry, mine, storehouse, cellar and farm.
 The server's build options determine cost, prerequisites, affordability and next level. The live
