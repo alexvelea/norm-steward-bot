@@ -90,3 +90,14 @@ export function context() {
     rules: { version: rules.RULES_VERSION, rules: JSON.parse(JSON.stringify(rules)), tables: TABLES } as RulesResponse,
   };
 }
+
+/** A post-opening economy for military/executor tests, with matching live option rows. */
+export function completeOpening(c: ReturnType<typeof context>) {
+  for (const v of c.state.villages) for (const id of ["lumberyard", "quarry", "mine"] as const) {
+    v.buildings[id] = 5;
+    const row = TABLES.buildings[id][5];
+    Object.assign(v.options.build.find(o => o.building === id)!, {level:row.level,cost:row.cost,ticks:row.ticksByHall[v.buildings.hall]});
+  }
+  return c;
+}
+export function developedContext() { return completeOpening(context()); }

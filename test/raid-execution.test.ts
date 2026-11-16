@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { context } from "./control-fixtures.js";
+import { developedContext as context } from "./control-fixtures.js";
 import { evaluateRaidExecution, hamletArrivalDefense, usableRaidIntel, type RaidContext } from "../src/advisors/raid-execution.js";
 import { evaluateScoutDispatch, type ScoutingContext } from "../src/advisors/scout-dispatch.js";
 import { Controller } from "../src/control/controller.js";

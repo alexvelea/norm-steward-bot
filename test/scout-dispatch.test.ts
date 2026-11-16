@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { evaluateScoutDispatch, usableScoutObservation, type ScoutObservation, type ScoutingContext } from "../src/advisors/scout-dispatch.js";
-import { context } from "./control-fixtures.js";
+import { developedContext as context } from "./control-fixtures.js";
 import { Controller } from "../src/control/controller.js";
 import { RemoteError, type Remote } from "../src/control/remote.js";
 import type { Action, MapResponse, OutgoingCommand, ReportSummary } from "../src/shared/api.js";

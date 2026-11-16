@@ -5,7 +5,7 @@ import { RemoteError, type Remote } from "../src/control/remote.js";
 import type { SavedControl, Settings } from "../src/control/types.js";
 import type { ControlStorage } from "../src/control/storage.js";
 import type { Action, BuildQueueItem } from "../src/shared/api.js";
-import { context } from "./control-fixtures.js";
+import { context, completeOpening } from "./control-fixtures.js";
 class Memory implements ControlStorage {
   value: SavedControl | null = null;
   async load() {
@@ -431,6 +431,7 @@ test("fresh revalidation stops spending when round completion no longer fits", a
 test("Military Advisor uses the durable shared executor and confirms its first Barracks", async () => {
   const x = await setup(),
     v = x.c.state.villages[0];
+  completeOpening(x.c);
   v.buildings.hall = 3;
   v.hidden = 1000;
   await x.controller.cycle();
@@ -460,6 +461,7 @@ test("Military Advisor uses the durable shared executor and confirms its first B
 test("fresh military revalidation catches a lost prerequisite before spending", async () => {
   const x = await setup(),
     v = x.c.state.villages[0];
+  completeOpening(x.c);
   v.buildings.hall = 3;
   v.hidden = 1000;
   let reads = 0;
@@ -530,6 +532,7 @@ test("fresh revalidation stops a producer whose payback crosses round end while 
 
 function allowRecruitment(x: Awaited<ReturnType<typeof setup>>) {
   const v = x.c.state.villages[0];
+  completeOpening(x.c);
   v.buildings.hall = 3;
   v.buildings.barracks = 1;
   v.hidden = 1000;

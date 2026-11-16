@@ -131,13 +131,13 @@ test("storehouse requires stock plus five-minute production to exceed capacity",
   v.resourcesMilli.timber++;
   assert.notEqual(proposal(c, "storehouse").status, "not-needed");
 });
-test("cellar protects five minutes of the fastest production, independent of stock", () => {
+test("cellar protects one minute of the fastest production, independent of stock", () => {
   const c = context(),
     v = c.state.villages[0];
   v.productionPerTickMilli = { timber: 1000, stone: 2000, iron: 3000 };
-  v.hidden = 900;
+  v.hidden = 180;
   assert.equal(proposal(c, "cellar").status, "not-needed");
-  v.hidden = 899;
+  v.hidden = 179;
   assert.notEqual(proposal(c, "cellar").status, "not-needed");
 });
 test("producer priority weights projected stock by the next producer upgrade basket", () => {
@@ -204,4 +204,17 @@ test("President skips storage for post-round production but preserves real overf
   c.state.world.endsAtTick += 300;
   v.resourcesMilli.timber = (v.storage - 300) * 1000;
   assert.equal(proposal(c, "storehouse").status, "not-needed", "normal horizon remains capped at 300 ticks");
+});
+
+test("production-first opening outranks Cellar, Hall and military until each producer reaches five", () => {
+  const c = context(), v = c.state.villages[0];
+  v.buildings.lumberyard = 5; v.buildings.quarry = 5; v.buildings.mine = 1;
+  const ps = evaluateEconomy(c), p = ps.find(p => p.action.building === "mine")!;
+  assert.ok(p.importance > ps.find(p => p.action.building === "cellar")!.importance);
+  assert.equal(selectProposal(ps).selected?.id, p.id);
+  assert.match(p.reason, /Production-first opening/);
+  v.population.used = v.population.max;
+  assert.equal(selectProposal(evaluateEconomy(c)).selected?.action.building, "farm");
+  v.population.used = 30; v.buildings.mine = 5;
+  assert.ok(evaluateEconomy(c).filter(p => ["mine", "lumberyard", "quarry"].includes(p.action.building)).every(p => p.importance <= 60));
 });

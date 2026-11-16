@@ -92,7 +92,7 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
     const storageForecast = (r: keyof Resources) => v.resourcesMilli[r] + v.productionPerTickMilli[r] * storageTicks;
     const needsStorage = resources.some((r) => storageForecast(r) > v.storage * 1000);
     const cellarTarget = Math.max(
-      ...resources.map((r) => f.fiveMinuteProduction[r]),
+      ...resources.map((r) => (v.productionPerTickMilli[r] / 1000) * 60),
     );
     const needsCellar = v.hidden < cellarTarget;
     const producerCoverages = Object.values(producers).map(
@@ -128,8 +128,8 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
         const rank = producerCoverages.filter(
           (n) => n < f.coverage[r] - 1e-9,
         ).length;
-        importance = 60 - rank * 10;
-        reason = `In 3 minutes: ${round(f.threeMinutes[r])} ${r} (stock ${round(f.stock[r])} + production). The next lumberyard/quarry/mine upgrades together require ${f.producerDemand[r]} ${r}; projected coverage is ${round(f.coverage[r])}× that basket. Lower coverage takes priority (production rank ${rank + 1}).`;
+        importance = v.buildings[building] < 5 ? 85 - rank : 60 - rank * 10;
+        reason = (v.buildings[building] < 5 ? "Production-first opening: bring each producer to level 5 before protection, Hall investment or starter military; necessary Farm/Storehouse capacity still takes priority. " : "") + `In 3 minutes: ${round(f.threeMinutes[r])} ${r} (stock ${round(f.stock[r])} + production). The next lumberyard/quarry/mine upgrades together require ${f.producerDemand[r]} ${r}; projected coverage is ${round(f.coverage[r])}× that basket. Lower coverage takes priority (production rank ${rank + 1}).`;
       } else if (building === "farm") {
         needed = needsFarm;
         importance = needed ? (f.freePopulation <= 0 ? 100 : 95) : 20;
@@ -145,7 +145,7 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
       } else if (building === "cellar") {
         needed = needsCellar;
         importance = needed ? 80 : 25;
-        reason = `Five-minute production buffer: timber ${round(f.fiveMinuteProduction.timber)}, stone ${round(f.fiveMinuteProduction.stone)}, iron ${round(f.fiveMinuteProduction.iron)}. Cellar hides ${v.hidden} of each; target is ${round(cellarTarget)} per resource. ${needed ? "Expand protection toward that target." : "Five minutes of production are covered; do not upgrade."}`;
+        reason = `One-minute production buffer (60 ticks): timber ${round(v.productionPerTickMilli.timber * 60 / 1000)}, stone ${round(v.productionPerTickMilli.stone * 60 / 1000)}, iron ${round(v.productionPerTickMilli.iron * 60 / 1000)}. Cellar hides ${v.hidden} of each; target is ${round(cellarTarget)} per resource. ${needed ? "Expand protection toward that target." : "One minute of production is covered; do not upgrade."}`;
       } else {
         needed = hall.needed;
         importance = hall.importance;

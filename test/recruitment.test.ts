@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { evaluateRecruitment } from "../src/advisors/recruitment.js";
 import { evaluateEconomy } from "../src/advisors/economic.js";
 import { selectProposal } from "../src/advisors/president.js";
-import { context } from "./control-fixtures.js";
+import { developedContext as context } from "./control-fixtures.js";
 function ready() {
   const c = context(), v = c.state.villages[0];
   v.buildings.barracks = 1; v.hidden = 1000;

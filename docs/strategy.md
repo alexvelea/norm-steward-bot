@@ -4,6 +4,35 @@ The control service continuously plays through deterministic advisors and the Pr
 an autonomous developer, not the gameplay loop. One source of resource allocation and one durable
 executor; no separate military spender or second live bot.
 
+## Owner priority update: production-first opening and smaller Cellar (2026-11-16)
+
+Cellar now targets one minute (60 ticks) of the fastest resource production, per resource,
+independent of inventory. Producers below level 5 score 83–85, above Cellar/Hall/starter military
+and below necessary Farm/Storehouse capacity. Existing live affordability, prerequisites, round
+completion and total-resource payback gates still apply. At level 5 ordinary producer priorities
+resume. The Hall's projected pipeline follows the same opening and protection policy.
+
+Matched server-hosted private worlds, seed 73430, no house bots, identical initial resources
+(1000 each), existing Hall/Farm/Storehouse 1 and producers 1: the deployed 0c01fe6 baseline reached
+all producers >=5 at tick 397 and >=7 at 777. Candidate reached them at 196 and 735. At the first
+milestone Cellar was 5 versus 0; at the second it was 6 versus 1. Candidate's second-milestone
+Lumberyard/Quarry/Mine were 9/9/7 versus baseline 8/8/7. Milestone spending differs because the
+assets differ; this is not a claim of equal inventories or long-run/combat superiority.
+
+Both complete controllers used the same event-boundary evaluation schedule and ordinary actions
+through the President and durable executor. Worlds were paused lockstep (metadata speed 5);
+reported durations are ticks, equivalent to seconds in the live speed-1 world. No opponents or
+threats were tested. Both worlds were deleted. Raw receipts and comparison live outside Git in
+`/var/lib/norm-steward-review/owner-opening-policy-20261116/`. Reproduce with
+`STEWARD_BASELINE_COMMIT=0c01fe6fe89e4b5c9e243f19e25eeacc35f38faa STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx scripts/experiment-opening-policy.ts`.
+The separate production-only feasibility script reaches levels 5/7 in 196/520 ticks; its 520-tick
+result is not the new controller's measured milestone.
+
+Next strategic weakness: military sizing is still a starter cap, not a threat-derived force target.
+With a long productive window remaining, continue producer upgrades that repay before round end;
+compare useful military allocation against further growth and measure defended losses/raid return.
+Do not justify expensive force acquisition using tests that start with a free prebuilt army.
+
 ## What is shipped
 
 - Economic production/capacity policy, Hall-first payback over useful future construction, and

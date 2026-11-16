@@ -4,7 +4,7 @@ import { evaluateDefensiveSmithy } from "../src/advisors/smithy.js";
 import { evaluateMilitary } from "../src/advisors/military.js";
 import { evaluateEconomy } from "../src/advisors/economic.js";
 import { selectProposal } from "../src/advisors/president.js";
-import { context } from "./control-fixtures.js";
+import { developedContext as context } from "./control-fixtures.js";
 
 function ready() {
   const c = context(), v = c.state.villages[0];

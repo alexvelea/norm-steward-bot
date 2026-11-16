@@ -4,7 +4,7 @@ import { evaluateScouting } from "../src/advisors/scouting.js";
 import { militaryAdvisor } from "../src/advisors/military.js";
 import { evaluateEconomy } from "../src/advisors/economic.js";
 import { selectProposal } from "../src/advisors/president.js";
-import { context } from "./control-fixtures.js";
+import { developedContext as context } from "./control-fixtures.js";
 function ready() {
   const c = context(), v = c.state.villages[0];
   Object.assign(v.buildings, { hall: 10, barracks: 5, smithy: 5 });

@@ -226,11 +226,6 @@ export function estimateHall(
     )
       return "farm";
     if (storageScore && available("storehouse")) return "storehouse";
-    if (
-      p.hidden < Math.max(...resources.map((r) => p.rates[r] * 300)) &&
-      available("cellar")
-    )
-      return "cellar";
     const candidates = producerIds.filter((id) => {
       if (!available(id)) return false;
       if (!policy.producerPayback) return true;
@@ -260,6 +255,8 @@ export function estimateHall(
         nextActTick: world.tick + p.nextActAt,
       }).repays;
     });
+    const opening = candidates.filter(id => p.levels[id] < 5);
+    if (!opening.length && p.hidden < Math.max(...resources.map(r => p.rates[r] * 60)) && available("cellar")) return "cellar";
     const coverage = (id: keyof typeof producers) => {
       const r = producers[id];
       const demand = candidates.reduce(
@@ -268,7 +265,7 @@ export function estimateHall(
       );
       return (p.stock[r] + p.rates[r] * 180) / Math.max(1, demand);
     };
-    return candidates.sort((a, b) => {
+    return (opening.length ? opening : candidates).sort((a, b) => {
       const difference = coverage(a) - coverage(b);
       return Math.abs(difference) > 1e-9 ? difference : a.localeCompare(b);
     })[0];
