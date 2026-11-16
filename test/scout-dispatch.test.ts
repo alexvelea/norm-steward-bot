@@ -11,7 +11,7 @@ function fixture() {
   const c = context(); const v = c.state.villages[0];
   v.hidden = 1000; v.units.home = { pikeman: 10, shieldman: 5, raider: 10, scout: 2 };
   v.buildings.barracks = 5; v.buildings.stable = 1; v.buildings.smithy = 5;
-  const target = { id: "bot-village", name: "Warden", ownerId: "bot", ownerName: "Bot", x: 2, y: 1, points: 50 };
+  const target: MapResponse["villages"][number] = { id: "bot-village", name: "Warden", ownerId: "bot", ownerName: "Bot", x: 2, y: 1, points: 50 };
   const map: MapResponse = { tick: 100, snapshotTick: 100, size: 100, villages: [target], players: [{ id: "bot", name: "Bot", houseBot: "warden", protectedUntilTick: null, points: 50, villages: 1 }] };
   const scouting: ScoutingContext = { scope: "scope", map, observations: [] };
   const command: OutgoingCommand = { id: "command", seq: 1, kind: "attack", returning: false,
@@ -98,4 +98,28 @@ test("uncertain expiry pauses and a different epoch never replays a Scout comman
   await x.controller.cycle(); assert.equal(x.controller.snapshot().automatic, false); assert.equal(x.writes.length, 1);
   x.c.state.world.epoch = "reset"; for (let i = 0; i < 7; i++) x.advance(); await x.controller.cycle();
   assert.equal(x.saved().pending, null); assert.equal(x.writes.length, 1);
+});
+
+test("scouting leaves time for the follow-up raid, with equality allowed", () => {
+  for (const neutral of [false, true]) {
+    const x = fixture(), v = x.c.state.villages[0], t = x.scouting.map.villages[0];
+    if (neutral) {
+      t.ownerId = null;
+      v.units.home.lancer = 30;
+      x.scouting.observations.push({ scope: "scope", villageId: v.id, targetId: t.id, targetOwnerId: null,
+        sentTick: -600, clearing: { outcome: "won", defender: { ownerId: null } } as never });
+    }
+    const units = x.c.rules.rules.UNITS as Record<string, { speed: number }>;
+    const distance = Math.hypot(t.x-v.x,t.y-v.y);
+    const scout = Math.ceil(distance*units.scout.speed);
+    const raid = Math.ceil(distance*units[neutral ? "lancer" : "raider"].speed);
+    x.c.state.world.endsAtTick = 100 + scout + 2*raid + 60;
+    assert.equal(evaluateScoutDispatch(x.c,x.scouting).length,1, "exact follow-up deadline is usable");
+    x.c.state.world.endsAtTick--;
+    assert.ok(100+2*scout+60 <= x.c.state.world.endsAtTick, "old Scout-only deadline still fits");
+    assert.deepEqual(evaluateScoutDispatch(x.c,x.scouting),[], "one tick too short for raid return");
+    x.c.state.world.endsAtTick++;
+    units[neutral ? "lancer" : "raider"].speed = NaN;
+    assert.deepEqual(evaluateScoutDispatch(x.c,x.scouting),[], "unknown live combat timing cannot establish a window");
+  }
 });

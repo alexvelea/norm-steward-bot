@@ -505,3 +505,31 @@ retained 76 timber, 63 stone and 51 iron by avoiding the Storehouse, without ove
 longer case both policies built Storehouse 2 and finished with identical stocks. Accepted construction
 was confirmed through the durable executor; every world was deleted. Raw results
 and receipts stay outside Git.
+
+
+## Reconnaissance requires a usable follow-up raid window
+
+Scout dispatch now checks both its own return deadline and the earliest follow-up combat
+round trip after the scouting report arrives, using live Scout and Raider/Lancer speeds and
+the existing 60-tick raid margin. Exact equality remains usable. This only filters reconnaissance
+that cannot lead to a timely raid; priorities, force purchases, intelligence requirements and
+the President's durable executor remain the same.
+
+Run `scripts/experiment-raid-generalization.ts --prepare-deadline`, then `--deadline-case`
+sequentially in the managed review environment for the narrow deadline comparison. Run
+`--seeds=73422` for another full-round existing-force comparison. Both controllers plan with
+running status while the owner-only clocks are paused. The harness records setup and force
+acquisition, clearing losses, policy spending, actual loot, retained production and final assets
+separately. These costly common fixtures cannot establish profitable live force acquisition.
+
+
+The matched seed-73424 boundary pair starts at tick 10200 in a 10296-tick round. Scouts
+need 18 ticks outbound; Lancers need 20 each way. The old Scout-only return check permits
+a dispatch, but a follow-up raid with the existing margin would require tick 10318. The
+baseline sent one Scout pair and completed no raids; the candidate sent none. Both ended
+with identical assets and stocks and retained 448.032 of each resource from production.
+This verifies one avoided command, with no measured resource or combat gain. Common force
+acquisition cost 11825/10200/17655 and clearing casualties cost 1920/1650/2730 to replace;
+these are separate accounting views, and the fixture does not justify live acquisition.
+The additional full-round seed comparison remains to run: a concurrent broker registry
+write interrupted its first attempt. Subsequent sandbox operations ran sequentially.

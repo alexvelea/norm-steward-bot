@@ -66,8 +66,16 @@ export function evaluateScoutDispatch({ state, rules }: AdvisorContext, scouting
         const player = map.players.find(p => p.id === t.ownerId);
         if (!player?.houseBot || (player.protectedUntilTick ?? 0) > state.world.tick) return false;
       }
-      const travel = Math.ceil(Math.hypot(t.x - v.x, t.y - v.y) * speed);
+      const distance = Math.hypot(t.x - v.x, t.y - v.y);
+      const travel = Math.ceil(distance * speed);
       if (!Number.isSafeInteger(travel) || travel < 1 || travel > 300 || state.world.tick + 2 * travel + 60 > state.world.endsAtTick) return false;
+      // Reconnaissance must leave a usable raid window after the report arrives.
+      // Preserve the separate Scout return check; the combat force may leave while
+      // Scouts are returning. Use live speeds and the raid policy's 60-tick margin.
+      const raidSpeed = (rules.rules.UNITS as Record<string, { speed: number }>)[t.ownerId === null ? "lancer" : "raider"]?.speed;
+      const raidTravel = Math.ceil(distance * raidSpeed);
+      if (!Number.isFinite(raidSpeed) || raidSpeed <= 0 || !Number.isSafeInteger(raidTravel) || raidTravel < 1 || raidTravel > 300 ||
+          state.world.tick + travel + 2 * raidTravel + 60 > state.world.endsAtTick) return false;
       return !observations.some(o => o.targetId === t.id && usableScoutObservation(o, state, map, scope) &&
         !(t.ownerId === null && scouting.consumedReportIds?.includes(o.report!.id)));
     }).sort((a, b) => Math.hypot(a.x - v.x, a.y - v.y) - Math.hypot(b.x - v.x, b.y - v.y) || a.id.localeCompare(b.id))[0];
@@ -75,7 +83,7 @@ export function evaluateScoutDispatch({ state, rules }: AdvisorContext, scouting
     proposals.push({ id: `${state.world.epoch}:${v.id}:scout:${target.id}`, advisor: "military", villageId: v.id, villageName: v.name,
       action: { type: "send", village: v.id, target: target.id, kind: "attack", units: { scout: 2 } },
       buildingName: `Scout ${target.name}`, currentLevel: v.units.home.scout ?? 0, targetLevel: 2, importance: 72,
-      reason: "Dispatch two Scouts to a nearby unprotected house bot or a previously cleared hamlet after our protection ends. Keep all combat troops; allow one reconnaissance command and a 600-tick retry interval for house bots or 120 ticks for cleared neutral hamlets. A consumed neutral report permits fresh reconnaissance, never a second raid from the same intel. Report summaries establish historical observations only, not raid profitability.",
+      reason: "Dispatch two Scouts to a nearby unprotected house bot or a previously cleared hamlet after our protection ends. Leave time after reconnaissance for a combat round trip plus 60 ticks. Keep all combat troops; allow one reconnaissance command and a 600-tick retry interval for house bots or 120 ticks for cleared neutral hamlets. A consumed neutral report permits fresh reconnaissance, never a second raid from the same intel. Report summaries establish historical observations only, not raid profitability.",
       requirements: { timber: 0, stone: 0, iron: 0 }, blockers: [], status: "ready", affordableAtTick: state.world.tick });
   }
   return proposals;
