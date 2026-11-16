@@ -25,6 +25,9 @@ For one building training only this unit continuously:
 | Ram | Workshop | 35 | 280 | 220 | 190 | 690 | 1.71 | 480 | 377.14 | 325.71 | 1,182.86 |
 | Trebuchet | Workshop | 55 | 330 | 380 | 120 | 830 | 1.09 | 360 | 414.55 | 130.91 | 905.45 |
 | Envoy | Court | 150 | 6,000 | 7,500 | 6,500 | 20,000 | 0.4 | 2,400 | 3,000 | 2,600 | 8,000 |
+| 3Pi1Sh (3 Pikemen + 1 Shieldman) | Barracks | 35 | 170 | 135 | 110 | 415 | 1.71 | 291.43 | 231.43 | 188.57 | 711.43 |
+
+“3Pi1Sh” is a planning bundle of **3 Pikemen + 1 Shieldman**, not an actual game unit. One level-1 Barracks trains the four troops sequentially in `3 × 8 + 11 = 35` ticks. Its Units/min column means **bundles/minute** (6.86 individual troops/minute); each bundle uses 4 population. Shieldmen require Smithy 1.
 
 Envoy costs above assume **one owned village**. The server multiplies each resource cost by the number of owned villages when the batch is queued; multiply its resource-demand columns by that count. Training time does not receive that cost multiplier.
 
@@ -46,6 +49,9 @@ Defence columns correspond to the attacker’s infantry/cavalry/ranged type. Tra
 | Ram | 5 | 2 | infantry | 20 | 45 | 20 | 30 | 0 | Workshop 1 | 0 |
 | Trebuchet | 8 | 90 | infantry | 100 | 50 | 100 | 30 | 0 | Workshop 2 | 5 |
 | Envoy | 40 | 30 | infantry | 100 | 50 | 100 | 30 | 0 | Court 1 | 0 |
+| 3Pi1Sh (3 Pikemen + 1 Shieldman) | 4 | 52 | infantry | 110 | 155 | 85 | 22 | 90 | Barracks 1 | 1 |
+
+Bundle combat values and carrying capacity sum its members; travel uses the slowest member. These raw totals do not account for walls or other battle modifiers.
 
 ## Higher-level buildings and actual available throughput
 
