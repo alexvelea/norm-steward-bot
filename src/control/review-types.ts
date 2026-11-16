@@ -1,4 +1,5 @@
 export interface ReviewStatus {
+  experiments?: {id:string;status:string;hypothesis:string;metric:string;progress:string;error:string|null}[];
   installed: boolean;
   paused: boolean;
   status: string;

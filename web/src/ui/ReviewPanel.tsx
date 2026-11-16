@@ -84,6 +84,17 @@ export function ReviewPanel() {
         Advisors run continuously. Their proposals explain the capabilities
         currently implemented.
       </p>
+      {!!view?.experiments?.length && (
+        <details open>
+          <summary>Strategy experiments · continue without Codex</summary>
+          {view.experiments.map(e => <article key={e.id}>
+            <p><strong>{e.status}</strong> · {e.hypothesis}</p>
+            <p className="small muted">{e.progress}</p>
+            <p className="small muted">Measure: {e.metric}</p>
+            {e.error && <p className="warn-line">{e.error}</p>}
+          </article>)}
+        </details>
+      )}
       {view?.activeTask && (
         <div className="cc-review-task">
           <h3>Active work: {view.activeTask.title}</h3>

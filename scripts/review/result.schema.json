@@ -43,6 +43,22 @@
           },
           "id": {
             "type": "string"
+          },
+          "delivery": {
+            "type": "string",
+            "enum": [
+              "research",
+              "gameplay"
+            ]
+          },
+          "acceptance": {
+            "type": "string"
+          },
+          "requiredPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -50,7 +66,10 @@
           "title",
           "effortPoints",
           "nextStep",
-          "id"
+          "id",
+          "delivery",
+          "acceptance",
+          "requiredPaths"
         ]
       }
     },

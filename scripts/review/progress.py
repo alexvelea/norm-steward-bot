@@ -3,6 +3,7 @@ import hashlib, json, pathlib, re
 from sandbox import fingerprint
 
 RUNTIME=('src/advisors/','src/control/','web/src/','scripts/serve.mjs')
+EXPERIMENT_JOBS=pathlib.Path('/var/lib/norm-steward-review/experiments/jobs')
 POLICY=('src/advisors/','src/control/controller.ts','src/control/types.ts')
 def runtime_change(paths):return any(any(p.startswith(prefix) for prefix in RUNTIME) for p in paths)
 def policy_change(paths):return any(any(p.startswith(prefix) for prefix in POLICY) for p in paths)
@@ -26,7 +27,7 @@ def select_task(previous,backlog):
     if previous and previous.get('stage')!='complete':return previous
     top=min(backlog,key=lambda b:b.get('priority',999)) if backlog else {'title':'Inspect gameplay and choose a justified improvement','nextStep':'Collect evidence and run one bounded experiment'}
     title=top['title'];task_id=top.get('id') or re.sub(r'[^a-z0-9]+','-',title.lower()).strip('-')[:70]
-    return {'id':task_id,'title':title,'acceptance':top.get('acceptance','Implement and verify one useful gameplay step through the President. Sandbox-compare policy changes. A reporting-only commit does not complete this task.'),'nextAction':top['nextStep'],'delivery':top.get('delivery','gameplay'),'requiredPaths':top.get('requiredPaths',[]),'stage':'implement','attempts':0,'noProgressStreak':0,'instrumentationRuns':0}
+    return {'id':task_id,'title':title,'acceptance':top.get('acceptance','Answer one concrete gameplay question with matched experiments, measured tradeoffs and a decision. Ship a policy change only if supported; a verified negative result can complete research.'),'nextAction':top['nextStep'],'delivery':top.get('delivery','research'),'requiredPaths':top.get('requiredPaths',[]),'stage':'implement','attempts':0,'noProgressStreak':0,'instrumentationRuns':0}
 
 def events(directory):
     path=pathlib.Path(directory)/'sandbox-events.jsonl';result=[]
@@ -53,6 +54,30 @@ def valid_artifacts(report,run,work):
         if path.is_file() and any(path.is_relative_to(root) for root in roots):found.append(str(path))
     return found
 
+def queued_research(report,task):
+    """Only the trusted persistent worker's immutable snapshots and broker receipts count."""
+    root=EXPERIMENT_JOBS.resolve()
+    for name in report.get('artifacts',[]):
+        path=pathlib.Path(name).resolve()
+        if path.name not in ['job.json','comparison.json'] or path.parent.parent!=root:continue
+        job=path.parent
+        try:
+            spec=json.loads((job/'job.json').read_text())
+            if spec['id'] in task.get('completedExperiments',[]):continue
+            if spec['status'] in ['queued','running']:return {'state':'waiting','job':spec['id']}
+            summary=json.loads((job/'comparison.json').read_text())
+            if spec['status']!='complete' or summary.get('passed') is not True:continue
+            cases=summary.get('cases',[])
+            if len(cases)!=2:continue
+            valid=True
+            for policy in ['baseline','candidate']:
+                case=job/policy;value=json.loads((case/'result.json').read_text())
+                receipt=sandbox_evidence(case,case/'source')
+                valid &= fingerprint(case/'source')==spec[policy+'Fingerprint'] and value.get('passed') is True and value.get('deleted') is True and value.get('lastTick')==spec['ticks'] and value.get('seed')==spec['seed'] and value.get('worldId') in receipt['worlds'] and value.get('worldId') in receipt['successfulActionWorlds']
+            if valid:return {'state':'complete','job':spec['id'],'candidateFingerprint':spec['candidateFingerprint']}
+        except (OSError,ValueError,KeyError,TypeError):continue
+    return None
+
 def assess(report,task,paths,run,work,changed,changed_paths=None):
     if report.get('taskId')!=task['id']:raise ValueError('Review changed the pinned work item instead of completing it')
     artifacts=valid_artifacts(report,run,work);receipt=sandbox_evidence(run,work)
@@ -65,24 +90,31 @@ def assess(report,task,paths,run,work,changed,changed_paths=None):
             if value.get('passed') is True and {'baseline','candidate'}<=set(c['policy'] for c in matching):comparisons.append(path)
         except (ValueError,AttributeError,TypeError):pass
     experimented=len(receipt['worlds'])>=2 and bool(receipt['successfulActionWorlds']) and bool(comparisons)
+    worker=queued_research(report,task)
+    if worker and worker['state']=='complete' and worker['candidateFingerprint']==fingerprint(work):experimented=True
+    research=worker if task.get('delivery')=='research' and not report.get('activate') else None
     has_runtime=runtime_change(paths if changed_paths is None else changed_paths)
     real_blocker=bool(report.get('blocker')) and bool(receipt['failedAttempts'])
     relevant=has_runtime and (task.get('delivery','gameplay')!='gameplay' or policy_change(paths if changed_paths is None else changed_paths))
-    if relevant and changed:kind='implementation'
+    if research:kind='research-complete' if research['state']=='complete' and report.get('verdict') in ['supports-change','rejects-change'] else 'experiment-waiting'
+    elif relevant and changed:kind='implementation'
     elif experimented:kind='experiment'
     elif changed and paths:kind='instrumentation'
     elif real_blocker:kind='blocked'
     else:kind='no-progress'
-    credit=kind in ['implementation','experiment'] or kind=='instrumentation' and task.get('instrumentationRuns',0)==0
+    credit=kind in ['implementation','experiment','research-complete','experiment-waiting'] or kind=='instrumentation' and task.get('instrumentationRuns',0)==0
     if report.get('activate') and policy_change(paths) and (not experimented or report.get('verdict')!='supports-change'):
         return {'kind':'validation-missing','credit':False,'needsRetry':True,'error':'Run the candidate against the current policy in two managed private sandboxes. Fresh broker receipts, a passed comparison artifact and supports-change verdict are required.','receipt':receipt}
-    return {'kind':kind,'credit':credit,'needsRetry':not credit and not real_blocker,'error':None,'receipt':receipt}
+    return {'kind':kind,'research':research,'credit':credit,'needsRetry':not credit and not real_blocker,'error':None,'receipt':receipt}
 
 def advance(task,result,report):
     task=dict(task);task['attempts']=task.get('attempts',0)+1;task['lastOutcome']=result['kind']
     task['noProgressStreak']=0 if result['credit'] else task.get('noProgressStreak',0)+1
     if result['kind']=='instrumentation':task['instrumentationRuns']=task.get('instrumentationRuns',0)+1
-    if result['kind']=='experiment':task['stage']='implement' if report.get('verdict')=='supports-change' else 'rethink'
+    if result['kind']=='research-complete':
+        task['stage']='complete';task['completedExperiments']=task.get('completedExperiments',[])+[result['research']['job']]
+    elif result['kind']=='experiment-waiting':task['stage']='experiment'
+    elif result['kind']=='experiment':task['stage']='implement' if report.get('verdict')=='supports-change' else 'rethink'
     elif result['kind']=='implementation':task['stage']='verify'
     task['nextAction']=report.get('nextMeasure') or task['nextAction']
     return task

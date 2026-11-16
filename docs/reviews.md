@@ -61,6 +61,56 @@ No-change reviews are valid. Incomplete code is retained without activation. Lar
 span reviews. The wrapper rejects auto-deployment changes to scheduler, deployment, rules/contracts,
 AGENTS.md and dependency manifests; these need an owner-driven maintenance review.
 
+## Gameplay-led experiments (2026-11-16)
+
+The former work contract biased tasks toward code delivery, and 15-minute agent deadlines repeatedly
+left long comparisons unfinished. Research now has its own delivery type and completion gate. A
+matched, verified negative result may close a research task without a gameplay change. Gameplay
+shipments remain separately classified. Backlog entries explicitly identify research/gameplay,
+acceptance criteria and required paths. Pinned implementation work is preserved, not silently discarded.
+
+`norm-steward-experiments.timer` checks the durable queue every two minutes. Its oneshot service runs
+one baseline/candidate pair using immutable source snapshots, real owner-only paused sandboxes,
+normal actions and the existing Controller/President. It makes no model calls and continues through
+Codex quota pauses. It shares the review lock to prevent sandbox contention; review ticks during a
+running experiment skip, then consume its results on a later tick. Live gameplay is independent.
+
+```bash
+python3 scripts/experiments.py status
+python3 scripts/experiments.py submit --baseline HEAD --candidate "$PWD" --ticks 7200 \
+  --hypothesis "Delay Walls to improve production without losing much army" \
+  --metric "Production, delivered troops, spending and construction occupancy"
+systemctl start --no-block norm-steward-experiments.service
+journalctl -u norm-steward-experiments.service
+```
+
+Jobs live in `/var/lib/norm-steward-review/experiments/jobs/<id>/`: job.json, two source snapshots,
+private worker logs, full action traces and ten-minute checkpoint tables, then comparison.json.
+The dashboard's Strategic reviews panel shows job status and each case's latest checkpoint, even
+when Codex is budget-paused. Completion means equal requested endpoints, matched initial assets,
+rules versions and successful owned-world action/step/cleanup receipts; it does not declare a winner.
+Reviews must interpret benefits and costs. Existing jobs with the same source fingerprints, baseline,
+seed and horizon are reused instead of duplicated.
+
+Each case has a 90-minute wall-clock bound, at most three automatic attempts with 30-minute backoff,
+and explicit 429 backoff. Stable request IDs preserve action retries. After an ambiguous step,
+the runner reads the actual clock before stepping further. Completed cases are retained; interrupted
+cases preserve their evidence, clean only their registered world, then restart that case from zero.
+The worker does not resume a half-written in-memory controller. One peaceful seed is a useful first
+comparison, not general combat validation.
+
+Pause reviews prevents new experiments from starting; a running measurement is allowed to finish.
+To pause experiment scheduling immediately, disable its timer and stop its service:
+`systemctl disable --now norm-steward-experiments.timer; systemctl stop norm-steward-experiments.service`.
+Resume with `systemctl enable --now norm-steward-experiments.timer`. Recovery cleans interrupted
+registered sandboxes before retrying. A failed job is visible; inspect its private log before enqueueing
+a new attempt. No queued experiment enables or disables gameplay automation.
+
+For activation, a completed worker comparison may substitute for same-run receipts **only when the
+current candidate policy fingerprint exactly matches the immutable tested source**. Later policy edits
+invalidate that evidence. The verdict must still support the change, all checks must pass, and normal
+push/health/rollback gates still apply. No-change research does not deploy runtime files.
+
 ## Verified deployment and recovery
 
 The wrapper checks the live source is clean, scans candidate files/diffs for configured secrets,

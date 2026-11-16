@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
+import { mkdir, readFile, writeFile, unlink, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { ReviewStatus } from "./review-types.js";
 export class ReviewStore {
@@ -13,6 +13,23 @@ export class ReviewStore {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
       throw new Error("Review state could not be read.");
     }
+  }
+  private async experiments(): Promise<NonNullable<ReviewStatus["experiments"]>> {
+    let names: string[];
+    try { names = await readdir(join(this.directory, "experiments/jobs")); }
+    catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") return []; throw e; }
+    const rows = [];
+    for (const id of names.sort().reverse().slice(0, 4)) {
+      const job = await this.read(`experiments/jobs/${id}/job.json`);
+      if (!job) continue;
+      const progress = [];
+      for (const policy of ["baseline", "candidate"]) {
+        const result = await this.read(`experiments/jobs/${id}/${policy}/result.json`).catch(e => { if (e instanceof SyntaxError) return null; throw e; });
+        progress.push(`${policy}: ${result?.lastTick ?? 0}/${job.ticks} ticks`);
+      }
+      rows.push({id, status:String(job.status), hypothesis:String(job.hypothesis), metric:String(job.metric), progress:progress.join(" · "), error:job.error ? String(job.error) : null});
+    }
+    return rows;
   }
   async status(): Promise<ReviewStatus> {
     const state = await this.read("state.json");
@@ -56,6 +73,7 @@ export class ReviewStore {
       Date.now() - Date.parse(state.startedAt) > 30 * 60 * 1000;
     return {
       ...safe,
+      experiments: await this.experiments(),
       installed,
       paused,
       status: paused

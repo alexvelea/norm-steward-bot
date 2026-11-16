@@ -1,0 +1,15 @@
+[Unit]
+Description=Private Norn Steward strategy experiment worker (no model)
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+WorkingDirectory=/root/norm-steward-bot
+ExecStart=/usr/bin/python3 /root/norm-steward-bot/scripts/experiments.py run
+TimeoutStartSec=190min
+TimeoutStopSec=60
+KillMode=control-group
+UMask=0077
+Nice=10
+MemoryMax=650M
+NoNewPrivileges=true
