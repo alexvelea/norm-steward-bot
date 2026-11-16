@@ -10,7 +10,8 @@ export function selectProposal<P extends Proposal>(proposals: P[]): Selection<P[
       (p) =>
         p.villageId === villageId &&
         p.status !== "queued" &&
-        p.status !== "not-needed",
+        p.status !== "not-needed" &&
+        !p.blockers.some(b => ["BUILD_QUEUE_BUSY", "TRAIN_QUEUE_BUSY", "EXECUTOR_QUEUE_BUSY"].includes(b)),
     );
     if (!top) continue;
     if (top.status === "ready") candidates.push(top);

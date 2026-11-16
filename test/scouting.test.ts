@@ -7,7 +7,7 @@ import { selectProposal } from "../src/advisors/president.js";
 import { developedContext as context } from "./control-fixtures.js";
 function ready() {
   const c = context(), v = c.state.villages[0];
-  Object.assign(v.buildings, { hall: 10, barracks: 5, smithy: 5 });
+  Object.assign(v.buildings, { hall: 10, barracks: 10, smithy: 5 });
   v.units.home = { pikeman: 10, shieldman: 5, raider: 10 }; v.hidden = 1000;
   const o = v.options.build.find(o => o.building === "stable")!;
   Object.assign(o, { level: 1, cost: { timber: 270, stone: 240, iron: 260 }, pop: 8, ticks: 49 });
@@ -72,5 +72,7 @@ test("Scout training requires the full missing complement funded and preserves t
   assert.equal(evaluateScouting(c)[0].status, "not-needed");
   v.units.away.scout = 1; assert.equal(evaluateScouting(c)[0].status, "ready");
   v.training.barracks = [{ id: "p", unit: "pikeman", count: 1, remaining: 1, costEach: { timber: 45, stone: 35, iron: 15 }, nextTick: 107, endTick: 107 }];
+  assert.equal(evaluateScouting(c)[0].status, "ready"); // Barracks work no longer blocks Stable training.
+  v.training.stable = [{id:"horse",unit:"lancer",count:1,remaining:1,costEach:{timber:120,stone:110,iron:240},nextTick:110,endTick:110}];
   assert.equal(evaluateScouting(c)[0].status, "waiting");
 });

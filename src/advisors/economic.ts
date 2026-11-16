@@ -90,7 +90,7 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
     const f = forecastEconomy(v);
     const defense = defenseBudget(v);
     const farmOption = v.options.build.find(o => o.building === "farm");
-    const farmForRecruitment = !!defense && !!farmOption && state.world.endsAtTick - state.world.tick > farmOption.ticks + defense.ticks + 60 && f.freePopulation < Math.ceil(f.requiredFreePopulation) + defense.pop;
+    const farmForRecruitment = !!defense && !!farmOption && state.world.endsAtTick - state.world.tick > farmOption.ticks + defense.ticks + 60 && f.freePopulation < Math.ceil(f.requiredFreePopulation) + defense.pop * Math.ceil(61 / defense.ticks);
     const needsFarm = f.freePopulation < f.requiredFreePopulation || farmForRecruitment;
     const storageTicks = Math.max(0, Math.min(300, state.world.endsAtTick - state.world.tick));
     const storageForecast = (r: keyof Resources) => v.resourcesMilli[r] + v.productionPerTickMilli[r] * storageTicks;
@@ -140,7 +140,7 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
       } else if (building === "farm") {
         needed = needsFarm;
         importance = needed ? (f.freePopulation <= 0 ? 100 : 95) : 20;
-        reason = `${f.freePopulation} population slots free; target max(50, 20% of ${v.population.max}) = ${round(f.requiredFreePopulation)}. ${needed ? "Below the required buffer; expand capacity." : "Buffer is sufficient; do not upgrade."} Queued buildings and recruitment are already included in population used.${farmForRecruitment ? " Also leave room for the next four-population 3Pi1Sh bundle so recruitment cannot stall exactly at the buffer." : ""}`;
+        reason = `${f.freePopulation} population slots free; target max(50, 20% of ${v.population.max}) = ${round(f.requiredFreePopulation)}. ${needed ? "Below the required buffer; expand capacity." : "Buffer is sufficient; do not upgrade."} Queued buildings and recruitment are already included in population used.${farmForRecruitment ? " Also leave room for the next minute-long 3Pi1Sh cohort so recruitment cannot stall exactly at the buffer." : ""}`;
       } else if (building === "storehouse") {
         needed = needsStorage;
         const peak = Math.max(...resources.map((r) => storageForecast(r) / 1000));

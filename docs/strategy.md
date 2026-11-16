@@ -4,6 +4,44 @@ The control service continuously plays through deterministic advisors and the Pr
 an autonomous developer, not the gameplay loop. One source of resource allocation and one durable
 executor; no separate military spender or second live bot.
 
+## Active queue and military-development policy (2026-11-16)
+
+Construction and recruitment now overlap. The executor keeps one durable in-flight request plus
+accepted operations keyed by construction/training building/command lane; each confirms separately.
+Legacy accepted pending work migrates into that tracking. Unknown requests still serialize writes,
+manual queues and population/resource reservations remain authoritative, and restarts preserve pauses.
+
+After the production opening, build toward Barracks 10, Smithy 5 and Stable 3 through live
+prerequisites. Normal recruitment keeps running. The Stable can independently train an initial
+30-Lancer force in roughly minute-long batches, while existing scouting/risk checks own dispatch.
+
+Each new defensive cohort is an exact whole-number multiple of 3Pi1Sh:
+`ceil(61 / (3*pikemanTicks + shieldmanTicks))` bundles. Barracks 1: 6 Pikemen + 2 Shieldmen,
+70 ticks; Barracks 5: 9 + 3, 81 ticks. Both parts enter the queue, then no new Barracks recruitment
+is added until the cohort drains. Complete-cohort funding/population is checked before starting;
+the journalled complement receives priority over discretionary new spending. Existing force ratios
+do not change the new cohort's 3:1 mix. Construction can finish or accelerate training alongside it.
+
+Walls compare their full marginal static defence, including base/flat/multiplier and home/support
+units, with buying more 3Pi1Sh at the current wall. Require at least 10% better defence per resource
+for every attack type. This avoids a fixed Wall/army ratio. Away troops are excluded; attacking
+Rams and combat outcomes remain unmodelled by this static comparison.
+
+A matched 1800-tick owner-only comparison at seed 73430 started with identical ordinary paid
+setup (producers 7/7/7, Hall 5, Barracks 1, Smithy 2, starter 10/5/10 troops). Baseline 99bc3b0
+finished at Barracks 1/Wall 0 and 152 Pikemen/50 Shieldmen. The parallel prototype finished at
+Barracks 7/Wall 7 with 138/46, demonstrating overlapping queues and reinvestment in military
+infrastructure. It spent 17,490 on recruitment versus 19,435, including queued work. It retained
+producers 11/11/7 versus 7/7/7, so this is not a controlled combat or equal-production comparison.
+That prototype corrected the initial force ratio in its first cohort; final policy instead always
+uses exact new 3:1 bundles, verified separately with the current controller and tests. Raw reports:
+`/var/lib/norm-steward-review/owner-parallel-military-20261116/` and
+`/var/lib/norm-steward-review/owner-parallel-batch-final-20261116/`. All created worlds are cleaned
+up. Reproduce with `STEWARD_BASELINE_COMMIT=99bc3b0 STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx scripts/experiment-parallel-military.ts`; `--batch-only` verifies the final exact-cohort policy in a short candidate run.
+
+Next measure live construction/training overlap, minute-batch utilisation, cavalry unlock costs,
+and actual defensive/raid outcomes. Keep producer payback and the level-20 new-upgrade ceiling.
+
 ## Active spending policy: recurring 3Pi1Sh (2026-11-16)
 
 After the level-5 producer opening, unlock the first Barracks/defensive Smithy through their
@@ -39,9 +77,8 @@ corrected before the matched comparison. Raw comparison/receipts stay in
 `/var/lib/norm-steward-review/owner-spending-policy-20261116/`.
 Reproduce with `STEWARD_BASELINE_COMMIT=ccbd86a STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx scripts/experiment-spending-policy.ts`.
 
-Next measure actual defended losses and resource/queue utilisation. The executor still serializes
-construction and training globally; sustainable training-building expansion and offensive spending
-may be justified if troop throughput leaves large persistent surpluses. Army sizing is now an
+The queue serialization limitation of this first spending version is superseded by the active
+queue policy above. Army sizing remains an
 explicit 3:1 spending policy, not yet a model of actual nearby threats.
 
 ## Owner priority update: production-first opening and smaller Cellar (2026-11-16)

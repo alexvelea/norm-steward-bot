@@ -78,6 +78,10 @@ Budget surplus production separately for buildings, other recruitment queues and
 
 Continuous recruitment also consumes population capacity: allow for Farm expansion and its resource/construction cost. Current server queue limits, prerequisites, action cooldowns, batch affordability and rounded training times still apply; these are ideal uninterrupted throughput budgets, not a promise of indefinite execution.
 
+## Recruitment cohorts
+
+The advisor queues whole 3Pi1Sh bundles covering just over one game minute: `ceil(61 / bundle training ticks)` bundles. At Barracks 1 that is **6 Pikemen + 2 Shieldmen in 70 ticks**; at Barracks 5 it is **9 Pikemen + 3 Shieldmen in 81 ticks**. Both components share the Barracks queue. Once queued, the cohort drains before another starts; construction and Stable training can continue independently.
+
 ## Refreshing the numbers
 
 Fetch the authenticated live `/rules` response, read `rules.UNITS` and `rules.TRAINING`, and apply the formulas above. No account key belongs in this document. Confirm current costs/times from the village’s `/state` training options before issuing orders.

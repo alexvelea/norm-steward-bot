@@ -1,3 +1,4 @@
+import { evaluateMilitaryDevelopment, evaluateWalls, evaluateCavalry } from "./military-development.js";
 import { evaluateSustainedDefense } from "./sustained-defense.js";
 import { evaluateRecruitment, ownedPikemen } from "./recruitment.js";
 import { evaluateDefensiveSmithy } from "./smithy.js";
@@ -8,7 +9,7 @@ import type { Action, BuildingId, Resources } from "../shared/api.js";
 import type { Advisor, AdvisorContext, Proposal } from "./types.js";
 
 /** Bounded military proposals share the President and its durable executor. */
-export const militaryAdvisor: Advisor = { id: "military", evaluate: (context) => [...evaluateMilitary(context), ...evaluateRecruitment(context), ...evaluateScouting(context), ...evaluateSustainedDefense(context)] };
+export const militaryAdvisor: Advisor = { id: "military", evaluate: (context) => [...evaluateMilitary(context), ...evaluateRecruitment(context), ...evaluateScouting(context), ...evaluateSustainedDefense(context), ...evaluateMilitaryDevelopment(context), ...evaluateWalls(context), ...evaluateCavalry(context)] };
 export function evaluateMilitary({ state, rules }: AdvisorContext): Proposal<Extract<Action, {type: "build"}>>[] {
   if (rules.version !== state.world.rulesVersion)
     throw new Error("Live rules do not match this world's rules version.");

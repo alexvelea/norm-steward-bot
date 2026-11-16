@@ -49,8 +49,8 @@ export function evaluateScouting({ state, rules }: AdvisorContext): Proposal[] {
     const completion = build ? completionWindow(state, v, build)?.completionTick : start;
     const useTicks = count * train.ticksEach + SCOUT_USE_TICKS + (build ? state.world.actIntervalTicks ?? 0 : 0);
     if (completion === undefined || completion + useTicks > state.world.endsAtTick) skip("ROUND_END_TOO_SOON");
-    if (v.buildQueue.length) add("BUILD_QUEUE_BUSY");
-    if (Object.values(v.training).some(q => q.length)) add("TRAIN_QUEUE_BUSY");
+    if (build && v.buildQueue.length) add("BUILD_QUEUE_BUSY");
+    if (!build && v.training.stable.length) add("TRAIN_QUEUE_BUSY");
     if (v.orders.build.length || v.orders.train.length) add("EXTERNAL_ORDERS");
     if (state.world.status !== "running") add("WORLD_NOT_RUNNING");
     if (start > state.world.tick) add("COUNCIL_COOLDOWN");

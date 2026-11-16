@@ -147,7 +147,8 @@ export class Controller {
       automatic: this.automatic,
       busy: this.busy,
       decisions: this.saved.decisions,
-      pending: this.saved.pending,
+      pending: this.saved.pending ?? this.saved.active?.[0] ?? null,
+      active: this.saved.active ?? [],
       nextAttemptAt:
         this.backoffUntil > this.now()
           ? new Date(this.backoffUntil).toISOString()
@@ -384,7 +385,7 @@ export class Controller {
   private async readScouting(context: AdvisorContext): Promise<void> {
     const state = context.state;
     const scope = this.scoutingScope(state);
-    const needed = this.saved.pending?.action.type === "send" || (this.saved.scouting ?? []).some(o => o.scope === this.scoutingScope(state) && o.report && state.world.tick - o.report.tick <= 300) || state.villages.some(v => (v.units.home.scout ?? 0) >= 2);
+    const needed = [this.saved.pending, ...(this.saved.active ?? [])].some(p => p?.action.type === "send") || (this.saved.scouting ?? []).some(o => o.scope === this.scoutingScope(state) && o.report && state.world.tick - o.report.tick <= 300) || state.villages.some(v => (v.units.home.scout ?? 0) >= 2);
     this.scoutReports = { reports: [], next: null };
     this.raids = { attempts: this.saved.raids ?? [], assessments: this.raids.assessments.filter(a => a.scope === scope && a.tick === state.world.tick) };
     if (!needed) { this.scouting = undefined; return; }
@@ -392,7 +393,7 @@ export class Controller {
     // Reuse only a map read at this exact tick and scope during immediate pre-write revalidation.
     const map = this.scouting?.scope === scope && this.scouting.map.tick === state.world.tick
       ? this.scouting.map : await this.request<MapResponse>(this.settings, this.path("/map"));
-    if (this.saved.pending?.action.type === "send" || state.villages.some(v => (v.units.home.lancer ?? 0) >= 30)) {
+    if ([this.saved.pending, ...(this.saved.active ?? [])].some(p => p?.action.type === "send") || state.villages.some(v => (v.units.home.lancer ?? 0) >= 30)) {
       this.scoutReports = await this.request<ReportsResponse>(this.settings, this.path("/reports"));
     }
     this.scouting = { scope, map, observations: (this.saved.scouting ?? []).filter(o => o.scope === scope),
@@ -420,7 +421,7 @@ export class Controller {
         break; // Bound reads to one detail per evaluation.
       }
     }
-    if (state.commands.outgoing.some(c => c.kind === "attack" && Object.entries(c.units).some(([unit, n]) => unit !== "scout" && n > 0)) || this.saved.pending?.phase === "accepted") return;
+    if (state.commands.outgoing.some(c => c.kind === "attack" && Object.entries(c.units).some(([unit, n]) => unit !== "scout" && n > 0))) return;
     for (const o of this.scouting.observations) {
       if (!usableRaidIntel(o, state, this.scouting) || this.raids.attempts.some(a => a.scope === scope && a.reportId === o.detail.id)) continue;
       const intel = o.detail.intel!;
@@ -460,15 +461,15 @@ export class Controller {
         this.rememberScout({ ...p.scout, commandId: p.itemId, report });
         this.record(report.kind === "scouting" && report.outcome === "scouted" ? "confirmed" : "cancelled",
           `Scouting report ${report.id}: ${report.outcome} at tick ${report.tick}. Observation age and current ownership must be checked before target use.`, p.proposal, p.action.clientId, state.world.tick);
-        this.saved.pending = null;
+        this.clearOperation(p);
       } else if (!state.commands.outgoing.some(c => c.id === p.itemId)) {
         this.record("cancelled", "Scouting command disappeared without a retained matching report; no intelligence or success is inferred.", p.proposal, p.action.clientId, state.world.tick);
-        this.saved.pending = null;
+        this.clearOperation(p);
       }
     } else if ((v.units.home.scout ?? 0) !== p.proposal.currentLevel || state.commands.outgoing.some(c => c.from.id === v.id && (c.units.scout ?? 0) > 0)) {
       if (p.scout) this.rememberScout(p.scout);
       this.record("uncertain", "Scout troops or commands changed after an uncertain send; suppress replay without attributing the command or claiming intelligence.", p.proposal, p.action.clientId, state.world.tick);
-      this.saved.pending = null;
+      this.clearOperation(p);
     } else if (state.world.tick >= p.expiresTick) {
       this.automatic = false;
       this.backoffUntil = this.now() + 60000;
@@ -492,15 +493,15 @@ export class Controller {
     if (p.phase === "accepted") {
       if (report) {
         this.record("confirmed", `Raid report ${report.id}: ${report.outcome} at tick ${report.tick}. Actual losses and loot belong to its full battle detail.`, p.proposal, p.action.clientId, state.world.tick);
-        this.saved.pending = null;
+        this.clearOperation(p);
       } else if (!state.commands.outgoing.some(c => c.id === p.itemId)) {
         this.record("cancelled", "Raid command disappeared without a matching report; no victory or loot is inferred.", p.proposal, p.action.clientId, state.world.tick);
-        this.saved.pending = null;
+        this.clearOperation(p);
       }
     } else if ((v.units.home[p.action.type === "send" && p.action.units.lancer === 30 ? "lancer" : "raider"] ?? 0) !== p.proposal.currentLevel || state.commands.outgoing.some(c => c.from.id === v.id && ((c.units.raider ?? 0) > 0 || (c.units.lancer ?? 0) > 0))) {
       this.rememberRaid(p.raid!);
       this.record("uncertain", "Raid troops or commands changed after an uncertain send; consume this report and suppress replay without attributing success.", p.proposal, p.action.clientId, state.world.tick);
-      this.saved.pending = null;
+      this.clearOperation(p);
     } else if (state.world.tick >= p.expiresTick) {
       this.automatic = false;
       this.backoffUntil = this.now() + 60000;
@@ -509,6 +510,7 @@ export class Controller {
     await this.persist();
   }
   private plan(context: AdvisorContext): void {
+    context = {...context, activeProposals:(this.saved.active ?? []).map(p => p.proposal)};
     this.view.world = context.state.world;
     this.view.villages = context.state.villages.map((v) => ({
       id: v.id,
@@ -520,14 +522,19 @@ export class Controller {
       (advisor) => advisor.evaluate(context),
     );
     this.view.proposals.push(...evaluateScoutDispatch(context, this.scouting), ...evaluateRaidExecution(context, this.scouting, this.raids));
-    this.view.selection = selectProposal(this.view.proposals);
-    if (this.saved.pending?.phase === "accepted") {
-      const p = this.saved.pending.proposal;
-      this.view.selection = {
-        ...this.view.selection,
-        selected: null,
-        reason: `Wait for accepted ${p.buildingName} target ${p.targetLevel} in ${p.villageName} to finish. The executor tracks one advisor operation globally at a time.`,
-      };
+    const lane = (a: Proposal["action"]) => a.type === "build" ? `${a.village}:build` : a.type === "send" ? "combat" : `${a.village}:train:${(context.rules.rules.UNITS as Record<string,{building:string}>)[a.unit].building}`;
+    for (const proposal of this.view.proposals) {
+      const occupied = (this.saved.active ?? []).filter(p => lane(p.action) === lane(proposal.action));
+      // A recorded 3Pi1Sh cohort may add its second unit type to the same Barracks queue.
+      const complement = proposal.defenseBatch && proposal.action.type === "train" && occupied.length === 1 &&
+        occupied[0].proposal.defenseBatch && occupied[0].action.type === "train" && occupied[0].action.unit !== proposal.action.unit;
+      if (occupied.length && !complement && proposal.status === "ready") {
+        proposal.status = "waiting"; proposal.blockers.push("EXECUTOR_QUEUE_BUSY");
+      }
+    }
+    this.view.selection = selectProposal(this.saved.pending ? this.view.proposals.filter(p => p.id === this.saved.pending!.proposal.id) : this.view.proposals);
+    if (!this.view.selection.selected && this.saved.active?.length) {
+      this.view.selection.reason += ` Tracking ${this.saved.active.length} accepted operation(s) across independent construction/training/command queues.`;
     }
     this.view.conflicts = context.state.villages
       .filter((v) => v.orders.build.length > 0)
@@ -555,9 +562,20 @@ export class Controller {
     this.view.lastEvaluatedAt = new Date(this.now()).toISOString();
   }
   /** Pending requests survive process restarts; retries never create a new clientId. */
+  private clearOperation(p: Pending): void {
+    if (this.saved.pending === p) this.saved.pending = null;
+    this.saved.active = (this.saved.active ?? []).filter(o => o !== p);
+  }
+  private archiveAccepted(): void {
+    if (this.saved.pending?.phase !== "accepted") return;
+    this.saved.active = [...(this.saved.active ?? []), this.saved.pending];
+    this.saved.pending = null;
+  }
   private async reconcile(context: AdvisorContext): Promise<void> {
-    const p = this.saved.pending;
-    if (!p) return;
+    for (const p of [...(this.saved.active ?? []), ...(this.saved.pending ? [this.saved.pending] : [])]) await this.reconcileOne(context, p);
+    this.archiveAccepted();
+  }
+  private async reconcileOne(context: AdvisorContext, p: Pending): Promise<void> {
     const s = context.state;
     const v = s.villages.find((v) => v.id === p.proposal.villageId);
     if (
@@ -574,7 +592,7 @@ export class Controller {
         p.action.clientId,
         s.world.tick,
       );
-      this.saved.pending = null;
+      this.clearOperation(p);
       await this.persist();
       return;
     }
@@ -604,7 +622,7 @@ export class Controller {
         p.action.clientId,
         s.world.tick,
       );
-      this.saved.pending = null;
+      this.clearOperation(p);
       await this.persist();
       return;
     }
@@ -619,7 +637,7 @@ export class Controller {
         p.action.clientId,
         s.world.tick,
       );
-      this.saved.pending = null;
+      this.clearOperation(p);
       await this.persist();
       return;
     }
@@ -660,7 +678,7 @@ export class Controller {
         p.action.clientId,
         context.state.world.tick,
       );
-      this.saved.pending = null;
+      this.clearOperation(p);
     } else if (
       owned !== p.proposal.currentLevel ||
       queues.some((q) => q.unit === unit)
@@ -673,7 +691,7 @@ export class Controller {
         p.action.clientId,
         context.state.world.tick,
       );
-      this.saved.pending = null;
+      this.clearOperation(p);
     } else if (context.state.world.tick >= p.expiresTick) {
       this.automatic = false;
       this.backoffUntil = this.now() + 60000;
@@ -731,7 +749,7 @@ export class Controller {
       this.plan(context);
       await this.persist();
       if (!this.automatic || revision !== this.revision || this.stopped) return;
-      if (this.saved.pending?.phase === "accepted") return;
+
       // Read state and live rules again immediately before sending: manual commands may have won the race.
       if (!this.view.selection.selected) return;
       const fresh = await this.readContext(true);
@@ -742,8 +760,8 @@ export class Controller {
       );
       this.view.production = productionView(this.saved.production);
       await this.readScouting(fresh);
-      this.plan(fresh);
       await this.reconcile(fresh);
+      this.plan(fresh);
       if (!this.automatic || revision !== this.revision || this.stopped) return;
       const selected = this.view.selection.selected;
       if (!selected) return;

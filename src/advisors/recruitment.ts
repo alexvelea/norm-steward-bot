@@ -58,8 +58,7 @@ export function evaluateRecruitment({ state, rules }: AdvisorContext): Proposal<
       if (unitId === "raider" && option.cost[r] * remaining * 1000 > v.resourcesMilli[r]) skip("UNFUNDED_RAIDING_FORCE");
     }
     if (v.training.barracks.length) add("TRAIN_QUEUE_BUSY");
-    if (v.buildQueue.length) add("BUILD_QUEUE_BUSY");
-    if (v.orders.train.length || v.orders.build.length) add("EXTERNAL_ORDERS");
+    if (v.orders.train.length) add("EXTERNAL_ORDERS");
     const start = Math.max(state.world.tick, state.player.nextActTick ?? state.world.tick);
     const useTicks = unitId === "raider" ? 300 : RECRUIT_USE_TICKS;
     const forceTicks = unitId === "raider"

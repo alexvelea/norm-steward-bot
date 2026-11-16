@@ -8,6 +8,7 @@ import type {
 export interface AdvisorContext {
   state: StateResponse;
   rules: RulesResponse;
+  activeProposals?: Proposal[];
 }
 export type AdvisorAction = Extract<Action, { type: "build" | "train" | "send" }>;
 export interface Proposal<A extends AdvisorAction = AdvisorAction> {
@@ -26,6 +27,7 @@ export interface Proposal<A extends AdvisorAction = AdvisorAction> {
   blockers: string[];
   status: "ready" | "waiting" | "queued" | "not-needed";
   affordableAtTick: number | null;
+  defenseBatch?: { pikemen: number; shieldmen: number; baselinePikemen: number; baselineShieldmen: number; ticks: number };
 }
 export interface Advisor {
   id: string;

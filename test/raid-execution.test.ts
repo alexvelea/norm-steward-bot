@@ -10,7 +10,7 @@ import type { SavedControl, Settings } from "../src/control/types.js";
 function fixture() {
   const c = context(), v = c.state.villages[0]; v.hidden = 1000;
   v.units.home = { pikeman: 10, shieldman: 5, raider: 10, scout: 2 };
-  v.buildings.barracks = 5; v.buildings.smithy = 5; v.buildings.stable = 1;
+  v.buildings.hall = 10; v.buildings.wall = 20; v.buildings.barracks = 10; v.buildings.smithy = 5; v.buildings.stable = 3;
   const target = { id: "bot-v", name: "Bot", ownerId: "bot", ownerName: "Bot", x: 2, y: 1, points: 1 };
   const from = { id: v.id, name: v.name, ownerId: c.state.player.id, ownerName: "Owner", x: 1, y: 1 };
   const detail: Report = { id: "intel", commandId: "scout-command", tick: 95, kind: "scouting", role: "attacker", attacker: from,

@@ -552,6 +552,7 @@ function allowRecruitment(x: Awaited<ReturnType<typeof setup>>) {
 test("training is journalled, accepted once and confirmed after the batch finishes", async () => {
   const x = await setup();
   allowRecruitment(x);
+  x.c.state.villages[0].orders.build = [{building:"hall",toLevel:10}]; // Isolate recruitment while manual construction owns its queue.
   const save = x.storage.save.bind(x.storage);
   let prepared = false;
   x.storage.save = async (v) => {
@@ -583,6 +584,7 @@ test("training is journalled, accepted once and confirmed after the batch finish
 test("uncertain training survives restart and retries the identical batch ID and count", async () => {
   const x = await setup();
   allowRecruitment(x);
+  x.c.state.villages[0].orders.build = [{building:"hall",toLevel:10}]; // Isolate recruitment while manual construction owns its queue.
   await x.controller.cycle();
   await x.controller.setAutomatic(true);
   x.failNext();
@@ -601,6 +603,7 @@ test("uncertain training survives restart and retries the identical batch ID and
 test("observed training suppresses an uncertain replay; disappearance is not false confirmation", async () => {
   const x = await setup();
   allowRecruitment(x);
+  x.c.state.villages[0].orders.build = [{building:"hall",toLevel:10}]; // Isolate recruitment while manual construction owns its queue.
   await x.controller.cycle();
   await x.controller.setAutomatic(true);
   x.failNext();
@@ -767,4 +770,39 @@ test("version changes invalidate rule cache and metadata refreshes at its bounde
   await controller.cycle();
   assert.equal(calls.filter((p) => p === "/me").length, 2);
   assert.equal(calls.filter((p) => p.endsWith("/rules")).length, 2);
+});
+
+test("accepted construction and training run concurrently, survive paused restart and confirm independently", async()=>{
+ const x=await setup();allowRecruitment(x);
+ await x.controller.cycle();await x.controller.setAutomatic(true);await x.controller.cycle();
+ assert.equal(x.writes[0][0].type,"train");
+ await x.controller.cycle();assert.equal(x.writes[1][0].type,"build");
+ await x.controller.cycle();assert.equal(x.writes.length,2);
+ assert.equal(x.storage.value!.active!.length,2);
+ await x.controller.setAutomatic(false);
+ const restarted=await Controller.create(x.storage,settings,x.request,()=>10000);
+ await restarted.cycle();assert.equal(restarted.snapshot().automatic,false);assert.equal(restarted.snapshot().active!.length,2);
+ const build=x.storage.value!.active!.find(p=>p.action.type==="build")!;
+ if(build.action.type==="build")x.c.state.villages[0].buildings[build.action.building]=build.proposal.targetLevel;
+ x.c.state.villages[0].buildQueue=[];x.c.state.villages[0].training.barracks=[];x.c.state.villages[0].units.away.pikeman=5;
+ await restarted.cycle();assert.equal(restarted.snapshot().active!.length,0);assert.equal(restarted.snapshot().pending,null);
+ assert.equal(x.writes.length,2);
+ assert.equal(restarted.snapshot().decisions.filter(d=>d.kind==="confirmed").length,2);
+});
+
+test("lost construction response does not replay or erase simultaneous accepted training",async()=>{
+ const x=await setup();allowRecruitment(x);
+ await x.controller.cycle();await x.controller.setAutomatic(true);await x.controller.cycle();
+ let lost=false;
+ const request:Remote=async<T>(s:Settings,path:string,body?:unknown)=>{
+  const response=await x.request<T>(s,path,body);
+  if(path.endsWith('/actions')&&!lost){lost=true;throw new RemoteError(0,5000,"lost successful build response");}
+  return response;
+ };
+ const restarted=await Controller.create(x.storage,settings,request,()=>10000);
+ await restarted.cycle();assert.equal(x.writes.length,2);assert.equal(x.storage.value!.active!.length,1);
+ await restarted.setAutomatic(false);
+ const paused=await Controller.create(x.storage,settings,x.request,()=>20000);await paused.cycle();
+ assert.equal(x.writes.length,2);assert.equal(paused.snapshot().active!.length,1);
+ assert.ok(paused.snapshot().active!.every(p=>p.action.type==="train"));
 });

@@ -11,8 +11,9 @@ proposals. Each proposal names its advisor, village, action, target level, impor
 reason, per-resource requirements, blockers, affordability tick, and ready/waiting/queued/not-needed status.
 The Economic and Military Advisors are registered with the same President.
 The President is a sorted filter, not a planner. It submits at most one build, training batch or bounded scouting command per one-second cycle.
-This first executor tracks one global operation until completion, so multi-village construction is
-conservative: an accepted advisor build finishes before another advisor build is submitted.
+The single executor journals one in-flight write at a time and tracks accepted operations in independent
+per-village construction and per-training-building queues. Construction, Barracks and Stable work
+can overlap. Each occupied queue is excluded from normal allocation until its work completes.
 
 The Economic Advisor considers Great Hall, lumberyard, quarry, mine, storehouse, cellar and farm.
 The server's build options determine cost, prerequisites, affordability and next level. The live
@@ -275,8 +276,7 @@ Reproduce the matched private executor comparison with scripts/experiment-scout-
 
 After the level-5 production opening and existing starter force (10 Pikemen, 5 Shieldmen,
 10 Raiders), the President can repeatedly recruit 3Pi1Sh defence. It counts owned, away and queued
-units, repairs a skewed ratio first, then alternates batches of at most three Pikemen and one
-Shieldman. There is no fixed total army cap; live affordability, population, queue limits, external
+units, then queues whole cohorts covering just over 60 ticks of training. There is no fixed total army cap; live affordability, population, queue limits, external
 orders and a 60-tick post-completion use window bound recruitment. A rejected/unaffordable batch
 never reserves resources. Recruitment itself dispatches no troops.
 
@@ -296,5 +296,39 @@ levels beyond the same producer ceiling.
 
 Level 20 is an explicit owner-directed policy ceiling, not a proven mathematical optimum.
 This iteration does not estimate the marginal combat value of another bundle versus a producer.
-The executor still tracks one operation globally, so building and training are serialized; these
-priorities do not promise simultaneous uninterrupted construction and recruitment.
+The executor now supports independent accepted queues; see the concurrency/cohort policy below.
+
+## Parallel queues, military buildings and minute-long cohorts
+
+One authoritative process remains. `pending` journals the single prepared/submitted/uncertain
+network write; `active` durably records accepted queue items and commands until confirmed.
+Legacy accepted `pending` entries migrate on reconciliation. Each operation is reconciled and
+cleared separately, so a construction failure/restart cannot erase accepted training. Revalidation,
+account/world/epoch scoping, request IDs and operator pauses apply to all tracked operations.
+Known accepted costs are already deducted from live stocks; every new submission refreshes state.
+The President skips candidates blocked by an occupied queue so other queues can use their budget.
+Unknown requests still serialize further writes until safely resolved. Normal construction remains
+one queued build per village, normal training one cohort per facility, and combat one command
+lane globally. This is concurrency of server work, not concurrent duplicate network writers.
+
+The military construction path is Barracks 10 -> Smithy 5 -> Stable 3. It follows live missing
+prerequisites one affordable step at a time, scores 76 and leaves 600 ticks after construction.
+Existing Scout readiness funds Stable 1 and its Scouts; development then extends it to Stable 3.
+The existing production opening, resource-deficit policy, capacity and population constraints remain.
+Stable 3 enables minute-sized Lancer batches toward a first force of 30 owned/queued (score 72),
+including away troops; no new movement policy is introduced. Barracks training does not block
+Stable recruitment or construction. The initial Lancer cap remains deliberately bounded.
+
+For 3Pi1Sh, `bundles = ceil(61 / (3*pikemanTicks + shieldmanTicks))`. A balanced Barracks 1 queues
+6 Pikemen + 2 Shieldmen (70 ticks); Barracks 5 queues 9 + 3 (81 ticks). Each cohort contains exactly three Pikemen per Shieldman. The complete cohort must fit current funding and the
+population buffer before starting. Its plan is journalled with the first request. The second unit
+component uses that recorded plan and gets score 100 to reserve its funding before discretionary
+spending. After both are queued, no further Barracks recruitment is proposed until the cohort
+drains. A crash/unknown response retains request IDs; un-attributable changes suppress replay.
+Final short cavalry batches may take under a minute when approaching the 30-unit limit.
+
+Walls score 84 only when their marginal defence per resource is at least 1.10 times a new
+3Pi1Sh for **every** attack type. Live wall flat/base/multiplier rules and actual home plus supporting
+troops determine the gain; away troops are excluded. This static efficiency test includes base
+defence, needs enough time to finish plus 120 ticks of use, and makes no claim about attacking
+Rams or actual battle outcomes. It permits useful Wall growth without a fixed Wall/army ratio.

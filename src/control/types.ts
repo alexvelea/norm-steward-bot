@@ -49,6 +49,8 @@ export interface Decision {
 export interface SavedControl {
   settings: Settings;
   pending: Pending | null;
+  /** Accepted operations occupy independent game queues; only one write can be in flight. */
+  active?: Pending[];
   decisions: Decision[];
   production?: ProductionLedger;
   scouting?: ScoutObservation[];
@@ -75,6 +77,8 @@ export interface ControlView {
   selection: Selection;
   decisions: Decision[];
   pending: Pending | null;
+  /** Accepted operations occupy independent game queues; only one write can be in flight. */
+  active?: Pending[];
   conflicts: string[];
   production: ProductionView | null;
   economicForecasts: EconomicForecast[];

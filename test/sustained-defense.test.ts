@@ -5,7 +5,7 @@ import {developedContext} from "./control-fixtures.js";
 import {evaluateSustainedDefense} from "../src/advisors/sustained-defense.js";
 import {evaluateEconomy} from "../src/advisors/economic.js";
 import {selectProposal} from "../src/advisors/president.js";
-function ready(){
+function ready(): import("../src/advisors/types.js").AdvisorContext {
  const c=developedContext(),v=c.state.villages[0];
  v.buildings.barracks=1;v.buildings.smithy=2;v.hidden=1000;
  v.units.home={pikeman:30,shieldman:10,raider:10};
@@ -14,11 +14,13 @@ function ready(){
  {unit:"shieldman",cost:{timber:35,stone:30,iron:65},pop:1,ticksEach:11,maxCount:100,ok:true,blockers:[],affordableAtTick:null}];
  return c;
 }
-test("repeatable 3Pi1Sh spends beyond starter caps and balances owned plus away troops",()=>{
+test("minute-long 3Pi1Sh cohort queues both parts once, counts away troops and drains",()=>{
  const c=ready(),v=c.state.villages[0];
- let p=evaluateSustainedDefense(c)[0];assert.equal(p.action.unit,"pikeman");assert.equal(p.action.count,3);
- v.units.away.pikeman=3;p=evaluateSustainedDefense(c)[0];assert.equal(p.action.unit,"shieldman");assert.equal(p.action.count,1);
- v.units.home.shieldman=11;p=evaluateSustainedDefense(c)[0];assert.equal(p.action.unit,"pikeman");
+ let p=evaluateSustainedDefense(c)[0];assert.equal(p.action.unit,"pikeman");assert.equal(p.action.count,6);assert.equal(p.defenseBatch!.ticks,70);
+ c.activeProposals=[p];v.units.away.pikeman=6;
+ p=evaluateSustainedDefense(c)[0];assert.equal(p.action.unit,"shieldman");assert.equal(p.action.count,2);
+ c.activeProposals.push(p);v.training.barracks=[{id:"s",unit:"shieldman",count:2,remaining:2,costEach:{timber:35,stone:30,iron:65},nextTick:108,endTick:124}];
+ assert.deepEqual(evaluateSustainedDefense(c),[]);
 });
 test("affordable military beats discretionary producers; resource starvation promotes the deficient income",()=>{
  const c=ready(),v=c.state.villages[0];v.storage=100000;
@@ -32,14 +34,14 @@ test("opening, cap20, population expansion and late-round gates remain explicit"
  v.buildings.mine=20;assert.equal(evaluateEconomy(c).find(p=>p.action.building==="mine")!.status,"not-needed");
  v.population.used=150;assert.equal(evaluateSustainedDefense(c)[0].status,"not-needed");
  assert.notEqual(evaluateEconomy(c).find(p=>p.action.building==="farm")!.status,"not-needed");
- v.population.used=30;c.state.world.endsAtTick=c.state.world.tick+83;
+ v.population.used=30;c.state.world.endsAtTick=c.state.world.tick+129;
  assert.ok(evaluateSustainedDefense(c)[0].blockers.includes("ROUND_END_TOO_SOON"));
- c.state.world.endsAtTick=c.state.world.tick+84;assert.equal(evaluateSustainedDefense(c)[0].status,"ready");
+ c.state.world.endsAtTick=c.state.world.tick+130;assert.equal(evaluateSustainedDefense(c)[0].status,"ready");
 });
 test("queued work and manual orders prevent duplicate spending or a separate execution loop",()=>{
  const c=ready(),v=c.state.villages[0];
  v.training.barracks=[{id:"q",unit:"pikeman",count:3,remaining:3,costEach:{timber:45,stone:35,iron:15},nextTick:108,endTick:124}];
- let p=evaluateSustainedDefense(c)[0];assert.equal(p.action.unit,"shieldman");assert.ok(p.blockers.includes("TRAIN_QUEUE_BUSY"));
+ let p=evaluateSustainedDefense(c)[0];assert.ok(p.blockers.includes("TRAIN_QUEUE_BUSY"));
  v.training.barracks=[];v.orders.train=[{unit:"pikeman",keep:60}];p=evaluateSustainedDefense(c)[0];assert.ok(p.blockers.includes("EXTERNAL_ORDERS"));
 });
 
@@ -51,4 +53,10 @@ test("military Hall unlock follows live Barracks and Smithy prerequisites only a
  v.buildings.barracks=1;assert.equal(evaluateMilitaryHall(c)[0].action.building,"hall");
  v.buildings.hall=5;assert.deepEqual(evaluateMilitaryHall(c),[]);
  v.buildings.hall=1;v.buildings.mine=4;assert.deepEqual(evaluateMilitaryHall(c),[]);
+});
+
+test("Barracks 5 queues exactly 9 Pikemen plus 3 Shieldmen, independent of the pre-existing force ratio",()=>{
+ const c=ready(),v=c.state.villages[0];v.units.home={pikeman:10,shieldman:5,raider:10};v.buildings.barracks=5;
+ v.options.train[0].ticksEach=6;v.options.train[1].ticksEach=9;
+ const p=evaluateSustainedDefense(c)[0];assert.equal(p.action.count,9);assert.equal(p.defenseBatch!.shieldmen,3);assert.equal(p.defenseBatch!.ticks,81);
 });
