@@ -52,15 +52,21 @@ The owner's matched two-hour peaceful comparisons found that removing Walls at t
 military start preserved 627 versus 637 infantry while increasing production by 16.5%. Delaying
 military to producer 13 instead reached 485 infantry and another 10.4% production gain. These
 measurements motivated retaining the earlier army while delaying fortification. They do not prove
-survival against an attacker. The new hybrid gets its own matched private comparison before activation.
+survival against an attacker. The new hybrid was deployed with owner approval after matched
+first-hour private evidence under rules version 3; the owner waived the remaining two-hour comparison.
+Both policies began training at tick 1441 (24:01). The baseline first submitted a Wall at tick 1728
+(28:48), with producers 12/11/10; the hybrid waited until tick 3142 (52:22), with producers 15/14/13.
+These verify the gate, not full-round economic superiority or combat survival. Remaining simulation
+was stopped and all registered private worlds deleted. Do not restart the waived comparison.
+Historical version-2 outcome numbers above are context, not directly comparable to version 3.
 Raw owner evidence: `/var/lib/norm-steward-review/experiments/army-no-walls-comparison-20261116T175413Z/`.
 
 Reviews should ask a gameplay question, state a hypothesis, compare representative timelines,
 and explain the tradeoff before editing policy. Long simulations now run in a persistent private
 experiment worker outside the 15-minute Codex budget. A negative result can complete research;
 implementation tasks remain subject to exact tested-code evidence, checks and deployment gates.
-Next measure: hybrid production, delivered troops, Wall timing, spending and building-queue occupancy
-at equal ten-minute checkpoints. Later test threats and the upstream training-speed changes only
+Next measure: observe the approved hybrid in the next live world, including production, delivered
+troops, Wall timing, spending and building-queue occupancy. Later test threats and the upstream training-speed changes only
 after live rules actually expose them. Saved Farm deadline work remains a separate unactivated candidate.
 
 ## Saved recruitment-Farm timing candidate (2026-11-16)
