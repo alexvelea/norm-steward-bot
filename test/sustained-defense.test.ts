@@ -27,7 +27,7 @@ test("affordable military beats discretionary producers; resource starvation pro
  assert.equal(selectProposal([...evaluateEconomy(c),...evaluateSustainedDefense(c)]).selected?.action.type,"train");
  v.productionPerTickMilli.timber=100;v.resourcesMilli.timber=0;v.resources.timber=0;
  const p=evaluateEconomy(c).find(p=>p.action.building==="lumberyard")!;assert.ok(p.importance>=80);assert.match(p.reason,/Recruitment resource shortage/);
- assert.equal(evaluateSustainedDefense(c)[0].status,"not-needed");assert.deepEqual(selectProposal(evaluateSustainedDefense(c)).reservations,[]);
+ assert.equal(evaluateSustainedDefense(c)[0].status,"waiting");assert.equal(selectProposal(evaluateSustainedDefense(c)).reservations.length,1);
 });
 test("opening, cap20, population expansion and late-round gates remain explicit",()=>{
  const c=ready(),v=c.state.villages[0];v.buildings.mine=4;assert.deepEqual(evaluateSustainedDefense(c),[]);
@@ -59,4 +59,25 @@ test("Barracks 5 queues exactly 9 Pikemen plus 3 Shieldmen, independent of the p
  const c=ready(),v=c.state.villages[0];v.units.home={pikeman:10,shieldman:5,raider:10};v.buildings.barracks=5;
  v.options.train[0].ticksEach=6;v.options.train[1].ticksEach=9;
  const p=evaluateSustainedDefense(c)[0];assert.equal(p.action.count,9);assert.equal(p.defenseBatch!.shieldmen,3);assert.equal(p.defenseBatch!.ticks,81);
+});
+
+
+test("whole-cohort resource waits reserve discretionary spending but release impossible or late batches",()=>{
+ const c=ready(),v=c.state.villages[0];v.storage=100000;
+ v.resourcesMilli.timber=200000;v.resources.timber=200;
+ let p=evaluateSustainedDefense(c)[0];
+ assert.equal(p.status,"waiting");assert.deepEqual(p.blockers,["INSUFFICIENT_RESOURCES"]);
+ assert.equal(p.affordableAtTick,c.state.world.tick+14);
+ assert.equal(selectProposal([...evaluateEconomy(c),p]).reservations[0]?.proposalId,p.id);
+ assert.equal(selectProposal([...evaluateEconomy(c),p]).selected,null);
+ // The live per-unit maxCount can be resource-limited; it must not invalidate a future funded batch.
+ v.options.train[0].maxCount=4;p=evaluateSustainedDefense(c)[0];assert.equal(p.status,"waiting");
+ v.resourcesMilli.timber=0;v.options.train[0].ok=false;v.options.train[0].blockers=["INSUFFICIENT_RESOURCES"];v.options.train[0].maxCount=0;
+ assert.equal(evaluateSustainedDefense(c)[0].status,"waiting");
+ c.state.world.endsAtTick=c.state.world.tick+163; // 34 funding + 70 training + 60 use needs 164.
+ assert.equal(evaluateSustainedDefense(c)[0].status,"not-needed");
+ c.state.world.endsAtTick=c.state.world.tick+164;assert.equal(evaluateSustainedDefense(c)[0].status,"waiting");
+ v.productionPerTickMilli.timber=0;assert.equal(evaluateSustainedDefense(c)[0].status,"not-needed");
+ v.productionPerTickMilli.timber=10000;v.options.train[0].blockers=["REQUIREMENTS_NOT_MET"];
+ assert.equal(evaluateSustainedDefense(c)[0].status,"not-needed");
 });

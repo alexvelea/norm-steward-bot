@@ -1,8 +1,135 @@
 # Current strategy and implementation work
 
+
+## Complete-cohort resource reservation (2026-11-16, 14:30 review)
+
+The saved funding guard alone completed its requested 300-tick comparison with
+one completed cohort for each policy (70 versus 66 Barracks busy ticks). That
+negative result is preserved in `funding-guard-only-300-comparison.json` under
+`/var/lib/norm-steward-review/runs/20261116T143001Z/`.
+
+The useful next step corrects sustained recruitment's resource-only shortage from
+not-needed to waiting. The President can now save the whole remaining cohort's
+cost at score 70 instead of buying cheaper discretionary production. The existing
+scarce-input military construction guard prevents that construction from consuming
+the same funding. Deficient income, capacity, protection and valuable Walls retain
+their higher scores. Full-cohort funding time, training and the 60-tick use window
+must fit before round end. Impossible funding, hard server blockers, population,
+storage and manual orders do not create resource reservations. No new executor
+or live settings changes were introduced.
+
+A fresh seed-73430 comparison used identical ordinary paid setup to tick 1225,
+then both full controllers through the shortened round end at tick 2100. Decisions
+were at most ten ticks apart, stopping at every authoritative queue event; this
+is explicitly coarse cadence, not a live one-second utilisation measurement.
+Candidate completed nine 6+2 cohorts versus seven, with 630/875 Barracks busy ticks
+(72%) versus 440/875 (50.29%). It ended with 64 Pikemen / 23 Shieldmen / ten Raiders
+versus 52 / 19 / ten. Candidate retained Barracks 1 and bought Lumberyard 6;
+baseline reached Barracks 3 and retained Lumberyard 5.
+
+Policy spend was 3289/2681/2153 timber/stone/iron candidate versus 2950/2374/1796
+baseline; recruitment spend was 3060/2430/1980 versus 2380/1890/1540. Final stocks
+were 771.644/1243.520/2387.412 versus 634.364/1550.520/2744.412. Gross retained
+production was 3485.405/3009.125/3009.125 versus 3009.125 each. Both worlds were
+deleted and receipts match the current advisor/executor fingerprint. No commands
+or combat were measured. This supports the bounded recruitment step; a standard
+10800-tick round, opening under control and additional seeds remain measurements.
+
+The additional one-tick/one-second comparison finished the exact tick-1225 to
+1525 window: candidate completed three cohorts versus one, with 210/300 busy ticks
+versus 66/300. Final troops were 28 Pikemen / 11 Shieldmen / ten Raiders versus
+16 / seven / ten. Policy spend was 1817/1673/1258 versus 1662/1557/1099;
+recruitment spend was 1020/810/660 versus 340/270/220. Candidate ended with
+Lumberyard 8, Quarry 6 and Barracks 1 versus baseline 8/7/2. Final stocks were
+198.518/283.734/1304.987 versus 283.003/456.325/1463.987. This uses the completed
+historical baseline checkpoint from the 13:30 review, explicitly retaining its
+receipt source; the fresh shortened-round pair independently meets the current-run
+receipt requirement. All five worlds created in this run were deleted.
+
+Evidence: `defense-cadence-comparison.json`, `defense-contention-comparison.json`,
+`implementation-verification.json`, check logs and `sandbox-events.jsonl` in the
+same private run directory. All 192 tests, typecheck, web build and strict experiment
+typecheck pass. Gameplay's persisted execution preference was untouched.
+
+
 The control service continuously plays through deterministic advisors and the President. Codex is
 an autonomous developer, not the gameplay loop. One source of resource allocation and one durable
 executor; no separate military spender or second live bot.
+
+## Funding-guard continuation (2026-11-16, 13:30 review)
+
+The requested 300-tick baseline completed at tick 1525: one completed 6+2 cohort,
+66/300 Barracks busy ticks, and 16 Pikemen / seven Shieldmen / ten Raiders.
+Policy spend was 1662 timber / 1557 stone / 1099 iron; recruitment accounted for
+340 / 270 / 220. Final stocks were 283.003 / 456.325 / 1463.987.
+The candidate was stopped at the bounded cutoff after its tick-1408 authoritative
+sample, with one completed cohort and 70 busy ticks so far. It had started a
+Barracks upgrade at tick 1400. These unequal endpoints cannot establish a benefit.
+Full-round coverage remains incomplete and the guard remains unactivated.
+
+The first attempt exhausted broker retries on HTTP 429; its partial trace is
+retained. The corrective run added paced retries of confirmed 429 step/read
+failures. All three created worlds were deleted. President selection assertions,
+all 191 tests, typecheck, web build and strict experiment typecheck passed.
+Gameplay execution settings were untouched.
+
+The harness now accepts a completed baseline checkpoint with matching baseline
+revision, duration and exact requested window, retaining its source receipt path.
+Resume the candidate without repeating the completed baseline:
+
+```bash
+STEWARD_CONTENTION_TICKS=300 STEWARD_CONTENTION_BASELINE=/var/lib/norm-steward-review/runs/20261116T133021Z/defense-contention-completed-baseline.json node --import tsx scripts/experiment-defense-contention.ts
+```
+
+The final initial-state assertions still require matched server stocks, buildings,
+population and units. Historical receipts remain identified as historical; the
+wrapper must independently enforce its current-run activation receipt gate.
+Evidence is in `/var/lib/norm-steward-review/runs/20261116T133021Z/`:
+`defense-contention-comparison.json`, `defense-contention-completed-baseline.json`,
+`defense-contention-429-attempt.json`, `implementation-verification.json` and
+`sandbox-events.jsonl`. Finish this comparison before further policy edits, then
+complete round coverage with a bounded harness; do not repeat the finished baseline.
+
+## Scarce-input construction buffer: unactivated experiment (2026-11-16)
+
+Pinned work remains `sustained-defense-full-round-cadence`. The saved global recruitment
+score-77 prototype has been removed: its prior matched prefix showed no benefit. This run
+started the saved shortened-round comparison, preserved its interrupted trace, then tested a
+smaller alternative after observing construction consuming the resources needed for recruitment.
+The complete shortened round and standard 10800-tick utilisation remain outstanding.
+
+The new Military Advisor candidate retains one complete next minute-long cohort's funding
+for resources whose production is below defensive training demand before military development.
+It applies after the starter force, including while training is active, with population and
+round time to use another cohort. Funded construction, adequate resource production and manual
+training orders release this guard. The President and existing durable executor still allocate
+and submit every action. Production, capacity and protection policies remain eligible.
+
+A fresh matched seed-73430 comparison against deployed `9816f29b` used identical ordinary paid
+setup to tick 1225, with both policies planning as running and one-tick/one-second decisions at
+actionable ticks. At tick 1375 both completed one 6-Pikeman/2-Shieldman cohort, ending with
+16 Pikemen, seven Shieldmen and ten Raiders. Barracks busy time was 70/150 ticks for candidate
+versus 68/150 for baseline. Candidate bought Lumberyard 8 and Quarry 6, retaining Barracks 1;
+baseline bought Lumberyard 7 and retained Quarry 5 with Barracks 2. This changes investment
+timing without demonstrating sustained recruitment improvement. Activation remains disabled.
+
+Baseline policy spending was 936 timber / 896 stone / 608 iron; candidate spending was
+1137 / 1133 / 818. Both spent 340 / 270 / 220 on recruitment. Final stocks were
+218.863 / 535.245 / 1439.137 baseline and 119.178 / 299.379 / 1229.137 candidate.
+No commands or combat were tested. Both fresh comparison worlds were deleted, and their
+broker operations match the current advisor/executor fingerprint. Gameplay settings were untouched.
+All 191 tests, typecheck, web build and strict experiment typecheck passed.
+
+Evidence: `/var/lib/norm-steward-review/runs/20261116T130021Z/defense-contention-comparison.json`,
+`implementation-verification.json`, `defense-priority-attempt.json`,
+`defense-cadence-comparison.json` and `sandbox-events.jsonl` in the same private directory.
+The interrupted experiments are distinct from the completed current-code comparison.
+
+Next run should start `STEWARD_CONTENTION_TICKS=300 node --import tsx scripts/experiment-defense-contention.ts`
+before repeating checks. Measure the second cohort and resource/infrastructure tradeoff before
+activating or revising this saved buffer. The 150-tick fixture rejects a claim of increased
+completed cohorts; two extra busy ticks alone are insufficient. Then finish full-round coverage
+with a harness that fits the bounded review budget.
 
 ## Interrupted cohort recovery (2026-11-16)
 

@@ -841,7 +841,9 @@ test("remembered complement respects manual recruitment, fresh funding and round
  v.orders.train=[{unit:"shieldman",keep:30}];await x.paused.cycle();
  assert.ok(x.paused.snapshot().proposals.find(p=>p.defenseBatch)?.blockers.includes("EXTERNAL_ORDERS"));
  v.orders.train=[];v.resourcesMilli.iron=0;await x.paused.cycle();
- assert.ok(x.paused.snapshot().proposals.find(p=>p.defenseBatch)?.blockers.includes("UNFUNDED_DEFENSE_BATCH"));
+ const unfunded=x.paused.snapshot().proposals.find(p=>p.defenseBatch)!;
+ assert.deepEqual(unfunded.blockers,["INSUFFICIENT_RESOURCES"]);assert.equal(unfunded.status,"waiting");
+ assert.equal(x.paused.snapshot().selection.reservations[0]?.proposalId,unfunded.id);
  v.resourcesMilli.iron=1000000;x.c.state.world.endsAtTick=x.c.state.world.tick+81;await x.paused.cycle();
  assert.ok(x.paused.snapshot().proposals.find(p=>p.defenseBatch)?.blockers.includes("ROUND_END_TOO_SOON"));
  assert.equal(x.writes.length,1);
