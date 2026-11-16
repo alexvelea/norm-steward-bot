@@ -6,6 +6,25 @@ executor; no separate military spender or second live bot.
 
 ## Active queue and military-development policy (2026-11-16)
 
+The recruitment/command overlap candidate removes the empty-training-queue requirement from
+Scout dispatch and risk-checked raids. It uses only home troops and retains construction,
+standing-order, incoming-attack, intelligence, simulation, return deadline and storage guards.
+The President and durable executor remain the only allocator and writer. Reproduce its matched
+comparison against deployed `e346af8` with
+`node --import tsx scripts/experiment-raid-generalization.ts --training-overlap` in the managed
+review environment. Both clocks stay paused between steps and both controllers plan as running.
+The ordinary paid fixture includes an existing force, a recent clearing and one 9Pi3Sh cohort;
+its acquisition expense and clearing losses are separate accounting views, not live profitability.
+The matched seed-73424 run starts at tick 10200 and ends at 10318. Candidate Scouts leave at
+10200 and Lancers at 10218 while that cohort is training; both reports are confirmed through
+the executor. The raid returns 850 of each resource with no losses, versus no commands from
+the deployed baseline. Both end with identical buildings and troops (19 Pikemen/8 Shieldmen,
+plus the common force), so final stocks differ by exactly that returned loot. Both worlds are
+deleted. Raw comparison and current-code broker receipts remain in
+`/var/lib/norm-steward-review/runs/20261116T103017Z/raid-training-overlap-comparison.json` and
+`sandbox-events.jsonl` in the same private directory. This verifies the overlap path with an
+existing force; it does not establish profitable acquisition or full-round live raid throughput.
+
 Construction and recruitment now overlap. The executor keeps one durable in-flight request plus
 accepted operations keyed by construction/training building/command lane; each confirms separately.
 Legacy accepted pending work migrates into that tracking. Unknown requests still serialize writes,
@@ -637,5 +656,15 @@ with identical assets and stocks and retained 448.032 of each resource from prod
 This verifies one avoided command, with no measured resource or combat gain. Common force
 acquisition cost 11825/10200/17655 and clearing casualties cost 1920/1650/2730 to replace;
 these are separate accounting views, and the fixture does not justify live acquisition.
-The additional full-round seed comparison remains to run: a concurrent broker registry
-write interrupted its first attempt. Subsequent sandbox operations ran sequentially.
+The additional seed-73422 comparison now runs through tick 10800 from matched tick-8100
+assets. Deployed `e346af8` completed no raids, spent 12077/10753/5178 on policy actions and
+ended with Barracks 10, Wall 7 and 136 Pikemen/14 Shieldmen. Older `eecb7c7` completed four
+zero-loss raids returning 3400 of each resource, spent 5126/5206/4073 and ended with higher
+production and 10 Pikemen/5 Shieldmen. Common force acquisition was 11825/10200/17655;
+clearing replacement losses were 1920/1650/2730, not an additional acquisition charge.
+These controllers differ across multiple spending policies. The 100-tick polling schedule
+also lets short recruitment parts finish between decisions, so it cannot establish live
+one-second cohort utilisation or isolate a command-guard effect. Use the focused training
+overlap pair for that guard; measure representative cadence separately. Raw results are in
+`/var/lib/norm-steward-review/runs/20261116T103017Z/raid-generalization-comparison.json`.
+All broker operations ran sequentially.

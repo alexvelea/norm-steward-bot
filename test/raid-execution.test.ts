@@ -79,6 +79,22 @@ test("raid return reserves storage for each resource's loot and round-trip produ
     assert.equal(evaluateRaidExecution(x.c, x.scouting, x.raids).length, 0, `${resource}: overflow refuses raid`);
   }
 });
+test("raids can use home troops during recruitment but never borrow queued troops", () => {
+  const x = fixture(), v = x.c.state.villages[0];
+  v.training.barracks.push({ unit: "pikeman", remaining: 6, endTick: 170 } as never);
+  v.training.stable.push({ unit: "scout", remaining: 2, endTick: 180 } as never);
+  assert.equal(evaluateRaidExecution(x.c, x.scouting, x.raids).length, 1);
+  v.units.home.pikeman = 9;
+  assert.deepEqual(evaluateRaidExecution(x.c, x.scouting, x.raids), [], "queued garrison cannot replace home defenders");
+  v.units.home.pikeman = 10; v.units.home.raider = 9;
+  v.training.barracks.push({ unit: "raider", remaining: 1, endTick: 190 } as never);
+  assert.deepEqual(evaluateRaidExecution(x.c, x.scouting, x.raids), [], "queued attackers cannot fill the force");
+  v.units.home.raider = 10;
+  v.buildQueue.push({ building: "lumberyard", endTick: 150 } as never);
+  assert.deepEqual(evaluateRaidExecution(x.c, x.scouting, x.raids), [], "construction still defers dispatch");
+  v.buildQueue = []; v.orders.train.push({} as never);
+  assert.deepEqual(evaluateRaidExecution(x.c, x.scouting, x.raids), [], "external orders still defer dispatch");
+});
 async function executor(mode: "ok" | "lost" | "reject" | "unapplied" = "ok") {
   const x = fixture(); let now = 0, first = true; const writes: Action[] = []; const reads: string[] = [];
   const settings: Settings = { serverUrl: "https://sandbox.invalid", worldId: x.c.state.world.id, apiKey: "test" };

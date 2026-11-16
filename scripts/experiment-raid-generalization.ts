@@ -1,6 +1,7 @@
 /** Compare follow-up raid deadlines with deployed repeat raids on additional seeds.
  * Run --prepare-deadline then --deadline-case sequentially for the boundary pair;
  * run --seeds=73422 (or another comma-separated list) for full-round economics.
+ * --training-overlap isolates command execution during a paid 9Pi3Sh cohort.
  * Ordinary actions only; complete acquisition expense and clearing losses remain explicit. */
 import assert from 'node:assert/strict';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
@@ -29,29 +30,31 @@ if(process.argv.includes('--prepare-deadline')){
 }
 const coarse=false;
 const deadlineCase=process.argv.includes('--deadline-case');
-if(!deadlineCase&&!process.argv.some(a=>a.startsWith('--seeds='))){
+const trainingOverlap=process.argv.includes('--training-overlap');
+if(!deadlineCase&&!trainingOverlap&&!process.argv.some(a=>a.startsWith('--seeds='))){
  console.log('Choose --prepare-deadline, --deadline-case, or --seeds=73422 for a bounded experiment.');
  process.exit(0);
 }
 const deadlineFixture=deadlineCase?JSON.parse(await readFile(process.env.STEWARD_REVIEW_RUN!+'/raid-deadline-fixture.json','utf8')):undefined;
-const output=process.env.STEWARD_REVIEW_RUN!+(deadlineCase?'/raid-deadline-comparison.json':'/raid-generalization-comparison.json');
+const output=process.env.STEWARD_REVIEW_RUN!+(trainingOverlap?'/raid-training-overlap-comparison.json':deadlineCase?'/raid-deadline-comparison.json':'/raid-generalization-comparison.json');
 const rows:Record<string,any>[]=[];
-const baselineCommit='eecb7c76ed572ad915abb14156e23337d4658199';
-const baselineRoot=process.env.STEWARD_REVIEW_RUN!+'/baseline-src';
+const baselineCommit=process.env.STEWARD_BASELINE_COMMIT??(trainingOverlap?'e346af81843fdb597c72bef36f76b47c59860674':'eecb7c76ed572ad915abb14156e23337d4658199');
+const baselineRoot=process.env.STEWARD_REVIEW_RUN!+(trainingOverlap?'/training-overlap-baseline-src':'/baseline-src');
 // Reproduce the exact deployed controller in private artifacts, without editing the worktree.
 for(const path of execFileSync('git',['ls-tree','-r','--name-only',baselineCommit,'src'],{encoding:'utf8'}).trim().split('\n')){
  const target=baselineRoot+'/'+path.slice(4);await mkdir(dirname(target),{recursive:true});
  await writeFile(target,execFileSync('git',['show',baselineCommit+':'+path]));
 }
 const {Controller: BaselineController}=await import(baselineRoot+'/control/controller.ts');
-const seeds=deadlineCase?[deadlineFixture.seed]:(process.argv.find(a=>a.startsWith('--seeds='))?.slice(8)??'73422').split(',').map(Number);
+const seeds=deadlineCase?[deadlineFixture.seed]:(process.argv.find(a=>a.startsWith('--seeds='))?.slice(8)??(trainingOverlap?'73424':'73422')).split(',').map(Number);
+const roundDuration=deadlineFixture?.duration??(trainingOverlap?10318:10800);
 assert.ok(seeds.every(seed=>Number.isSafeInteger(seed)));
-const save=(passed=false,error?:string)=>writeFile(output,JSON.stringify({taskId:'raid-economics-generalization',baselineCommit,
+const save=(passed=false,error?:string)=>writeFile(output,JSON.stringify({taskId:'raid-economics-full-round-seeds',baselineCommit,
  evaluationSchedule:'100-tick polling plus Scout-arrival evaluation, through round end',
- baseline:'deployed-repeat-raids',candidate:'scouting-requires-follow-up-raid-window',deadlineCase,passed,error,results:rows},null,2));
+ baseline:trainingOverlap?'deployed-training-defers-commands':'deployed-repeat-raids',candidate:trainingOverlap?'commands-use-home-troops-during-training':'scouting-requires-follow-up-raid-window',deadlineCase,trainingOverlap,passed,verdict:passed&&trainingOverlap?'supports-change':'inconclusive',error,results:rows},null,2));
 try {
  for(const seed of seeds) for(const policy of ['candidate','baseline']) {
-  const s=new PrivateSandbox(seed,deadlineFixture?.duration??10800);
+  const s=new PrivateSandbox(seed,roundDuration);
   const row:Record<string,any>={seed,policy,worldId:s.world.id,setup:[]};rows.push(row);
   try {
    let state=s.join();const rules=s.rules();
@@ -59,31 +62,72 @@ try {
    const act=(a:Action)=>{const before=structuredClone(state.villages[0]);const r=s.act([a]);assert.ok(r.results[0].ok,JSON.stringify(r.results));state=r.state??s.state();row.setup.push({tick:state.world.tick,action:a,results:r.results,spend:Object.fromEntries((["timber","stone","iron"] as const).map(k=>[k,(before.resourcesMilli[k]-state.villages[0].resourcesMilli[k])/1000]))});return r;};
    const complete=()=>step(Math.max(state.world.tick,...state.villages[0].buildQueue.map(q=>q.endTick),...Object.values(state.villages[0].training).flat().map(q=>q.endTick)));
    const build=(building:Extract<Action,{type:'build'}>['building'])=>{const o=state.villages[0].options.build.find(o=>o.building===building)!;step(Math.max(state.world.tick,state.player.nextActTick??0,o.affordableAtTick??0));act({type:'build',village:state.villages[0].id,building});complete();};
+   const buildBatch=(actions:Action[])=>{
+    const response=s.act(actions);assert.ok(response.results.every(r=>r.ok),JSON.stringify(response.results));state=response.state??s.state();
+    response.results.forEach((result,i)=>{assert.ok(result.ok&&'item' in result.data);row.setup.push({tick:state.world.tick,action:actions[i],results:[result],spend:result.data.item.cost});});
+    complete();
+   };
+   const buildLevels=(building:Extract<Action,{type:'build'}>['building'],count:number)=>{
+    if(!trainingOverlap){for(let n=0;n<count;n++)build(building);return;}
+    // Ordinary bounded build batches shorten fixture setup; every paid item is retained.
+    while(count>0){
+     const v=state.villages[0];let size=Math.min(count,(rules.rules.ECONOMY as any).buildQueueMax);
+     const costs=(n:number)=>Array.from({length:n},(_,i)=>rules.tables.buildings[building].find(r=>r.level===v.buildings[building]+i+1)!.cost);
+     while(size>1&&(['timber','stone','iron'] as const).some(r=>costs(size).reduce((sum,c)=>sum+c[r],0)>v.storage))size--;
+     const bills=costs(size),total=Object.fromEntries((['timber','stone','iron'] as const).map(r=>[r,bills.reduce((sum,c)=>sum+c[r],0)]));
+     assert.ok(Object.values(total).every(n=>n<=v.storage));
+     const wait=Math.max(0,...(['timber','stone','iron'] as const).map(r=>Math.ceil((total[r]*1000-v.resourcesMilli[r])/v.productionPerTickMilli[r])));
+     step(Math.max(state.world.tick+wait,state.player.nextActTick??0));
+     const actions:Action[]=Array.from({length:size},()=>({type:'build',village:v.id,building}));
+     buildBatch(actions);count-=size;
+    }
+   };
    const train=(unit:Extract<Action,{type:'train'}>['unit'],count:number)=>{const v=state.villages[0],o=v.options.train.find(o=>o.unit===unit)!;assert.ok(Object.values(o.cost).every(n=>n*count<=v.storage));const wait=Math.max(0,...(['timber','stone','iron'] as const).map(r=>Math.ceil((o.cost[r]*count*1000-v.resourcesMilli[r])/v.productionPerTickMilli[r])));step(Math.max(state.world.tick+wait,state.player.nextActTick??0));act({type:'train',village:v.id,unit,count});complete();};
-   for(let n=0;n<6;n++)for(const b of ['lumberyard','quarry','mine'] as const)build(b);
-   for(let n=0;n<7;n++)build('storehouse');
-   for(let n=0;n<9;n++)build('farm');
-   for(let n=0;n<2;n++)build('hall');build('barracks');for(let n=0;n<7;n++)build('hall');
-   for(let n=0;n<4;n++)build('barracks');for(let n=0;n<10;n++)build('smithy');
-   for(let n=0;n<3;n++)build('stable');build('workshop');
+   for(let n=0;n<6;n++){
+    const buildings=['lumberyard','quarry','mine'] as const;
+    if(!trainingOverlap){for(const b of buildings)build(b);continue;}
+    const v=state.villages[0],options=buildings.map(b=>v.options.build.find(o=>o.building===b)!);
+    const wait=Math.max(0,...(['timber','stone','iron'] as const).map(r=>Math.ceil((options.reduce((sum,o)=>sum+o.cost[r],0)*1000-v.resourcesMilli[r])/v.productionPerTickMilli[r])));
+    step(Math.max(state.world.tick+wait,state.player.nextActTick??0));
+    buildBatch(buildings.map(building=>({type:'build',village:v.id,building})));
+   }
+   buildLevels('storehouse',7);
+   buildLevels('farm',9);
+   buildLevels('hall',2);build('barracks');buildLevels('hall',7);
+   buildLevels('barracks',4);buildLevels('smithy',10);
+   buildLevels('stable',3);build('workshop');
    train('pikeman',10);train('shieldman',5);train('raider',10);train('scout',2);
    train('lancer',30);train('lancer',30);train('ram',12);
    while(state.villages[0].hidden<Math.max(...Object.values(state.villages[0].productionPerTickMilli))*300/1000)build('cellar');
    // Extra storage is common fixture setup, not a raid-policy purchase.
-   build('storehouse');build('storehouse');if(deadlineCase){build('storehouse');build('storehouse');}
+   build('storehouse');build('storehouse');if(deadlineCase||trainingOverlap){build('storehouse');build('storehouse');}
    let map=privateRead<MapResponse>(s,'/map');const origin=state.villages[0];
    const target=map.villages.filter(t=>t.ownerId===null).sort((a,b)=>Math.hypot(a.x-origin.x,a.y-origin.y)-Math.hypot(b.x-origin.x,b.y-origin.y))[0];assert.ok(target);row.target=target;
+   if(trainingOverlap)step(10000); // Keep the common clearing recent enough for arrival-time militia.
    const clear=act({type:'send',village:origin.id,target:target.id,kind:'attack',units:{lancer:30,ram:12}}).results[0];assert.ok(clear.ok&&'command' in clear.data);const command=clear.data.command;
    step(command.arrivalTick);const summaries=()=>sandbox<ReportsResponse>({op:'read',world:s.world.id,resource:'reports'}).reports;
    const victory=summaries().find(r=>r.commandId===command.id)!;row.clearing=privateRead<Report>(s,'/reports/'+victory.id);await save();
    assert.equal(row.clearing.outcome,'won');assert.equal(row.clearing.wall.after,0);
    step(command.arrivalTick+(command.arrivalTick-command.sentTick));
    const scoutTravel=Math.ceil(Math.hypot(target.x-origin.x,target.y-origin.y)*(rules.rules.UNITS as any).scout.speed);
-   const cadence=(rules.rules.SCORING as any).publicSnapshotTicks;const arrival=Math.ceil((state.world.tick+scoutTravel)/cadence)*cadence;step(arrival-scoutTravel);
-   const scouting=act({type:'send',village:origin.id,target:target.id,kind:'attack',units:{scout:2}}).results[0];assert.ok(scouting.ok&&'command' in scouting.data);const scout=scouting.data.command;step(scout.arrivalTick);
-   const report=summaries().find(r=>r.commandId===scout.id)!;row.scouting=privateRead<Report>(s,'/reports/'+report.id);assert.ok(row.scouting.intel);assert.equal(row.scouting.intel.buildings.wall,0);
    const scope=JSON.stringify(['https://sandbox.invalid',state.player.id,s.world.id,state.world.epoch]);
-   const linked={scope,villageId:origin.id,targetId:target.id,targetOwnerId:null,commandId:scout.id,sentTick:scout.sentTick,report,clearing:row.clearing};
+   let linked;
+   if(trainingOverlap){
+    const start=10200; // Public snapshot boundary, so both the dispatch and arrival maps are fresh.
+    const raidTravel=Math.ceil(Math.hypot(target.x-origin.x,target.y-origin.y)*(rules.rules.UNITS as any).lancer.speed);
+    assert.equal(start+scoutTravel+2*raidTravel+60,roundDuration,'exact follow-up window');
+    step(start-2);
+    act({type:'train',village:origin.id,unit:'pikeman',count:9});
+    step(Math.max(start-1,state.player.nextActTick??0));
+    act({type:'train',village:origin.id,unit:'shieldman',count:3});
+    step(start);assert.ok(state.villages[0].training.barracks.length);
+    linked={scope,villageId:origin.id,targetId:target.id,targetOwnerId:null,sentTick:command.sentTick,clearing:row.clearing};
+   }else{
+    const cadence=(rules.rules.SCORING as any).publicSnapshotTicks;const arrival=Math.ceil((state.world.tick+scoutTravel)/cadence)*cadence;step(arrival-scoutTravel);
+    const scouting=act({type:'send',village:origin.id,target:target.id,kind:'attack',units:{scout:2}}).results[0];assert.ok(scouting.ok&&'command' in scouting.data);const scout=scouting.data.command;step(scout.arrivalTick);
+    const report=summaries().find(r=>r.commandId===scout.id)!;row.scouting=privateRead<Report>(s,'/reports/'+report.id);assert.ok(row.scouting.intel);assert.equal(row.scouting.intel.buildings.wall,0);
+    linked={scope,villageId:origin.id,targetId:target.id,targetOwnerId:null,commandId:scout.id,sentTick:scout.sentTick,report,clearing:row.clearing};
+   }
    const settings={serverUrl:'https://sandbox.invalid',worldId:s.world.id,apiKey:'sandbox-adapter-no-credential'};
    let saved:SavedControl={settings,pending:null,automatic:false,decisions:[],scouting:[linked]};let now=0;
    const charges:Record<string,any>[]=[];row.charges=charges;
@@ -102,7 +146,7 @@ try {
     if(path.endsWith('/simulate/battle')){row.assessments??=[];row.assessments.push(body);return privateRead(s,'/simulate/battle',body) as T;}
     assert.ok(path.endsWith('/actions'));const action=(body as {actions:Action[]}).actions[0];assert.deepEqual(saved.pending!.action,action,'journal before write');
     const before=structuredClone(state);const response=sandbox<ActionsResponse>({op:'act',world:s.world.id,requestId:action.clientId,actions:[action]});assert.ok(response.results[0].ok,JSON.stringify(response.results));state=s.state();
-    charges.push({action,results:response.results,spend:Object.fromEntries((['timber','stone','iron'] as const).map(r=>[r,(before.villages[0].resourcesMilli[r]-state.villages[0].resourcesMilli[r])/1000]))});
+    charges.push({tick:before.world.tick,training:before.villages[0].training,action,results:response.results,spend:Object.fromEntries((['timber','stone','iron'] as const).map(r=>[r,(before.villages[0].resourcesMilli[r]-state.villages[0].resourcesMilli[r])/1000]))});
     return response as T;
    };
    if(deadlineCase)step(deadlineFixture.start);
@@ -112,7 +156,7 @@ try {
    row.samples=[];
    await c.cycle();await c.setAutomatic(true);
    // Same evaluation schedule, paused clock, running planning status and ordinary executor.
-   for(let tick=row.initialTick;tick<(deadlineFixture?.duration??10800);tick+=100){
+   for(let tick=row.initialTick;tick<roundDuration;tick+=100){
     step(tick);now+=10000;await c.cycle();
     row.samples.push({tick,selected:c.snapshot().selection.selected?.action,pending:saved.pending,proposals:c.snapshot().proposals.filter((p:any)=>p.action.type==='send'),decisions:c.snapshot().decisions.slice(0,3),error:c.snapshot().error});
     await save();
@@ -131,7 +175,7 @@ try {
      assert.equal(c.snapshot().automatic,false);row.pausedRestartConfirmed=true;await c.setAutomatic(true);
     }
    }
-   await c.setAutomatic(false);step(deadlineFixture?.duration??10800);now+=10000;await c.cycle();
+   await c.setAutomatic(false);step(roundDuration);now+=10000;await c.cycle();
    row.comparisonTick=state.world.tick;row.final=structuredClone(state.villages[0]);
    row.battles=[];
    for(const charge of charges){
@@ -159,6 +203,21 @@ try {
    row.economics.retainedProduction=Object.fromEntries(['timber','stone','iron'].map(r=>[r,row.economics.homeStockChange[r]+row.economics.policySpend[r]-row.economics.raidLoot[r]]));
    row.economics.lootLessFullTroopAcquisition=Object.fromEntries(['timber','stone','iron'].map(r=>[r,row.economics.raidLoot[r]+row.economics.clearingLoot[r]-row.economics.troopAcquisition[r]]));
    row.raidCount=row.battles.length;
+   if(trainingOverlap){
+    row.scoutCount=charges.filter(q=>q.action.units?.scout===2).length;
+    assert.equal(row.scoutCount,policy==='candidate'?1:0);
+    assert.equal(row.raidCount,policy==='candidate'?1:0);
+    for(const q of charges.filter(q=>q.action.type==='send'))assert.ok(q.training.barracks.length,'commands overlap paid recruitment');
+    assert.equal(state.villages[0].units.home.pikeman,19);
+    assert.equal(state.villages[0].units.home.shieldman,8);
+    assert.equal(state.villages[0].training.barracks.length,0,'cohort completes');
+    row.finalJournal=saved.decisions;
+    assert.ok(!saved.pending&&!(saved.active??[]).some(p=>p.action.type==='send'),'all commands reconciled');
+    if(policy==='candidate'){
+     assert.ok(saved.decisions.some(d=>d.kind==='confirmed'&&d.text.includes('Scouting report')));
+     assert.ok(saved.decisions.some(d=>d.kind==='confirmed'&&d.text.includes('Raid report')));
+    }
+   }
    if(deadlineCase){
     row.scoutCount=charges.filter(q=>q.action.units?.scout===2).length;
     assert.equal(row.scoutCount,policy==='candidate'?0:1,'only baseline dispatches reconnaissance without a follow-up raid window');

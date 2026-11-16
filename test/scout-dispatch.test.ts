@@ -52,6 +52,18 @@ test("observation use requires journal provenance, exact command, owner, epoch s
     (y: typeof x) => { y.observation.report!.attacker.ownerId = "other-account"; },
   ]) { const y = structuredClone(x); mutate(y); assert.equal(usableScoutObservation(y.observation, y.c.state, y.scouting.map, "scope"), false); }
 });
+test("scouting overlaps recruitment using only Scouts already home", () => {
+  const x = fixture(), v = x.c.state.villages[0];
+  v.training.barracks.push({ unit: "pikeman", remaining: 6, endTick: 170 } as never);
+  v.training.stable.push({ unit: "scout", remaining: 2, endTick: 180 } as never);
+  assert.equal(evaluateScoutDispatch(x.c, x.scouting).length, 1);
+  v.units.home.scout = 1;
+  assert.deepEqual(evaluateScoutDispatch(x.c, x.scouting), [], "queued Scouts do not count");
+  v.units.home.scout = 2; v.buildQueue.push({ building: "lumberyard", endTick: 150 } as never);
+  assert.deepEqual(evaluateScoutDispatch(x.c, x.scouting), [], "construction still defers dispatch");
+  v.buildQueue = []; v.orders.train.push({} as never);
+  assert.deepEqual(evaluateScoutDispatch(x.c, x.scouting), [], "standing training orders still defer dispatch");
+});
 
 async function executor(mode: "ok" | "lost" | "reject" | "unapplied" = "ok") {
   const x = fixture(); let saved: SavedControl | null = null; let now = 0; const writes: Action[] = []; let fail = true;

@@ -15,6 +15,11 @@ The single executor journals one in-flight write at a time and tracks accepted o
 per-village construction and per-training-building queues. Construction, Barracks and Stable work
 can overlap. Each occupied queue is excluded from normal allocation until its work completes.
 
+Scouting and risk-checked raids can use troops already at home while recruitment continues.
+Queued troops never count toward a dispatch or its home garrison. Construction and standing
+orders still defer these commands; construction can change production and the loot headroom
+calculation. The President allocates commands through the same durable executor and command lane.
+
 The Economic Advisor considers Great Hall, lumberyard, quarry, mine, storehouse, cellar and farm.
 The server's build options determine cost, prerequisites, affordability and next level. The live
 rules tables determine hall time savings (excluding the hall upgrade itself and maxed buildings); no game rule is changed in this repository.

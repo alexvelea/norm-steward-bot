@@ -52,7 +52,9 @@ export function evaluateScoutDispatch({ state, rules }: AdvisorContext, scouting
   for (const v of state.villages) {
     const owned = (unit: "pikeman" | "shieldman" | "raider") => (v.units.home[unit] ?? 0) + (v.units.away[unit] ?? 0);
     if ((v.units.home.scout ?? 0) < 2 || (v.units.away.scout ?? 0) > 0 || owned("pikeman") < 10 || owned("shieldman") < 5 || owned("raider") < 10) continue;
-    if (v.buildQueue.length || Object.values(v.training).some(q => q.length) || v.orders.build.length || v.orders.train.length || v.orders.raids.length || v.orders.paused.length) continue;
+    // Recruitment adds future troops; dispatch uses only the forces already home.
+    // Construction still defers commands because it can change production/headroom.
+    if (v.buildQueue.length || v.orders.build.length || v.orders.train.length || v.orders.raids.length || v.orders.paused.length) continue;
     if (state.commands.incoming.some(c => c.kind === "attack" && c.to.id === v.id)) continue;
     if ((state.player.nextActTick ?? state.world.tick) > state.world.tick) continue;
     const target = map.villages.filter(t => {

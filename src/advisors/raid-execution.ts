@@ -58,7 +58,7 @@ export function evaluateRaidExecution({ state, rules }: AdvisorContext, scouting
   const proposals: Proposal<Extract<Action, { type: "send" }>>[] = [];
   for (const v of state.villages) {
     if ((v.units.home.pikeman ?? 0) < 10 || (v.units.home.shieldman ?? 0) < 5 ||
-        v.buildQueue.length || Object.values(v.training).some(q => q.length) ||
+        v.buildQueue.length ||
         Object.values(v.orders).some(q => q.length) || state.commands.incoming.some(c => c.kind === "attack" && c.to.id === v.id)) continue;
     for (const o of scouting.observations) {
       if (o.villageId !== v.id || !usableRaidIntel(o, state, scouting)) continue;
@@ -67,6 +67,7 @@ export function evaluateRaidExecution({ state, rules }: AdvisorContext, scouting
       const unit = target.ownerId === null ? "lancer" : "raider";
       if (target.ownerId !== null && (!owner?.houseBot || (owner.protectedUntilTick ?? 0) > state.world.tick)) continue;
       const count = unit === "lancer" ? 30 : 10;
+      // Queued recruits are never counted toward the dispatch or home garrison.
       if ((v.units.home[unit] ?? 0) < count || (v.units.away[unit] ?? 0) > 0) continue;
       const speed = (rules.rules.UNITS as Record<string, { speed: number }>)[unit]?.speed;
       if (!Number.isFinite(speed) || speed <= 0) continue;
