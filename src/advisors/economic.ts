@@ -88,7 +88,9 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
   for (const v of state.villages) {
     const f = forecastEconomy(v);
     const needsFarm = f.freePopulation < f.requiredFreePopulation;
-    const needsStorage = resources.some((r) => f.fiveMinutes[r] > v.storage);
+    const storageTicks = Math.max(0, Math.min(300, state.world.endsAtTick - state.world.tick));
+    const storageForecast = (r: keyof Resources) => v.resourcesMilli[r] + v.productionPerTickMilli[r] * storageTicks;
+    const needsStorage = resources.some((r) => storageForecast(r) > v.storage * 1000);
     const cellarTarget = Math.max(
       ...resources.map((r) => f.fiveMinuteProduction[r]),
     );
@@ -134,12 +136,12 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
         reason = `${f.freePopulation} population slots free; target max(50, 20% of ${v.population.max}) = ${round(f.requiredFreePopulation)}. ${needed ? "Below the required buffer; expand capacity." : "Buffer is sufficient; do not upgrade."} Queued buildings and recruitment are already included in population used.`;
       } else if (building === "storehouse") {
         needed = needsStorage;
-        const peak = Math.max(...resources.map((r) => f.fiveMinutes[r]));
+        const peak = Math.max(...resources.map((r) => storageForecast(r) / 1000));
         importance = needed
           ? 90 +
             Math.min(9, Math.ceil((peak / Math.max(1, v.storage) - 1) * 10))
           : 25;
-        reason = `Stock + 5 minutes of production: timber ${round(f.fiveMinutes.timber)}, stone ${round(f.fiveMinutes.stone)}, iron ${round(f.fiveMinutes.iron)}. Storage holds ${v.storage} of each. ${needed ? "At least one resource would overflow; upgrade storage." : "All resources fit; do not upgrade."}`;
+        reason = `Stock + ${storageTicks} ticks of production (at most 300, bounded by round end): timber ${round(storageForecast("timber") / 1000)}, stone ${round(storageForecast("stone") / 1000)}, iron ${round(storageForecast("iron") / 1000)}. Storage holds ${v.storage} of each. ${needed ? "At least one resource would overflow; upgrade storage." : "All resources fit; do not upgrade."}`;
       } else if (building === "cellar") {
         needed = needsCellar;
         importance = needed ? 80 : 25;

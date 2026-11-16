@@ -190,3 +190,18 @@ test("Bramwell regression: abundant farm and storage never become cheap filler u
     );
   }
 });
+
+test("President skips storage for post-round production but preserves real overflow and equality", () => {
+  const c = context(), v = c.state.villages[0];
+  c.state.world.endsAtTick = c.state.world.tick + 100;
+  v.hidden = 10000;
+  v.productionPerTickMilli = { timber: 1000, stone: 1000, iron: 1000 };
+  v.resourcesMilli = { timber: (v.storage - 100) * 1000, stone: 1000000, iron: 1000000 };
+  assert.equal(proposal(c, "storehouse").status, "not-needed", "exact capacity at round end fits");
+  assert.equal(selectProposal(evaluateEconomy(c)).selected, null, "no late capacity reservation or unprofitable producer");
+  v.resourcesMilli.timber++;
+  assert.equal(selectProposal(evaluateEconomy(c)).selected?.action.building, "storehouse", "one milli of actual overflow still needs capacity");
+  c.state.world.endsAtTick += 300;
+  v.resourcesMilli.timber = (v.storage - 300) * 1000;
+  assert.equal(proposal(c, "storehouse").status, "not-needed", "normal horizon remains capped at 300 ticks");
+});

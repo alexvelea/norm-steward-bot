@@ -23,7 +23,7 @@ Scores are deterministic integers:
 | Candidate | Importance policy |
 |---|---|
 | Farm | 100 if no free population, otherwise 95 **only** below max(50, 20% of capacity); sufficient buffer = not-needed (20) |
-| Storehouse | 90–99 **only** if current stock + 300 ticks of production exceeds capacity for any resource; otherwise not-needed (25) |
+| Storehouse | 90–99 **only** if current stock + production over min(300, remaining round ticks) exceeds capacity for any resource; otherwise not-needed (25) |
 | Cellar | 80 **only** if protection per resource is below the largest 300-tick production amount; otherwise not-needed (25) |
 | Initial defence | 78 for an affordable batch of at most five toward ten owned Pikemen, then at most five Shieldmen where already unlocked; preserve the economic population buffer, with no resource reservation or prerequisite purchases |
 | First Barracks | 79 when unlocked and usable, below capacity/protection and ahead of discretionary Hall/production investment (ties prefer Barracks); no further military levels |

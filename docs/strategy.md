@@ -478,3 +478,30 @@ clearing-plus-raid loot remained short by 7830/6205/13660. Acquisition and repla
 are separate views and must not be charged twice. Surviving troops and buildings remain assets.
 This comparison supports conditional use of existing forces and a cleared target, without
 justifying live acquisition of this expensive fixture or establishing live target availability.
+
+## Full-round raid opportunity costs and round-bounded storage
+
+The completed matched comparison ran the deployed repeat-raid controller and a priority-59
+reconnaissance prototype from tick 8100 through round end at 10800, continuing ordinary economic
+decisions. Lower scouting priority completed one raid versus four, returning 2550 less of each
+resource. Earlier production increased retained timber/iron output, but final stocks differed by
+-2654.615 timber, -4984.020 stone and +230.980 iron. This tradeoff does not support automatic
+activation of that prototype. Scout dispatch retains score 72. Reproduce the isolated rejected
+prototype with `scripts/experiment-full-round-raids.ts`, which snapshots the deployed controller
+at `b584d621302cb75862db1578ed13939a6b5707a7` and changes its scouting priority explicitly.
+The common expensive force and cleared target do not establish profitable live acquisition.
+
+The comparison also exposed Storehouse spending at tick 10700 based on production extending
+200 ticks beyond round end. The Economic Advisor now uses the smaller of 300 ticks and the
+remaining round time for Storehouse need, priority and explanation. It keeps exact-capacity
+equality, the normal full-horizon policy, completion checks, President allocation and durable
+executor. Dashboard three-/five-minute forecasts retain their descriptive horizons. Raid loot
+headroom remains separately checked by the raid policy.
+
+`scripts/experiment-round-storage.ts` compares the deployed controller with the current candidate
+in matched owner-only 1300- and 1600-tick rounds. Both plan as running while the private clock is
+paused, and use the President and journal-before-write executor. From tick 1200, the short case
+retained 76 timber, 63 stone and 51 iron by avoiding the Storehouse, without overflow. In the
+longer case both policies built Storehouse 2 and finished with identical stocks. Accepted construction
+was confirmed through the durable executor; every world was deleted. Raw results
+and receipts stay outside Git.
