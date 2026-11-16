@@ -2,6 +2,7 @@
 
 - [Setup and hosting](../README.md): install, run, configure, and publish this client.
 - [Scheduled reviews](reviews.md): Codex timer, usage/backoff, durable backlog and deployment recovery.
+- [Unit stats and recruitment budgets](unit-stats.md): combat stats, training times and continuous resource demand.
 - [Strategy](strategy.md): priorities and next measurements.
 - [Control center](control-center.md): deterministic advisors, scoring, allocation, execution and credentials.
 - [Operator handoff](OPERATOR.md): instructions for an ad hoc scouting/troop agent.
