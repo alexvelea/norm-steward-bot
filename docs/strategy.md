@@ -4,6 +4,46 @@ The control service continuously plays through deterministic advisors and the Pr
 an autonomous developer, not the gameplay loop. One source of resource allocation and one durable
 executor; no separate military spender or second live bot.
 
+## Active spending policy: recurring 3Pi1Sh (2026-11-16)
+
+After the level-5 producer opening, unlock the first Barracks/defensive Smithy through their
+live Hall prerequisites. Preserve the existing starter force, then continuously propose small
+3Pi1Sh defensive batches with no fixed total troop cap. Population, resources, external orders,
+queued work and round deadline still constrain execution. Scouting and validated raids retain
+priority over routine recruitment. Military units are not automatically dispatched by this step.
+
+Discretionary Hall investment drops below repeatable defensive spending once its training path
+is unlocked. Producer upgrades below level 20 take priority over recruitment only when their
+resource cannot sustain the live mix and less than a two-minute deficit buffer (or one bundle
+cost) remains. Existing total-resource payback and round completion gates still apply. Level 20
+is an owner-directed strategy ceiling, not a claim of proven economic optimality. Farm keeps
+room for another bundle above the normal population buffer, preventing a stall at exact equality.
+
+Matched owner-only server sandboxes, seed 73430, no opponents, start tick 1800 and finish tick
+3600. Both paid for identical common setup through ordinary server actions: producers 7/7/7,
+Hall 5, Barracks 1, Smithy 2, and 10 Pikemen/5 Shieldmen/10 Raiders. Both used the same evaluation
+schedule, one President and the durable journal-before-write executor. The baseline is ccbd86a.
+
+- Baseline: final 10 Pikemen, 5 Shieldmen and 10 Raiders; no policy recruitment spending;
+  final producers 16/14/14, Hall 9, Farm 4, Storehouse 6, Cellar 5.
+- Candidate: final 152 Pikemen, 50 Shieldmen and 10 Raiders; 19,435 total resources spent on
+  policy recruitment (including still-queued work at the cutoff); producers 7/7/7, Hall 5,
+  Farm 6, Storehouse 5, Cellar 1.
+
+This demonstrates conversion of income into a growing defensive force and continued population
+expansion. It does not establish combat effectiveness, threat adequacy or superiority over retained
+future production. The worlds were paused lockstep, so these are 1800 game ticks (30 minutes at
+live speed 1); metadata speed 5 did not advance time automatically. Both worlds were deleted.
+An earlier invalid fixture attempted Smithy before Hall 5; it was rejected and deleted, then
+corrected before the matched comparison. Raw comparison/receipts stay in
+`/var/lib/norm-steward-review/owner-spending-policy-20261116/`.
+Reproduce with `STEWARD_BASELINE_COMMIT=ccbd86a STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx scripts/experiment-spending-policy.ts`.
+
+Next measure actual defended losses and resource/queue utilisation. The executor still serializes
+construction and training globally; sustainable training-building expansion and offensive spending
+may be justified if troop throughput leaves large persistent surpluses. Army sizing is now an
+explicit 3:1 spending policy, not yet a model of actual nearby threats.
+
 ## Owner priority update: production-first opening and smaller Cellar (2026-11-16)
 
 Cellar now targets one minute (60 ticks) of the fastest resource production, per resource,
@@ -28,7 +68,7 @@ threats were tested. Both worlds were deleted. Raw receipts and comparison live 
 The separate production-only feasibility script reaches levels 5/7 in 196/520 ticks; its 520-tick
 result is not the new controller's measured milestone.
 
-Next strategic weakness: military sizing is still a starter cap, not a threat-derived force target.
+Historical limitation (superseded by the active spending policy above): military sizing was a starter cap.
 With a long productive window remaining, continue producer upgrades that repay before round end;
 compare useful military allocation against further growth and measure defended losses/raid return.
 Do not justify expensive force acquisition using tests that start with a free prebuilt army.

@@ -30,10 +30,12 @@ Scores are deterministic integers:
 | First defensive Smithy | 77 after ten owned Pikemen, with existing Hall/Barracks prerequisites and enough current resources and population for Smithy 1 plus the remaining complement of at most five Shieldmen; no resource reservation |
 | Initial raiding force | 76 for affordable batches of at most five toward ten owned Raiders, after ten Pikemen and five Shieldmen exist; existing unlocks, population buffer and 300 ticks for use required; no attacks |
 | Raiding Smithy unlock | 75 for Smithy 1→2 only, after the defensive complement exists, with construction plus the remaining ten-Raider force funded now and at least 600 ticks after construction; no prerequisite chain or resource reservation |
-| Great Hall | 70–79 only when Hall-first finishes the same useful upgrade sequence sooner after resource costs/waits and a safety margin; otherwise not-needed (30) |
-| Resource producer | Below level 5: 85 minus production rank (83–85), ahead of Cellar/Hall/starter military but below necessary capacity. From level 5: 60 for lowest projected coverage, then 50 and 40; ties share a score |
+| Sustained 3Pi1Sh | 70 after the starter force; repeat 3 Pikemen / 1 Shieldman by owned+away+queued counts, no fixed army cap; affordable small batches only |
+| Military Hall unlock | 79 for currently affordable steps to the live first Barracks / defensive Smithy Hall prerequisite after the opening |
+| Great Hall | At most 69 once the 3Pi1Sh training path is unlocked; otherwise 70–79 only when Hall-first finishes the same useful upgrade sequence sooner after resource costs/waits and a safety margin; otherwise not-needed (30) |
+| Resource producer | Below level 5: 85 minus production rank (83–85), ahead of Cellar/Hall/starter military but below necessary capacity. From level 5: 60/50/40 by coverage; 80–82 for a recruitment-resource shortage; no producer upgrades beyond level 20 |
 
-90–100 = capacity, 70–89 = opening production/protection/construction speed/first military infrastructure, 40–69 = production. Lower scores are
+90–100 = capacity, 70–89 = opening production/protection/construction speed/military spending, 40–69 = production. Lower scores are
 informational and never executed. Not-needed proposals remain visible at the bottom. Ties use
 village ID then building ID. Population used includes reserved construction and training.
 
@@ -268,3 +270,31 @@ ticks is usable as a historical scouting observation. Future timestamps, differe
 scouting and ownership changes fail closed. Summaries do not establish hidden troops, resources or
 raid profitability; full intelligence collection and raid decisions remain separate work.
 Reproduce the matched private executor comparison with scripts/experiment-scout-dispatch.ts.
+
+## Income versus spending policy (2026-11-16)
+
+After the level-5 production opening and existing starter force (10 Pikemen, 5 Shieldmen,
+10 Raiders), the President can repeatedly recruit 3Pi1Sh defence. It counts owned, away and queued
+units, repairs a skewed ratio first, then alternates batches of at most three Pikemen and one
+Shieldman. There is no fixed total army cap; live affordability, population, queue limits, external
+orders and a 60-tick post-completion use window bound recruitment. A rejected/unaffordable batch
+never reserves resources. Recruitment itself dispatches no troops.
+
+The economy computes this mix's average resource demand from live training costs and times.
+For resource r, low runway means production is below demand AND current stock is less than
+`max(one bundle's r cost, 120 × (r demand/tick − r production/tick))`. The corresponding producer
+then scores 82 minus its usual coverage rank (80–82). It outranks routine recruitment, provided
+its existing total-resource payback test passes and its current level is below 20. Otherwise
+available troop spending outranks discretionary producer and Hall investment. Capacity and
+Cellar protection, starter unlocks, scouting and validated raids retain their priorities.
+
+The Farm also considers room for the next bundle above the usual free-population buffer, with
+time left to construct and use it. This avoids stopping exactly at the reserve. The small Hall
+unlock chain reaches only live Barracks/defensive Smithy prerequisites after the opening; it is
+not an unrestricted military technology planner. Hall's projected producer sequence excludes
+levels beyond the same producer ceiling.
+
+Level 20 is an explicit owner-directed policy ceiling, not a proven mathematical optimum.
+This iteration does not estimate the marginal combat value of another bundle versus a producer.
+The executor still tracks one operation globally, so building and training are serialized; these
+priorities do not promise simultaneous uninterrupted construction and recruitment.

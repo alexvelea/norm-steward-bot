@@ -1,3 +1,4 @@
+import { defenseBudget, PRODUCER_CEILING } from "./defense-budget.js";
 import { productionPayback } from "./payback.js";
 import { completionWindow } from "./completion.js";
 import { estimateHall } from "./hall.js";
@@ -87,7 +88,10 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
   const proposals: Proposal<Extract<Action, {type: "build"}>>[] = [];
   for (const v of state.villages) {
     const f = forecastEconomy(v);
-    const needsFarm = f.freePopulation < f.requiredFreePopulation;
+    const defense = defenseBudget(v);
+    const farmOption = v.options.build.find(o => o.building === "farm");
+    const farmForRecruitment = !!defense && !!farmOption && state.world.endsAtTick - state.world.tick > farmOption.ticks + defense.ticks + 60 && f.freePopulation < Math.ceil(f.requiredFreePopulation) + defense.pop;
+    const needsFarm = f.freePopulation < f.requiredFreePopulation || farmForRecruitment;
     const storageTicks = Math.max(0, Math.min(300, state.world.endsAtTick - state.world.tick));
     const storageForecast = (r: keyof Resources) => v.resourcesMilli[r] + v.productionPerTickMilli[r] * storageTicks;
     const needsStorage = resources.some((r) => storageForecast(r) > v.storage * 1000);
@@ -129,11 +133,14 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
           (n) => n < f.coverage[r] - 1e-9,
         ).length;
         importance = v.buildings[building] < 5 ? 85 - rank : 60 - rank * 10;
+        if (defense && v.productionPerTickMilli[r] / 1000 < defense.perTick[r] && f.stock[r] < Math.max(defense.cost[r], (defense.perTick[r] - v.productionPerTickMilli[r] / 1000) * 120)) importance = 82 - rank;
         reason = (v.buildings[building] < 5 ? "Production-first opening: bring each producer to level 5 before protection, Hall investment or starter military; necessary Farm/Storehouse capacity still takes priority. " : "") + `In 3 minutes: ${round(f.threeMinutes[r])} ${r} (stock ${round(f.stock[r])} + production). The next lumberyard/quarry/mine upgrades together require ${f.producerDemand[r]} ${r}; projected coverage is ${round(f.coverage[r])}× that basket. Lower coverage takes priority (production rank ${rank + 1}).`;
+        if (defense && importance >= 80 && v.buildings[building] >= 5) reason += ` Recruitment resource shortage: 3Pi1Sh needs ${round(defense.perTick[r]*60)} ${r}/minute; current production is ${round(v.productionPerTickMilli[r]*60/1000)}. Less than a two-minute deficit buffer remains; strengthen this income before discretionary spending.`;
+        if (v.buildings[building] >= PRODUCER_CEILING) { needed = false; reason += ` Producer policy ceiling ${PRODUCER_CEILING} reached; spend on useful military capability instead of further compounding.`; }
       } else if (building === "farm") {
         needed = needsFarm;
         importance = needed ? (f.freePopulation <= 0 ? 100 : 95) : 20;
-        reason = `${f.freePopulation} population slots free; target max(50, 20% of ${v.population.max}) = ${round(f.requiredFreePopulation)}. ${needed ? "Below the required buffer; expand capacity." : "Buffer is sufficient; do not upgrade."} Queued buildings and recruitment are already included in population used.`;
+        reason = `${f.freePopulation} population slots free; target max(50, 20% of ${v.population.max}) = ${round(f.requiredFreePopulation)}. ${needed ? "Below the required buffer; expand capacity." : "Buffer is sufficient; do not upgrade."} Queued buildings and recruitment are already included in population used.${farmForRecruitment ? " Also leave room for the next four-population 3Pi1Sh bundle so recruitment cannot stall exactly at the buffer." : ""}`;
       } else if (building === "storehouse") {
         needed = needsStorage;
         const peak = Math.max(...resources.map((r) => storageForecast(r) / 1000));
@@ -148,7 +155,7 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
         reason = `One-minute production buffer (60 ticks): timber ${round(v.productionPerTickMilli.timber * 60 / 1000)}, stone ${round(v.productionPerTickMilli.stone * 60 / 1000)}, iron ${round(v.productionPerTickMilli.iron * 60 / 1000)}. Cellar hides ${v.hidden} of each; target is ${round(cellarTarget)} per resource. ${needed ? "Expand protection toward that target." : "One minute of production is covered; do not upgrade."}`;
       } else {
         needed = hall.needed;
-        importance = hall.importance;
+        importance = defense ? Math.min(69, hall.importance) : hall.importance;
         reason = hall.reason;
       }
       const payback =

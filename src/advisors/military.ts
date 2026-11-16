@@ -1,4 +1,5 @@
-import { evaluateRecruitment } from "./recruitment.js";
+import { evaluateSustainedDefense } from "./sustained-defense.js";
+import { evaluateRecruitment, ownedPikemen } from "./recruitment.js";
 import { evaluateDefensiveSmithy } from "./smithy.js";
 import { evaluateRaidingSmithy } from "./raiding.js";
 import { evaluateScouting } from "./scouting.js";
@@ -7,7 +8,7 @@ import type { Action, BuildingId, Resources } from "../shared/api.js";
 import type { Advisor, AdvisorContext, Proposal } from "./types.js";
 
 /** Bounded military proposals share the President and its durable executor. */
-export const militaryAdvisor: Advisor = { id: "military", evaluate: (context) => [...evaluateMilitary(context), ...evaluateRecruitment(context), ...evaluateScouting(context)] };
+export const militaryAdvisor: Advisor = { id: "military", evaluate: (context) => [...evaluateMilitary(context), ...evaluateRecruitment(context), ...evaluateScouting(context), ...evaluateSustainedDefense(context)] };
 export function evaluateMilitary({ state, rules }: AdvisorContext): Proposal<Extract<Action, {type: "build"}>>[] {
   if (rules.version !== state.world.rulesVersion)
     throw new Error("Live rules do not match this world's rules version.");
@@ -66,5 +67,30 @@ export function evaluateMilitary({ state, rules }: AdvisorContext): Proposal<Ext
       affordableAtTick: option.affordableAtTick,
     });
   }
-  return [...proposals, ...evaluateDefensiveSmithy({ state, rules }), ...evaluateRaidingSmithy({ state, rules })];
+  return [...proposals, ...evaluateMilitaryHall({state,rules}), ...evaluateDefensiveSmithy({ state, rules }), ...evaluateRaidingSmithy({ state, rules })];
+}
+
+/** Close the initial Hall prerequisite chain after the production-only opening. */
+export function evaluateMilitaryHall({state,rules}:AdvisorContext): Proposal<Extract<Action,{type:"build"}>>[] {
+  if(rules.version!==state.world.rulesVersion)throw new Error("Live rules do not match this world's rules version.");
+  const buildings=rules.rules.BUILDINGS as Record<BuildingId,{requires:Partial<Record<BuildingId,number>>}>;
+  const proposals:Proposal<Extract<Action,{type:"build"}>>[]=[];
+  for(const v of state.villages){
+    const facility=v.buildings.barracks<1?"barracks":v.buildings.smithy<1&&ownedPikemen(v)>=10?"smithy":null;
+    const required=facility?buildings[facility].requires.hall:undefined;
+    if(!required||v.buildings.hall>=required||[v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard].some(n=>n<5))continue;
+    const o=v.options.build.find(o=>o.building==="hall");if(!o)continue;
+    const blockers:string[]=[...o.blockers];let needed=o.ok&&!blockers.length;
+    if(v.buildQueue.length)blockers.push("BUILD_QUEUE_BUSY");
+    if(v.orders.build.length)blockers.push("EXTERNAL_BUILD_ORDERS");
+    if(state.world.status!=="running")blockers.push("WORLD_NOT_RUNNING");
+    if((state.player.nextActTick??state.world.tick)>state.world.tick)blockers.push("COUNCIL_COOLDOWN");
+    const window=completionWindow(state,v,o);
+    if(window&&window.completionTick+300>window.endsAtTick){needed=false;blockers.push("ROUND_END_TOO_SOON");}
+    if(v.population.max-v.population.used<o.pop){needed=false;blockers.push("POPULATION_CAPACITY");}
+    for(const r of ["timber","stone","iron"] as const)if(v.resourcesMilli[r]<o.cost[r]*1000){needed=false;if(!blockers.includes("INSUFFICIENT_RESOURCES"))blockers.push("INSUFFICIENT_RESOURCES");}
+    proposals.push({id:`${state.world.epoch}:${v.id}:military-hall:${o.level}`,advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"hall"},buildingName:`Great Hall for ${facility}`,currentLevel:v.buildings.hall,targetLevel:o.level,importance:79,
+      reason:`Production opening complete. Reach the live ${facility} Hall prerequisite (${required}) to convert income into troops; stop this unlock chain once that facility is available. Only currently affordable steps, with 300 ticks left for use.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
+  }
+  return proposals;
 }

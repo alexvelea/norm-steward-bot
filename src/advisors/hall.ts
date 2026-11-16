@@ -1,3 +1,4 @@
+import { PRODUCER_CEILING } from "./defense-budget.js";
 import { productionPayback } from "./payback.js";
 import type {
   BuildingId,
@@ -227,7 +228,7 @@ export function estimateHall(
       return "farm";
     if (storageScore && available("storehouse")) return "storehouse";
     const candidates = producerIds.filter((id) => {
-      if (!available(id)) return false;
+      if (p.levels[id] >= PRODUCER_CEILING || !available(id)) return false;
       if (!policy.producerPayback) return true;
       const row = rowFor(p, id)!;
       const live =
