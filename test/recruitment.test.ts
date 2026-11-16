@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { evaluateRecruitment } from "../src/advisors/recruitment.js";
+import { evaluateRecruitment } from "../scripts/legacy-advisors/recruitment.js";
 import { evaluateEconomy } from "../src/advisors/economic.js";
 import { selectProposal } from "../src/advisors/president.js";
 import { developedContext as context } from "./control-fixtures.js";

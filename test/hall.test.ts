@@ -51,8 +51,8 @@ test("Hall first repays its own construction on a busy affordable useful sequenc
   const proposal = evaluateEconomy(c).find(
     (p) => p.action.building === "hall",
   )!;
-  assert.equal(proposal.status, "ready");
-  assert.match(proposal.reason, /Plan/);
+  assert.equal(proposal.status, "not-needed");
+  assert.match(proposal.reason, /level 8/);
 });
 test("Hall resource cost and wait reverse a superficially profitable speed upgrade", () => {
   const { v, estimate } = scenario();

@@ -80,7 +80,7 @@ Continuous recruitment also consumes population capacity: allow for Farm expansi
 
 ## Recruitment cohorts
 
-The advisor queues whole 3Pi1Sh bundles covering just over one game minute: `ceil(61 / bundle training ticks)` bundles. At Barracks 1 that is **6 Pikemen + 2 Shieldmen in 70 ticks**; at Barracks 5 it is **9 Pikemen + 3 Shieldmen in 81 ticks**. Both components share the Barracks queue. Once queued, the cohort drains before another starts; construction and Stable training can continue independently.
+The advisor queues whole 3Pi1Sh bundles covering just over one game minute: `ceil(61 / bundle training ticks)` bundles. At Barracks 1 that is **6 Pikemen + 2 Shieldmen in 70 ticks**; at the advisor’s initial target **Barracks 3 it is 6 + 2 in 62 ticks**; at Barracks 5 it is **9 Pikemen + 3 Shieldmen in 81 ticks**. Both components share the Barracks queue. Once queued, the cohort drains before another starts; construction and Stable training can continue independently.
 
 ## Refreshing the numbers
 

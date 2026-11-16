@@ -1,5 +1,4 @@
 import { completionWindow } from "./completion.js";
-import { INITIAL_PIKEMEN, INITIAL_SHIELDMEN, INITIAL_RAIDERS } from "./recruitment.js";
 import type { BuildingId } from "../shared/api.js";
 import type { AdvisorContext, Proposal } from "./types.js";
 
@@ -19,8 +18,8 @@ export function evaluateScouting({ state, rules }: AdvisorContext): Proposal[] {
   if (!stable || !scout || !Number.isSafeInteger(batchMax) || batchMax < 1) throw new Error("Live scouting rules are unavailable.");
   const proposals: Proposal[] = [];
   for (const v of state.villages) {
+    if(Math.min(v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard)<10)continue;
     const owned = (unit: "pikeman" | "shieldman" | "raider" | "scout") => (v.units.home[unit] ?? 0) + (v.units.away[unit] ?? 0);
-    if (owned("pikeman") < INITIAL_PIKEMEN || owned("shieldman") < INITIAL_SHIELDMEN || owned("raider") < INITIAL_RAIDERS) continue;
     const queued = Object.values(v.training).flat().filter(q => q.unit === "scout").reduce((n, q) => n + q.remaining, 0);
     const count = INITIAL_SCOUTS - owned("scout") - queued;
     if (count <= 0) continue;

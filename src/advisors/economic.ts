@@ -1,4 +1,4 @@
-import { defenseBudget, PRODUCER_CEILING } from "./defense-budget.js";
+import { defenseBudget, PRODUCER_CEILING, producerLevel, militaryEconomy, defenseReady } from "./defense-budget.js";
 import { productionPayback } from "./payback.js";
 import { completionWindow } from "./completion.js";
 import { estimateHall } from "./hall.js";
@@ -27,6 +27,10 @@ const producers = {
 const resources = ["timber", "stone", "iron"] as const;
 const round = (n: number) => Math.round(n * 10) / 10;
 export interface EconomicForecast {
+  strategyPhase: string;
+  militaryBurnPerMinute: Resources;
+  militaryTargetPerMinute: Resources;
+  netProductionPerMinute: Resources;
   villageId: string;
   villageName: string;
   stock: Resources;
@@ -41,6 +45,7 @@ export interface EconomicForecast {
   hidden: number;
 }
 export function forecastEconomy(v: VillageState): EconomicForecast {
+  const flow = militaryEconomy(v);
   const stock = {} as Resources,
     threeMinutes = {} as Resources,
     fiveMinutes = {} as Resources;
@@ -52,13 +57,17 @@ export function forecastEconomy(v: VillageState): EconomicForecast {
   );
   for (const r of resources) {
     stock[r] = v.resourcesMilli[r] / 1000;
-    threeMinutes[r] = stock[r] + (v.productionPerTickMilli[r] / 1000) * 180;
+    threeMinutes[r] = stock[r] + (flow.availableMilli[r] / 1000) * 180;
     fiveMinuteProduction[r] = (v.productionPerTickMilli[r] / 1000) * 300;
     fiveMinutes[r] = stock[r] + fiveMinuteProduction[r];
     producerDemand[r] = upgrades.reduce((sum, o) => sum + o.cost[r], 0);
     coverage[r] = threeMinutes[r] / Math.max(1, producerDemand[r]);
   }
   return {
+    strategyPhase: flow.stage,
+    militaryBurnPerMinute: Object.fromEntries(resources.map(r=>[r,flow.burn[r]*60])) as Resources,
+    militaryTargetPerMinute: Object.fromEntries(resources.map(r=>[r,flow.targetPerTick[r]*60])) as Resources,
+    netProductionPerMinute: Object.fromEntries(resources.map(r=>[r,flow.availableMilli[r]*60/1000])) as Resources,
     villageId: v.id,
     villageName: v.name,
     stock,
@@ -88,17 +97,18 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
   const proposals: Proposal<Extract<Action, {type: "build"}>>[] = [];
   for (const v of state.villages) {
     const f = forecastEconomy(v);
-    const defense = defenseBudget(v);
+    const flow = militaryEconomy(v), phaseLevel = producerLevel(v);
+    const defense = defenseReady(v) ? defenseBudget(v) : null;
     const farmOption = v.options.build.find(o => o.building === "farm");
     const farmForRecruitment = !!defense && !!farmOption && state.world.endsAtTick - state.world.tick > farmOption.ticks + defense.ticks + 60 && f.freePopulation < Math.ceil(f.requiredFreePopulation) + defense.pop * Math.ceil(61 / defense.ticks);
     const needsFarm = f.freePopulation < f.requiredFreePopulation || farmForRecruitment;
     const storageTicks = Math.max(0, Math.min(300, state.world.endsAtTick - state.world.tick));
-    const storageForecast = (r: keyof Resources) => v.resourcesMilli[r] + v.productionPerTickMilli[r] * storageTicks;
+    const storageForecast = (r: keyof Resources) => v.resourcesMilli[r] + flow.availableMilli[r] * storageTicks;
     const needsStorage = resources.some((r) => storageForecast(r) > v.storage * 1000);
     const cellarTarget = Math.max(
       ...resources.map((r) => (v.productionPerTickMilli[r] / 1000) * 60),
     );
-    const needsCellar = v.hidden < cellarTarget;
+    const needsCellar = phaseLevel >= 5 && v.hidden < cellarTarget;
     const producerCoverages = Object.values(producers).map(
       (r) => f.coverage[r],
     );
@@ -132,10 +142,11 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
         const rank = producerCoverages.filter(
           (n) => n < f.coverage[r] - 1e-9,
         ).length;
-        importance = v.buildings[building] < 5 ? 85 - rank : 60 - rank * 10;
-        if (defense && v.productionPerTickMilli[r] / 1000 < defense.perTick[r] && f.stock[r] < Math.max(defense.cost[r], (defense.perTick[r] - v.productionPerTickMilli[r] / 1000) * 120)) importance = 82 - rank;
-        reason = (v.buildings[building] < 5 ? "Production-first opening: bring each producer to level 5 before protection, Hall investment or starter military; necessary Farm/Storehouse capacity still takes priority. " : "") + `In 3 minutes: ${round(f.threeMinutes[r])} ${r} (stock ${round(f.stock[r])} + production). The next lumberyard/quarry/mine upgrades together require ${f.producerDemand[r]} ${r}; projected coverage is ${round(f.coverage[r])}× that basket. Lower coverage takes priority (production rank ${rank + 1}).`;
-        if (defense && importance >= 80 && v.buildings[building] >= 5) reason += ` Recruitment resource shortage: 3Pi1Sh needs ${round(defense.perTick[r]*60)} ${r}/minute; current production is ${round(v.productionPerTickMilli[r]*60/1000)}. Less than a two-minute deficit buffer remains; strengthen this income before discretionary spending.`;
+        const milestone = phaseLevel < 5 ? 5 : phaseLevel < 8 ? 8 : 10;
+        importance = v.buildings[building] < milestone ? (phaseLevel < 5 ? 85 : 75) - rank : 60 - rank * 10;
+        if (defense && v.productionPerTickMilli[r] / 1000 * 0.8 < defense.perTick[r]) importance = 82 - rank;
+        reason = (v.buildings[building] < 5 ? "Production-first opening: bring each producer to level 5 before protection, Hall investment or starter military; necessary Farm/Storehouse capacity still takes priority. " : "") + `After reserving full-time military burn, in 3 minutes: ${round(f.threeMinutes[r])} ${r} (stock ${round(f.stock[r])} + production). The next lumberyard/quarry/mine upgrades together require ${f.producerDemand[r]} ${r}; projected coverage is ${round(f.coverage[r])}× that basket. Lower coverage takes priority (production rank ${rank + 1}).`;
+        if (defense && importance >= 80 && v.buildings[building] >= 5) reason += ` Recruitment resource shortage: 3Pi1Sh needs ${round(defense.perTick[r]*60)} ${r}/minute; current production is ${round(v.productionPerTickMilli[r]*60/1000)}. Income must cover full-time training while leaving at least 20% for construction; strengthen this income first.`;
         if (v.buildings[building] >= PRODUCER_CEILING) { needed = false; reason += ` Producer policy ceiling ${PRODUCER_CEILING} reached; spend on useful military capability instead of further compounding.`; }
       } else if (building === "farm") {
         needed = needsFarm;
@@ -148,7 +159,7 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
           ? 90 +
             Math.min(9, Math.ceil((peak / Math.max(1, v.storage) - 1) * 10))
           : 25;
-        reason = `Stock + ${storageTicks} ticks of production (at most 300, bounded by round end): timber ${round(storageForecast("timber") / 1000)}, stone ${round(storageForecast("stone") / 1000)}, iron ${round(storageForecast("iron") / 1000)}. Storage holds ${v.storage} of each. ${needed ? "At least one resource would overflow; upgrade storage." : "All resources fit; do not upgrade."}`;
+        reason = `Stock + ${storageTicks} ticks of income after reserved troop burn (at most 300, bounded by round end): timber ${round(storageForecast("timber") / 1000)}, stone ${round(storageForecast("stone") / 1000)}, iron ${round(storageForecast("iron") / 1000)}. Storage holds ${v.storage} of each. ${needed ? "At least one resource would overflow; upgrade storage." : "All resources fit; do not upgrade."}`;
       } else if (building === "cellar") {
         needed = needsCellar;
         importance = needed ? 80 : 25;
@@ -157,6 +168,9 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
         needed = hall.needed;
         importance = defense ? Math.min(69, hall.importance) : hall.importance;
         reason = hall.reason;
+        if (phaseLevel < 8 || v.buildings.hall >= 5) { needed = false; importance = 30; reason = phaseLevel < 8 ? "Grow all three producers to level 8 before discretionary Great Hall investment." : "Great Hall 5 milestone reached; retain construction income for production and military capability."; }
+        else { needed = true; importance = 86; reason = "All three producers reached level 8. Bring Great Hall to level 5 for construction speed before the level-10 production milestone."; }
+        if(imminentThreat) { needed=false;importance=30;reason="An attack arrives within 300 ticks; defer the Hall milestone and preserve resources for defence."; }
       }
       const payback =
         building in producers && !queued && !v.buildQueue.length
@@ -164,6 +178,7 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
               cost: option.cost,
               stockMilli: v.resourcesMilli,
               ratesMilli: v.productionPerTickMilli,
+              availableRatesMilli: flow.availableMilli,
               resource: producers[building as keyof typeof producers],
               currentLevel: v.buildings[building],
               targetLevel: option.level,

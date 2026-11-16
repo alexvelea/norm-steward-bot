@@ -6,7 +6,7 @@ import { writeFile } from "node:fs/promises";
 import { PrivateSandbox, sandbox } from "../src/review/sandbox-client.js";
 import { evaluateEconomy } from "../src/advisors/economic.js";
 import { evaluateMilitary } from "../src/advisors/military.js";
-import { evaluateRecruitment } from "../src/advisors/recruitment.js";
+import { evaluateRecruitment } from "./legacy-advisors/recruitment.js";
 import { evaluateScouting } from "../src/advisors/scouting.js";
 import { selectProposal } from "../src/advisors/president.js";
 import { Controller } from "../src/control/controller.js";

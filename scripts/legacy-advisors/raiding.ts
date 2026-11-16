@@ -1,7 +1,8 @@
-import { completionWindow } from "./completion.js";
+/** Historical experiment baseline only; never registered in the live advisor council. */
+import { completionWindow } from "../../src/advisors/completion.js";
 import { INITIAL_PIKEMEN, INITIAL_SHIELDMEN, INITIAL_RAIDERS, ownedPikemen, RECRUIT_BATCH } from "./recruitment.js";
-import type { Action, BuildingId } from "../shared/api.js";
-import type { AdvisorContext, Proposal } from "./types.js";
+import type { Action, BuildingId } from "../../src/shared/api.js";
+import type { AdvisorContext, Proposal } from "../../src/advisors/types.js";
 
 /** Buy only Smithy 2 after defence, with the complete bounded raiding force funded. */
 export function evaluateRaidingSmithy({ state, rules }: AdvisorContext): Proposal<Extract<Action, { type: "build" }>>[] {

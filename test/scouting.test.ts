@@ -23,12 +23,10 @@ test("fully funded Stable and Scouts share the President, behind urgent protecti
   assert.equal(selectProposal([...evaluateEconomy(c), ...militaryAdvisor.evaluate(c)]).selected?.action.type, "build");
   assert.equal(selectProposal([...evaluateEconomy(c), ...militaryAdvisor.evaluate(c)]).selected?.buildingName, "Cellar");
 });
-test("scouting buys no prerequisite chain and requires completed usable raiders", () => {
+test("scouting buys no prerequisite chain and has no starter troop quota", () => {
   const c = ready(), v = c.state.villages[0];
   v.buildings.hall = 9; assert.equal(evaluateScouting(c)[0].status, "not-needed");
-  v.buildings.hall = 10; v.units.home.raider = 9; assert.deepEqual(evaluateScouting(c), []);
-  v.units.away.raider = 1; assert.equal(evaluateScouting(c)[0].status, "ready");
-  v.units.home.pikeman = 9; assert.deepEqual(evaluateScouting(c), []);
+  v.buildings.hall = 10; v.units.home = {}; assert.equal(evaluateScouting(c)[0].status, "ready");
 });
 test("scouting rejects unfunded path, insufficient population and hard training blockers without reserving", () => {
   for (const change of [

@@ -312,14 +312,19 @@ function AdvisorPage({
           <p className="muted">Waiting for production samples.</p>
         )}
         {view.economicForecasts.map((f) => (
-          <details key={f.villageId}>
-            <summary>{f.villageName} · projected resources</summary>
+          <details key={f.villageId} open>
+            <summary>{f.villageName} · {f.strategyPhase ?? "projected resources"}</summary>
+            <p className="small muted">Military budget reserves full-time 3Pi1Sh only when sustainable, leaving at least 20% of each resource’s income for construction. Rates below are per game minute.</p>
             <div className="cc-forecast-scroll">
               <table className="cc-forecast">
                 <thead>
                   <tr>
                     <th>Resource</th>
                     <th>Stock</th>
+                    <th>Gross income/min</th>
+                    <th>Target troop burn/min</th>
+                    <th>Reserved burn/min</th>
+                    <th>Left for construction/min</th>
                     <th>In 3 min</th>
                     <th>Producer upgrade costs</th>
                     <th>Coverage</th>
@@ -330,6 +335,10 @@ function AdvisorPage({
                     <tr key={r}>
                       <th>{r}</th>
                       <td>{Math.round(f.stock[r]).toLocaleString()}</td>
+                      <td>{Math.round((f.netProductionPerMinute?.[r] ?? 0) + (f.militaryBurnPerMinute?.[r] ?? 0)).toLocaleString()}</td>
+                      <td>{Math.round(f.militaryTargetPerMinute?.[r] ?? 0).toLocaleString()}</td>
+                      <td>{Math.round(f.militaryBurnPerMinute?.[r] ?? 0).toLocaleString()}</td>
+                      <td>{Math.round(f.netProductionPerMinute?.[r] ?? 0).toLocaleString()}</td>
                       <td>{Math.round(f.threeMinutes[r]).toLocaleString()}</td>
                       <td>{f.producerDemand[r].toLocaleString()}</td>
                       <td>{f.coverage[r].toFixed(2)}×</td>

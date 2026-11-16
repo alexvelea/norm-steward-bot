@@ -1,7 +1,7 @@
 import type { Action, Resources } from "../shared/api.js";
 import type { AdvisorContext, Proposal } from "./types.js";
-import { defenseBudget } from "./defense-budget.js";
-import { INITIAL_PIKEMEN, INITIAL_SHIELDMEN, INITIAL_RAIDERS, RECRUIT_USE_TICKS } from "./recruitment.js";
+import { defenseBudget, defenseReady, defenseSustainable } from "./defense-budget.js";
+import { RECRUIT_USE_TICKS } from "./defense-budget.js";
 /** Queue a little over one minute of 3Pi1Sh; fill both parts, then drain the whole cohort. */
 export function evaluateSustainedDefense({state,rules,activeProposals=[]}: AdvisorContext): Proposal<Extract<Action,{type:"train"}>>[] {
   if (rules.version !== state.world.rulesVersion) throw new Error("Live rules do not match this world's rules version.");
@@ -10,8 +10,9 @@ export function evaluateSustainedDefense({state,rules,activeProposals=[]}: Advis
   const result:Proposal<Extract<Action,{type:"train"}>>[]=[];
   for(const v of state.villages){
     const budget=defenseBudget(v);if(!budget)continue;
+    const completing=activeProposals.some(p=>p.villageId===v.id&&p.defenseBatch);
+    if(!completing&&!defenseReady(v))continue;
     const owned=(u:"pikeman"|"shieldman"|"raider")=>(v.units.home[u]??0)+(v.units.away[u]??0);
-    if(owned("pikeman")<INITIAL_PIKEMEN||owned("shieldman")<INITIAL_SHIELDMEN||owned("raider")<INITIAL_RAIDERS)continue;
     const queued=(u:string)=>Object.values(v.training).flat().filter(q=>q.unit===u).reduce((n,q)=>n+q.remaining,0);
     const active=activeProposals.find(p=>p.villageId===v.id&&p.defenseBatch)?.defenseBatch;
     const bundles=Math.max(1,Math.ceil(61/budget.ticks));
@@ -27,6 +28,7 @@ export function evaluateSustainedDefense({state,rules,activeProposals=[]}: Advis
     const option=unit==="pikeman"?p:s;
     const blockers:string[]=[...option.blockers];const add=(b:string)=>{if(!blockers.includes(b))blockers.push(b);};let needed=true;
     const skip=(b:string)=>{needed=false;add(b);};
+    if(!active&&!defenseSustainable(v))skip("INCOME_CANNOT_SUSTAIN_TRAINING_AND_CONSTRUCTION");
     const fullCost=Object.fromEntries((["timber","stone","iron"] as const).map(r=>[r,remainingP*p.cost[r]+remainingS*s.cost[r]])) as Resources;
     const funded=(["timber","stone","iron"] as const).every(r=>fullCost[r]*1000<=v.resourcesMilli[r]);
     // A resource-only wait owns the President's budget; treating it as not-needed

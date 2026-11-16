@@ -4,6 +4,43 @@ This process is a client of the existing game. It contains no authoritative simu
 store or game persistence. The private file is local client configuration and execution bookkeeping.
 No LLM, model key, prompt or inference service participates in economic decisions.
 
+## Current phased economy and recruitment policy
+
+The three producer levels (Lumberyard, Quarry, Iron Mine) define the stages; Farm, Cellar and
+Storehouse do not have forced level milestones. This section supersedes earlier experimental
+military targets described later in this document.
+
+1. Bring all three producers to 5. Defer Cellar and military investment; necessary population or
+   storage capacity remains allowed.
+2. Grow them toward 8, expanding Storehouse only for projected overflow and Cellar only for one
+   minute of gross production. No initial troop quotas.
+3. Once all three reach 8, bring Great Hall toward 5; continue producers to 10.
+4. At all three producers >=10, unlock Barracks 3 and Smithy 1. Start direct whole 3Pi1Sh cohorts
+   when income sustains them with construction headroom. No preliminary 10 Pikemen, 5 Shieldmen
+   or 10 Raiders; no automatic Raider recruitment or Raider-specific Smithy unlock.
+
+For each resource, full-time training demand must be <=80% of gross production: at least 20%
+of income remains for construction. One full cohort must also be affordable and fit the population
+reserve. This headroom is an explicit initial policy setting, not a proven optimum. At Barracks 3,
+one 3Pi1Sh takes 31 ticks and the queued cohort is 6 Pikemen + 2 Shieldmen over 62 ticks.
+
+The advisor page shows phase, gross income/min, target troop burn/min, reserved burn/min and net
+income left for construction. Producer coverage forecasts and Storehouse forecasts use income
+remaining after reserved training. Producer payback uses that net income for funding waits but
+keeps the actual gross marginal output for the upgrade's return; soldier spending does not make a
+producer magically less productive. The total-production ledger remains gross.
+
+If sustainable funding is missing, the resource producers needed to restore it outrank routine
+recruitment. Recruitment waits rather than spending down a stockpile on an unsustainable flow.
+Accepted cohort complements still finish safely. Existing buildings and troops are preserved;
+this policy only changes new proposals. New producer upgrades retain the level-20 policy ceiling
+and round-end payback test. Farm retains its capacity/bundle population policy.
+
+Stable/cavalry development requires income for both the defensive mix and cavalry with the same
+construction allowance. Finite cavalry recruitment remains independently bounded; movement risk
+checks are separate from training quotas. Historical starter policies live only under
+`scripts/legacy-advisors/` for reproducible old experiments, never in the live council.
+
 ## Advisor contract and President
 
 `src/advisors/types.ts` defines a small synchronous interface: evaluate live state and rules, return
@@ -31,11 +68,8 @@ Scores are deterministic integers:
 | Farm | 100 if no free population, otherwise 95 **only** below max(50, 20% of capacity); sufficient buffer = not-needed (20) |
 | Storehouse | 90–99 **only** if current stock + production over min(300, remaining round ticks) exceeds capacity for any resource; otherwise not-needed (25) |
 | Cellar | 80 **only** if protection per resource is below the largest 60-tick production amount (one minute); otherwise not-needed (25) |
-| Initial defence | 78 for an affordable batch of at most five toward ten owned Pikemen, then at most five Shieldmen where already unlocked; preserve the economic population buffer, with no resource reservation or prerequisite purchases |
 | First Barracks | 79 when unlocked and usable, below capacity/protection and ahead of discretionary Hall/production investment (ties prefer Barracks); no further military levels |
 | First defensive Smithy | 77 after ten owned Pikemen, with existing Hall/Barracks prerequisites and enough current resources and population for Smithy 1 plus the remaining complement of at most five Shieldmen; no resource reservation |
-| Initial raiding force | 76 for affordable batches of at most five toward ten owned Raiders, after ten Pikemen and five Shieldmen exist; existing unlocks, population buffer and 300 ticks for use required; no attacks |
-| Raiding Smithy unlock | 75 for Smithy 1→2 only, after the defensive complement exists, with construction plus the remaining ten-Raider force funded now and at least 600 ticks after construction; no prerequisite chain or resource reservation |
 | Sustained 3Pi1Sh | 70 after the starter force; repeat 3 Pikemen / 1 Shieldman by owned+away+queued counts, no fixed army cap; affordable small batches only |
 | Military Hall unlock | 79 for currently affordable steps to the live first Barracks / defensive Smithy Hall prerequisite after the opening |
 | Great Hall | At most 69 once the 3Pi1Sh training path is unlocked; otherwise 70–79 only when Hall-first finishes the same useful upgrade sequence sooner after resource costs/waits and a safety margin; otherwise not-needed (30) |
@@ -316,7 +350,7 @@ Unknown requests still serialize further writes until safely resolved. Normal co
 one queued build per village, normal training one cohort per facility, and combat one command
 lane globally. This is concurrency of server work, not concurrent duplicate network writers.
 
-The military construction path is Barracks 10 -> Smithy 5 -> Stable 3. It follows live missing
+The military construction path is Barracks 3 -> Smithy 1, with later Stable prerequisites only when sustainable. It follows live missing
 prerequisites one affordable step at a time, scores 76 and leaves 600 ticks after construction.
 Existing Scout readiness funds Stable 1 and its Scouts; development then extends it to Stable 3.
 The existing production opening, resource-deficit policy, capacity and population constraints remain. The scarce-resource candidate retains one complete next minute-long cohort’s funding for each resource whose production is below defensive training demand before allowing military development. This applies after the starter force, including while Barracks training is active, only with population and round time to use another cohort. It releases construction when the step and cohort are both funded; production upgrades remain eligible through the President. Manual training orders bypass this automatic recruitment buffer. A feasible unfunded sustained cohort is a resource-only waiting proposal, allowing the President to save at score 70 ahead of discretionary production. Full-cohort affordability, training and 60 ticks of use must fit before round end; zero income, storage, population, manual orders and hard server blockers release that reservation. Deficient income, capacity, protection and valuable Walls retain their higher scores.

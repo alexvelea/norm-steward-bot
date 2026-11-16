@@ -1,5 +1,6 @@
-import type { Action, Resources, VillageState } from "../shared/api.js";
-import type { AdvisorContext, Proposal } from "./types.js";
+/** Historical experiment baseline only; never registered in the live advisor council. */
+import type { Action, Resources, VillageState } from "../../src/shared/api.js";
+import type { AdvisorContext, Proposal } from "../../src/advisors/types.js";
 
 export const INITIAL_PIKEMEN = 10;
 export const INITIAL_SHIELDMEN = 5;

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { evaluateRaidingSmithy } from "../src/advisors/raiding.js";
+import { evaluateRaidingSmithy } from "../scripts/legacy-advisors/raiding.js";
 import { evaluateMilitary } from "../src/advisors/military.js";
-import { evaluateRecruitment } from "../src/advisors/recruitment.js";
+import { evaluateRecruitment } from "../scripts/legacy-advisors/recruitment.js";
 import { evaluateEconomy } from "../src/advisors/economic.js";
 import { selectProposal } from "../src/advisors/president.js";
 import { developedContext as context } from "./control-fixtures.js";
@@ -20,9 +20,9 @@ function ready() {
 test("fully funded Smithy 2 reaches President; capacity and protection retain priority", () => {
   const c = ready(), v = c.state.villages[0], [p] = evaluateRaidingSmithy(c);
   assert.equal(p.status, "ready"); assert.equal(p.targetLevel, 2); assert.equal(p.currentLevel, 1);
-  assert.equal(selectProposal([...evaluateEconomy(c), ...evaluateMilitary(c)]).selected?.id, p.id);
+  assert.equal(selectProposal([...evaluateEconomy(c), p]).selected?.id, p.id);
   v.hidden = 0;
-  assert.equal(selectProposal([...evaluateEconomy(c), ...evaluateMilitary(c)]).selected?.action.building, "cellar");
+  assert.equal(selectProposal([...evaluateEconomy(c), p]).selected?.action.building, "cellar");
 });
 test("raiding unlock requires owned defence and buys neither earlier nor later Smithy levels", () => {
   const c = ready(), v = c.state.villages[0];

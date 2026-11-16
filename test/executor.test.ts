@@ -399,6 +399,7 @@ test("an operator pause survives service restart", async () => {
 test("fresh revalidation stops spending when round completion no longer fits", async () => {
   const x = await setup();
   x.c.state.world.endsAtTick = 110;
+  x.c.state.villages[0].population.used=200;
   for (const o of x.c.state.villages[0].options.build) o.ticks = 5;
   let reads = 0;
   const remote: Remote = async <T>(
@@ -432,7 +433,7 @@ test("Military Advisor uses the durable shared executor and confirms its first B
   const x = await setup(),
     v = x.c.state.villages[0];
   completeOpening(x.c);
-  v.buildings.hall = 3;
+  v.buildings.hall = 5;
   v.hidden = 1000;
   await x.controller.cycle();
   assert.equal(x.controller.snapshot().selection.selected?.advisor, "military");
@@ -462,7 +463,7 @@ test("fresh military revalidation catches a lost prerequisite before spending", 
   const x = await setup(),
     v = x.c.state.villages[0];
   completeOpening(x.c);
-  v.buildings.hall = 3;
+  v.buildings.hall = 5;
   v.hidden = 1000;
   let reads = 0;
   const remote: Remote = async <T>(s: Settings, p: string, b?: unknown) => {
@@ -533,8 +534,9 @@ test("fresh revalidation stops a producer whose payback crosses round end while 
 function allowRecruitment(x: Awaited<ReturnType<typeof setup>>) {
   const v = x.c.state.villages[0];
   completeOpening(x.c);
-  v.buildings.hall = 3;
-  v.buildings.barracks = 1;
+  v.buildings.hall = 5;
+  v.buildings.smithy = 1;
+  v.buildings.barracks = 3;
   v.hidden = 1000;
   v.options.train = [
     {
@@ -547,6 +549,7 @@ function allowRecruitment(x: Awaited<ReturnType<typeof setup>>) {
       blockers: [],
       affordableAtTick: null,
     },
+    {unit:"shieldman",cost:{timber:35,stone:30,iron:65},pop:1,ticksEach:11,maxCount:20,ok:true,blockers:[],affordableAtTick:null},
   ];
 }
 test("training is journalled, accepted once and confirmed after the batch finishes", async () => {
@@ -565,11 +568,12 @@ test("training is journalled, accepted once and confirmed after the batch finish
   assert.equal(prepared, true);
   assert.equal(x.writes[0][0].type, "train");
   assert.equal(x.storage.value?.pending?.phase, "accepted");
+  await x.controller.setAutomatic(false);
   await x.controller.cycle();
   assert.equal(x.writes.length, 1);
   const v = x.c.state.villages[0];
   v.training.barracks = [];
-  v.units.away.pikeman = 5;
+  v.units.away.pikeman = 6;
   await x.controller.setAutomatic(false);
   await x.controller.cycle();
   assert.equal(x.controller.snapshot().pending, null);
@@ -776,23 +780,24 @@ test("accepted construction and training run concurrently, survive paused restar
  const x=await setup();allowRecruitment(x);
  await x.controller.cycle();await x.controller.setAutomatic(true);await x.controller.cycle();
  assert.equal(x.writes[0][0].type,"train");
- await x.controller.cycle();assert.equal(x.writes[1][0].type,"build");
- await x.controller.cycle();assert.equal(x.writes.length,2);
- assert.equal(x.storage.value!.active!.length,2);
+ await x.controller.cycle();assert.equal(x.writes[1][0].type,"train");
+ await x.controller.cycle();assert.equal(x.writes[2][0].type,"build");
+ await x.controller.cycle();assert.equal(x.writes.length,3);
+ assert.equal(x.storage.value!.active!.length,3);
  await x.controller.setAutomatic(false);
  const restarted=await Controller.create(x.storage,settings,x.request,()=>10000);
- await restarted.cycle();assert.equal(restarted.snapshot().automatic,false);assert.equal(restarted.snapshot().active!.length,2);
+ await restarted.cycle();assert.equal(restarted.snapshot().automatic,false);assert.equal(restarted.snapshot().active!.length,3);
  const build=x.storage.value!.active!.find(p=>p.action.type==="build")!;
  if(build.action.type==="build")x.c.state.villages[0].buildings[build.action.building]=build.proposal.targetLevel;
- x.c.state.villages[0].buildQueue=[];x.c.state.villages[0].training.barracks=[];x.c.state.villages[0].units.away.pikeman=5;
+ x.c.state.villages[0].buildQueue=[];x.c.state.villages[0].training.barracks=[];x.c.state.villages[0].units.away.pikeman=6;x.c.state.villages[0].units.away.shieldman=2;
  await restarted.cycle();assert.equal(restarted.snapshot().active!.length,0);assert.equal(restarted.snapshot().pending,null);
- assert.equal(x.writes.length,2);
- assert.equal(restarted.snapshot().decisions.filter(d=>d.kind==="confirmed").length,2);
+ assert.equal(x.writes.length,3);
+ assert.equal(restarted.snapshot().decisions.filter(d=>d.kind==="confirmed").length,3);
 });
 
 test("lost construction response does not replay or erase simultaneous accepted training",async()=>{
  const x=await setup();allowRecruitment(x);
- await x.controller.cycle();await x.controller.setAutomatic(true);await x.controller.cycle();
+ await x.controller.cycle();await x.controller.setAutomatic(true);await x.controller.cycle();await x.controller.cycle();
  let lost=false;
  const request:Remote=async<T>(s:Settings,path:string,body?:unknown)=>{
   const response=await x.request<T>(s,path,body);
@@ -800,10 +805,10 @@ test("lost construction response does not replay or erase simultaneous accepted 
   return response;
  };
  const restarted=await Controller.create(x.storage,settings,request,()=>10000);
- await restarted.cycle();assert.equal(x.writes.length,2);assert.equal(x.storage.value!.active!.length,1);
+ await restarted.cycle();assert.equal(x.writes.length,3);assert.equal(x.storage.value!.active!.length,2);
  await restarted.setAutomatic(false);
  const paused=await Controller.create(x.storage,settings,x.request,()=>20000);await paused.cycle();
- assert.equal(x.writes.length,2);assert.equal(paused.snapshot().active!.length,1);
+ assert.equal(x.writes.length,3);assert.equal(paused.snapshot().active!.length,2);
  assert.ok(paused.snapshot().active!.every(p=>p.action.type==="train"));
 });
 
@@ -812,7 +817,7 @@ async function completedFirstCohortPart() {
  const v=x.c.state.villages[0];
  Object.assign(v.buildings,{barracks:10,smithy:5,stable:3});
  v.units.home={pikeman:10,shieldman:5,raider:10};v.storage=100000;
- v.productionPerTickMilli={timber:5000,stone:5000,iron:5000};
+ v.productionPerTickMilli={timber:10000,stone:10000,iron:10000};
  v.options.train.push({unit:"shieldman",cost:{timber:35,stone:30,iron:65},ticksEach:11,pop:1,maxCount:20,ok:true,blockers:[],affordableAtTick:null});
  await x.controller.cycle();await x.controller.setAutomatic(true);await x.controller.cycle();
  assert.equal(x.writes[0][0].type,"train");

@@ -134,6 +134,7 @@ test("storehouse requires stock plus five-minute production to exceed capacity",
 test("cellar protects one minute of the fastest production, independent of stock", () => {
   const c = context(),
     v = c.state.villages[0];
+  v.buildings.lumberyard=v.buildings.quarry=v.buildings.mine=5;
   v.productionPerTickMilli = { timber: 1000, stone: 2000, iron: 3000 };
   v.hidden = 180;
   assert.equal(proposal(c, "cellar").status, "not-needed");
@@ -216,5 +217,5 @@ test("production-first opening outranks Cellar, Hall and military until each pro
   v.population.used = v.population.max;
   assert.equal(selectProposal(evaluateEconomy(c)).selected?.action.building, "farm");
   v.population.used = 30; v.buildings.mine = 5;
-  assert.ok(evaluateEconomy(c).filter(p => ["mine", "lumberyard", "quarry"].includes(p.action.building)).every(p => p.importance <= 60));
+  assert.ok(evaluateEconomy(c).filter(p => ["mine", "lumberyard", "quarry"].includes(p.action.building)).every(p => p.importance < 80));
 });

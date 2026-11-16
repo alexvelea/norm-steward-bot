@@ -7,7 +7,7 @@ import { developedContext as context } from "./control-fixtures.js";
 
 function ready() {
   const c = context();
-  c.state.villages[0].buildings.hall = 3;
+  c.state.villages[0].buildings.hall = 5;
   c.state.villages[0].hidden = 1000;
   return c;
 }

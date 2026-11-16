@@ -1,6 +1,51 @@
 # Current strategy and implementation work
 
 
+## Current policy: staged growth, no starter quotas, sustainable military budget
+
+Owner direction on 2026-11-16 supersedes the historical Barracks-10 rush and starter-force
+policies below. All-producer milestones mean Lumberyard/Quarry/Mine, not Cellar/Storehouse/Farm.
+Reach 5 first; use need-based capacity/protection while growing to 8; then Hall toward 5 and
+producers toward 10. At producer minimum 10, establish Barracks 3 and Smithy 1, then directly
+queue minute-long 3Pi1Sh cohorts. There are no 10-Pikeman, 5-Shieldman or 10-Raider prerequisites
+or a separate Raider recruitment path. Historical scripts import archived baselines explicitly.
+
+Recruit only when each resource's full-time troop demand consumes at most 80% of its gross
+production, and the full cohort is currently funded. Reserve at least 20% income for construction.
+This is a transparent initial planning allowance, not optimised economic theory. Use net income
+after the training reserve for production coverage, resource funding waits and storage forecasting;
+retain gross marginal production for payback gains and the lifetime production ledger. Display
+phase, target/reserved troop burn and net construction income in the advisor view.
+
+Do not confuse a remaining stockpile with sustainable troop income. Build deficient production
+when the sustained mix cannot be funded. Further military technology must support its intended
+training throughput, rather than consume the money needed for current troops. Existing accepted
+work remains tracked; existing higher building levels are not undone. Keep the producer-20 ceiling,
+round-end payback, population buffer, one President, parallel server queues and durable retries.
+
+A matched fresh-world comparison uses the pre-change 61d2d2a policy and the phased candidate,
+seed 73430, no house bots, identical 1000/1000/1000 initial stocks and ordinary server actions.
+The 2400-tick prototype comparison reached all producers >=10 at tick 1218 versus 1954
+for the baseline. It finished at 87 Pikemen/28 Shieldmen, Barracks 3 and producers 12/12/10,
+versus baseline 19 Pikemen/8 Shieldmen/10 Raiders, Barracks 8 and producers 12/11/10.
+Net stock and retained assets differ; this is a peaceful flow comparison, not combat validation.
+The final implementation additionally exposes the net budget and uses it for storage projections.
+The comparison verifies every candidate troop submission starts after all three
+producers reach 10, with exact 3:1 cohort metadata and no Raider submissions. Private receipts:
+`/var/lib/norm-steward-review/owner-phased-economy-20261116/`. Reproduce with
+`STEWARD_BASELINE_COMMIT=61d2d2a STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx scripts/experiment-phased-economy.ts`.
+
+Next reviews should measure full-round delivered troops, production and retained assets, resource
+spending shares and idle queues under this policy. Old experiments starting at producer 7 are now
+intentionally in the economy-only stage; do not call that recruitment starvation. Seed military
+throughput tests at producer >=10 with income sufficient for the live Barracks speed and the
+construction allowance. Threat response, opportunity cost and the 20% allowance remain to evaluate.
+
+## Historical implementation and experiments
+
+The following sections record earlier policies and measurements; the current policy above is
+authoritative where they differ.
+
 ## Complete-cohort resource reservation (2026-11-16, 14:30 review)
 
 The saved funding guard alone completed its requested 300-tick comparison with

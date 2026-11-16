@@ -94,10 +94,11 @@ export function context() {
 /** A post-opening economy for military/executor tests, with matching live option rows. */
 export function completeOpening(c: ReturnType<typeof context>) {
   for (const v of c.state.villages) for (const id of ["lumberyard", "quarry", "mine"] as const) {
-    v.buildings[id] = 5;
-    const row = TABLES.buildings[id][5];
+    v.buildings[id] = 10;
+    const row = TABLES.buildings[id][10];
     Object.assign(v.options.build.find(o => o.building === id)!, {level:row.level,cost:row.cost,ticks:row.ticksByHall[v.buildings.hall]});
   }
+  for (const v of c.state.villages) {v.buildings.hall=5;v.storage=10000;v.productionPerTickMilli={timber:10000,stone:10000,iron:10000};}
   return c;
 }
 export function developedContext() { return completeOpening(context()); }

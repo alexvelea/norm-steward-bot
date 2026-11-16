@@ -2,16 +2,17 @@ import type {Action,BuildingId,Resources} from "../shared/api.js";
 import type {AdvisorContext,Proposal} from "./types.js";
 import {completionWindow} from "./completion.js";
 import {defenseBudget} from "./defense-budget.js";
-import {INITIAL_PIKEMEN,INITIAL_SHIELDMEN,INITIAL_RAIDERS,RECRUIT_USE_TICKS} from "./recruitment.js";
+import {RECRUIT_USE_TICKS} from "./defense-budget.js";
 /** One affordable construction step toward Barracks 10 -> Smithy 5 -> Stable 3. */
 export function evaluateMilitaryDevelopment({state,rules}:AdvisorContext):Proposal<Extract<Action,{type:"build"}>>[]{
  if(rules.version!==state.world.rulesVersion)throw new Error("Live rules do not match this world's rules version.");
  const metadata=rules.rules.BUILDINGS as Record<BuildingId,{name:string;requires:Partial<Record<BuildingId,number>>}>;
  const proposals:Proposal<Extract<Action,{type:"build"}>>[]=[];
  for(const v of state.villages){
-  if([v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard].some(n=>n<5)||!v.buildings.barracks)continue;
-  let building:BuildingId=v.buildings.barracks<10?"barracks":v.buildings.smithy<5?"smithy":"stable";
-  const goal=building==="barracks"?10:building==="smithy"?5:3;
+  if([v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard].some(n=>n<10)||!v.buildings.barracks)continue;
+  let building:BuildingId=v.buildings.barracks<3?"barracks":v.buildings.smithy<1?"smithy":"stable";
+  if(building==="stable") { const b=defenseBudget(v); const lancer=(rules.rules.UNITS as Record<string,{cost:Resources;trainTime:number}>).lancer; const ticks=Math.max(1,Math.round(lancer.trainTime*rules.tables.trainSpeed[3])); if(!b||(["timber","stone","iron"] as const).some(r=>v.productionPerTickMilli[r]/1000*.8<b.perTick[r]+lancer.cost[r]/ticks))continue; }
+  const goal=building==="barracks"?3:building==="smithy"?1:3;
   if(v.buildings[building]>=goal)continue;
   // Follow only this step's actual missing prerequisite, rather than buying unrelated buildings.
   const missing=Object.entries(metadata[building].requires).find(([b,n])=>v.buildings[b as BuildingId]<n!);
@@ -25,10 +26,10 @@ export function evaluateMilitaryDevelopment({state,rules}:AdvisorContext):Propos
   for(const r of ["timber","stone","iron"] as const)if(v.resourcesMilli[r]<o.cost[r]*1000||o.cost[r]>v.storage){needed=false;blockers.push("INSUFFICIENT_RESOURCES");break;}
   // Faster training cannot sustain defence when its input is already scarce.
   // Keep one complete next cohort funded before discretionary military construction.
-  const budget=defenseBudget(v),owned=(u:"pikeman"|"shieldman"|"raider")=>(v.units.home[u]??0)+(v.units.away[u]??0);
+  const budget=defenseBudget(v);
   const bundles=budget?Math.ceil(61/budget.ticks):0;
   const nextStart=Math.max(state.world.tick,...v.training.barracks.map(q=>q.endTick));
-  const protectDefense=budget&&owned("pikeman")>=INITIAL_PIKEMEN&&owned("shieldman")>=INITIAL_SHIELDMEN&&owned("raider")>=INITIAL_RAIDERS&&
+  const protectDefense=budget&&
    !v.orders.train.length&&free>=buffer+budget.pop*bundles&&nextStart+budget.ticks*bundles+RECRUIT_USE_TICKS<=state.world.endsAtTick;
   if(protectDefense&&(["timber","stone","iron"] as const).some(r=>v.productionPerTickMilli[r]/1000<budget.perTick[r]&&v.resourcesMilli[r]<(o.cost[r]+budget.cost[r]*bundles)*1000)){
    needed=false;blockers.push("DEFENSE_RESOURCE_RUNWAY");
@@ -36,7 +37,7 @@ export function evaluateMilitaryDevelopment({state,rules}:AdvisorContext):Propos
   const completion=completionWindow(state,v,o);if(completion&&completion.completionTick+600>state.world.endsAtTick){needed=false;blockers.push("ROUND_END_TOO_SOON");}
   if(state.world.status!=="running")blockers.push("WORLD_NOT_RUNNING");if((state.player.nextActTick??state.world.tick)>state.world.tick)blockers.push("COUNCIL_COOLDOWN");
   proposals.push({id:`${state.world.epoch}:${v.id}:development:${building}:${o.level}`,advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building},buildingName:metadata[building].name,currentLevel:v.buildings[building],targetLevel:o.level,importance:76,
-   reason:`Military construction path: Barracks 10, then Smithy 5, then Stable 3 for Scouts and Lancers. Next: ${metadata[building].name} ${o.level}${missing?` to unlock ${metadata[destination].name}`:""}. Fund this step now, retain the population buffer and at least 600 ticks after construction. Training continues in its own queue. For resources produced below the sustained defensive training demand, retain funding for one complete next cohort before this construction.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
+   reason:`Military construction path: Barracks 3, then Smithy 1, then Stable 3 for Scouts and Lancers. Next: ${metadata[building].name} ${o.level}${missing?` to unlock ${metadata[destination].name}`:""}. Fund this step now, retain the population buffer and at least 600 ticks after construction. Training continues in its own queue. For resources produced below the sustained defensive training demand, retain funding for one complete next cohort before this construction.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
  }
  return proposals;
 }
@@ -75,10 +76,12 @@ export function evaluateCavalry({state,rules}:AdvisorContext):Proposal<Extract<A
  if(rules.version!==state.world.rulesVersion)throw new Error("Live rules do not match this world's rules version.");
  const proposals:Proposal<Extract<Action,{type:"train"}>>[]=[];
  for(const v of state.villages){
-  if(v.buildings.barracks<10||v.buildings.smithy<5||v.buildings.stable<3)continue;
+  if(v.buildings.barracks<3||v.buildings.smithy<3||v.buildings.stable<3)continue;
   const o=v.options.train.find(o=>o.unit==="lancer");if(!o)continue;
   const owned=(v.units.home.lancer??0)+(v.units.away.lancer??0),queued=v.training.stable.filter(q=>q.unit==="lancer").reduce((n,q)=>n+q.remaining,0);
   if(owned+queued>=30)continue;
+  const budget=defenseBudget(v);
+  if(Math.min(v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard)<10||!budget||(["timber","stone","iron"] as const).some(r=>v.productionPerTickMilli[r]/1000*.8<budget.perTick[r]+o.cost[r]/o.ticksEach))continue;
   const limit=(rules.rules.ECONOMY as {trainBatchMax:number}).trainBatchMax;
   const count=Math.min(30-owned-queued,Math.ceil(61/o.ticksEach),limit),blockers:string[]=[...o.blockers];let needed=o.ok&&!blockers.length;
   const buffer=Math.max(50,Math.ceil(v.population.max*.2));if(count<1||count>o.maxCount||v.population.max-v.population.used<count*o.pop+buffer){needed=false;blockers.push("POPULATION_OR_BATCH_CAPACITY");}

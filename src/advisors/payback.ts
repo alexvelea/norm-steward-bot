@@ -9,6 +9,7 @@ export interface PaybackInput {
   cost: Resources;
   stockMilli: Resources;
   ratesMilli: Resources;
+  availableRatesMilli?: Resources;
   resource: keyof Resources;
   currentLevel: number;
   targetLevel: number;
@@ -84,11 +85,11 @@ export function productionPayback(input: PaybackInput): ProductionPayback {
   for (const r of resources) {
     const shortfall = cost[r] * 1000 - stockMilli[r];
     if (shortfall > 0) {
-      if (ratesMilli[r] <= 0)
+      if ((input.availableRatesMilli ?? ratesMilli)[r] <= 0)
         return invalid(
           `Cannot fund the ${r} cost from current production; no resource payback is established.`,
         );
-      wait = Math.max(wait, Math.ceil(shortfall / ratesMilli[r]));
+      wait = Math.max(wait, Math.ceil(shortfall / (input.availableRatesMilli ?? ratesMilli)[r]));
     }
   }
   const start = Math.max(
