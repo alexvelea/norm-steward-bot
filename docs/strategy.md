@@ -4,6 +4,34 @@ The control service continuously plays through deterministic advisors and the Pr
 an autonomous developer, not the gameplay loop. One source of resource allocation and one durable
 executor; no separate military spender or second live bot.
 
+## Interrupted cohort recovery (2026-11-16)
+
+A confirmed Pikeman component now retains its outstanding Shieldman complement independently
+of its completed queue operation. This fixes losing the original cohort when a pause or service
+downtime spans the first component's completion. Paused reconciliation and further restarts keep
+the original target, while the President and fresh executor checks still control every write.
+Manual Barracks queues defer the complement; account/world changes and Pikeman losses discard
+stale memory. An operator pause remains persisted.
+
+The matched seed-73430 private comparison uses identical ordinary paid setup, deployed baseline
+`1845dade`, and one-tick/one-second decision cadence. Both start at tick 1800, queue six Pikemen
+at 1801, pause before the two Shieldmen are queued, and explicitly resume at 1850 after paused
+reconciliation and two restarts. Candidate queues the original two Shieldmen immediately; baseline
+starts construction and then another six-Pikeman cohort. At tick 1873 candidate has 16 Pikemen /
+7 Shieldmen versus baseline 18 / 5; both retain ten Raiders. Candidate has also queued its next
+complete 6+2 cohort, while baseline still has four Pikemen and two Shieldmen pending. Candidate
+spent 1,660 on recruitment versus 1,400, including queued work; its stocks are lower by exactly
+the extra two Shieldmen's 70 timber / 60 stone / 130 iron. Both have identical completed buildings
+and show construction/training overlap. This verifies intended cohort recovery and continuing
+recruitment, not combat value or uninterrupted full-round throughput. Both worlds were deleted.
+
+Reproduce with `node --import tsx scripts/experiment-defense-recovery.ts`. Current-code receipts,
+paid setup, per-action results, queue samples and final stocks are in
+`/var/lib/norm-steward-review/runs/20261116T110010Z/defense-recovery-comparison.json` and
+`sandbox-events.jsonl` in that same private directory. Next compare uninterrupted full-round
+utilisation and command opportunities at representative cadence before changing infrastructure
+spending further.
+
 ## Active queue and military-development policy (2026-11-16)
 
 The recruitment/command overlap candidate removes the empty-training-queue requirement from

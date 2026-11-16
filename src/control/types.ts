@@ -51,6 +51,8 @@ export interface SavedControl {
   pending: Pending | null;
   /** Accepted operations occupy independent game queues; only one write can be in flight. */
   active?: Pending[];
+  /** Confirmed Pikemen whose journalled cohort still needs its Shieldman component. */
+  defenseComplements?: Pick<Pending, "proposal" | "serverUrl" | "worldId" | "epoch" | "accountId">[];
   decisions: Decision[];
   production?: ProductionLedger;
   scouting?: ScoutObservation[];

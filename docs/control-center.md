@@ -332,6 +332,15 @@ spending. After both are queued, no further Barracks recruitment is proposed unt
 drains. A crash/unknown response retains request IDs; un-attributable changes suppress replay.
 Final short cavalry batches may take under a minute when approaching the 30-unit limit.
 
+If a pause or service downtime lets the Pikeman component finish before its Shieldmen are
+queued, confirmation also saves the outstanding complement independently of the completed
+operation. It retains the original cohort counts across paused reconciliation and restarts.
+A persisted operator pause still requires an explicit resume before spending. The complement returns through the President with
+the usual funding, population, manual-order and round-end checks; an unrelated Barracks queue
+must drain first. Queued or owned Shieldmen satisfy the remembered target. Changed account,
+server, world or epoch, a lost village, a finished round, or losses below the completed Pikeman
+target discard this memory; it never authorizes replacement Pikemen.
+
 Walls score 84 only when their marginal defence per resource is at least 1.10 times a new
 3Pi1Sh for **every** attack type. Live wall flat/base/multiplier rules and actual home plus supporting
 troops determine the gain; away troops are excluded. This static efficiency test includes base

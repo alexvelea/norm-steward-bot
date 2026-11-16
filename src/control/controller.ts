@@ -510,7 +510,11 @@ export class Controller {
     await this.persist();
   }
   private plan(context: AdvisorContext): void {
-    context = {...context, activeProposals:(this.saved.active ?? []).map(p => p.proposal)};
+    // A completed first component can outlive its accepted queue item across a pause/restart.
+    // Do not use that memory to append to an unrelated/manual Barracks queue.
+    const complements = (this.saved.defenseComplements ?? []).filter(p =>
+      !context.state.villages.find(v => v.id === p.proposal.villageId)?.training.barracks.length);
+    context = {...context, activeProposals:[...(this.saved.active ?? []), ...complements].map(p => p.proposal)};
     this.view.world = context.state.world;
     this.view.villages = context.state.villages.map((v) => ({
       id: v.id,
@@ -574,6 +578,16 @@ export class Controller {
   private async reconcile(context: AdvisorContext): Promise<void> {
     for (const p of [...(this.saved.active ?? []), ...(this.saved.pending ? [this.saved.pending] : [])]) await this.reconcileOne(context, p);
     this.archiveAccepted();
+    this.saved.defenseComplements = (this.saved.defenseComplements ?? []).filter(p => {
+      const s = context.state, v = s.villages.find(v => v.id === p.proposal.villageId), plan = p.proposal.defenseBatch;
+      if (!v || !plan || s.world.status === "ended" || p.serverUrl !== this.settings.serverUrl ||
+          p.worldId !== s.world.id || p.epoch !== s.world.epoch || p.accountId !== this.view.account?.id) return false;
+      const owned = (unit: "pikeman" | "shieldman") => (v.units.home[unit] ?? 0) + (v.units.away[unit] ?? 0);
+      // Losses must not turn a remembered complement into replacement Pikemen.
+      if (owned("pikeman") < plan.baselinePikemen + plan.pikemen) return false;
+      const shieldsQueued = v.training.barracks.filter(q => q.unit === "shieldman").reduce((n, q) => n + q.remaining, 0);
+      return owned("shieldman") + shieldsQueued < plan.baselineShieldmen + plan.shieldmen;
+    });
   }
   private async reconcileOne(context: AdvisorContext, p: Pending): Promise<void> {
     const s = context.state;
@@ -678,6 +692,15 @@ export class Controller {
         p.action.clientId,
         context.state.world.tick,
       );
+      if (complete && unit === "pikeman" && p.proposal.defenseBatch) {
+        // Keep the original counts/baselines, independently of the completed operation.
+        // Fresh policy checks still own funding, population, manual orders and the deadline.
+        const { proposal, serverUrl, worldId, epoch, accountId } = p;
+        this.saved.defenseComplements = [
+          ...(this.saved.defenseComplements ?? []).filter(c => c.proposal.villageId !== proposal.villageId),
+          { proposal: structuredClone(proposal), serverUrl, worldId, epoch, accountId },
+        ];
+      }
       this.clearOperation(p);
     } else if (
       owned !== p.proposal.currentLevel ||
