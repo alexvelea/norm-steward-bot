@@ -8,6 +8,8 @@ import type {
   HistoryResponse,
   MapResponse,
   ReportsResponse,
+  Report,
+  SimulateBattleResponse,
   MeResponse,
   RulesResponse,
   StateResponse,
@@ -20,7 +22,8 @@ import {
 } from "./production.js";
 import { economicAdvisor, forecastEconomy } from "../advisors/economic.js";
 import { militaryAdvisor } from "../advisors/military.js";
-import { evaluateScoutDispatch, type ScoutingContext, type ScoutObservation } from "../advisors/scout-dispatch.js";
+import { evaluateScoutDispatch, usableScoutObservation, type ScoutingContext, type ScoutObservation } from "../advisors/scout-dispatch.js";
+import { evaluateRaidExecution, hamletArrivalDefense, usableRaidIntel, type RaidContext, type RaidAttempt } from "../advisors/raid-execution.js";
 import { selectProposal } from "../advisors/president.js";
 import type { AdvisorContext, Proposal } from "../advisors/types.js";
 import type { ControlStorage } from "./storage.js";
@@ -73,6 +76,7 @@ export class Controller {
     rules: RulesResponse;
   } | null = null;
   private scouting: ScoutingContext | undefined;
+  private raids: RaidContext = { attempts: [], assessments: [] };
   private scoutReports: ReportsResponse = { reports: [], next: null };
   private persistence: Promise<void> = Promise.resolve();
   private view: Omit<
@@ -379,18 +383,68 @@ export class Controller {
   }
   private async readScouting(context: AdvisorContext): Promise<void> {
     const state = context.state;
-    const needed = this.saved.pending?.action.type === "send" || state.villages.some(v => (v.units.home.scout ?? 0) >= 2);
-    this.scoutReports = { reports: [], next: null };
-    if (!needed) { this.scouting = undefined; return; }
     const scope = this.scoutingScope(state);
+    const needed = this.saved.pending?.action.type === "send" || (this.saved.scouting ?? []).some(o => o.scope === this.scoutingScope(state) && o.report && state.world.tick - o.report.tick <= 300) || state.villages.some(v => (v.units.home.scout ?? 0) >= 2);
+    this.scoutReports = { reports: [], next: null };
+    this.raids = { attempts: this.saved.raids ?? [], assessments: this.raids.assessments.filter(a => a.scope === scope && a.tick === state.world.tick) };
+    if (!needed) { this.scouting = undefined; return; }
     // A public map is enough for a scouting destination; never infer hidden defenders from it.
-    const map = await this.request<MapResponse>(this.settings, this.path("/map"));
-    if (this.saved.pending?.action.type === "send") {
+    // Reuse only a map read at this exact tick and scope during immediate pre-write revalidation.
+    const map = this.scouting?.scope === scope && this.scouting.map.tick === state.world.tick
+      ? this.scouting.map : await this.request<MapResponse>(this.settings, this.path("/map"));
+    if (this.saved.pending?.action.type === "send" || state.villages.some(v => (v.units.home.lancer ?? 0) >= 30)) {
       this.scoutReports = await this.request<ReportsResponse>(this.settings, this.path("/reports"));
     }
     this.scouting = { scope, map, observations: (this.saved.scouting ?? []).filter(o => o.scope === scope) };
+    for (const r of this.scoutReports.reports) {
+      if (r.kind !== "battle" || r.role !== "attacker" || r.outcome !== "won" || r.attacker.ownerId !== state.player.id ||
+          r.defender.ownerId !== null || !r.commandId || !state.villages.some(v => v.id === r.attacker.id) ||
+          r.tick > state.world.tick || state.world.tick - r.tick > 600 ||
+          this.scouting.observations.some(o => o.targetId === r.defender.id && o.clearing?.id === r.id)) continue;
+      const clearing = await this.request<Report>(this.settings, this.path(`/reports/${encodeURIComponent(r.id)}`));
+      if (clearing.id === r.id && clearing.commandId === r.commandId && clearing.tick === r.tick && !clearing.conquered &&
+          clearing.kind === "battle" && clearing.role === "attacker" && clearing.outcome === "won" &&
+          clearing.attacker.ownerId === state.player.id && clearing.defender.id === r.defender.id && clearing.defender.ownerId === null) {
+        this.rememberScout({ scope, villageId: r.attacker.id, targetId: r.defender.id, targetOwnerId: null, sentTick: -600, clearing });
+      }
+      break;
+    }
+    // Fetch only a journal-linked, fresh successful report. Reading detail marks it read upstream.
+    for (const o of this.scouting.observations) {
+      if (!o.detail && o.report && usableScoutObservation(o, state, map, scope)) {
+        const detail = await this.request<Report>(this.settings, this.path(`/reports/${encodeURIComponent(o.report.id)}`));
+        // Persist full detail only if provenance and shape agree with the original observation.
+        const candidate = { ...o, detail };
+        if (usableRaidIntel(candidate, state, this.scouting)) this.rememberScout(candidate);
+        break; // Bound reads to one detail per evaluation.
+      }
+    }
+    if (state.commands.outgoing.some(c => c.kind === "attack" && Object.entries(c.units).some(([unit, n]) => unit !== "scout" && n > 0)) || this.saved.pending?.phase === "accepted") return;
+    for (const o of this.scouting.observations) {
+      if (!usableRaidIntel(o, state, this.scouting) || this.raids.attempts.some(a => a.scope === scope && a.reportId === o.detail.id)) continue;
+      const intel = o.detail.intel!;
+      const village = state.villages.find(v => v.id === o.villageId);
+      const owner = map.players.find(p => p.id === o.targetOwnerId);
+      const unit = o.targetOwnerId === null ? "lancer" : "raider";
+      const count = unit === "lancer" ? 30 : 10;
+      if (!village || (village.units.home[unit] ?? 0) < count || (o.targetOwnerId !== null && !owner?.houseBot) ||
+          intel.buildings.wall !== 0 || Object.values(intel.unitsHome).some(n => n > 0) || Object.values(intel.supportTotal).some(n => n > 0)) continue;
+      if (this.raids.assessments.some(a => a.reportId === o.detail.id)) break;
+      const target = map.villages.find(t => t.id === o.targetId)!;
+      const speed = (context.rules.rules.UNITS as Record<string, { speed: number }>)[unit]?.speed;
+      const travel = Math.ceil(Math.hypot(target.x - village.x, target.y - village.y) * speed);
+      const baseDefense = unit === "lancer" ? hamletArrivalDefense(o, state, context.rules, travel) : undefined;
+      if (unit === "lancer" && (!Number.isSafeInteger(travel) || travel < 1 || travel > 300 || baseDefense === undefined)) continue;
+      const battle = await this.request<SimulateBattleResponse>(this.settings, this.path("/simulate/battle"), {
+        fromReport: o.detail.id, attacker: { [unit]: count }, ...(baseDefense === undefined ? {} : { baseDefense }),
+      });
+      this.raids.assessments.push({ scope, reportId: o.detail.id, tick: state.world.tick, battle, unit, baseDefense });
+      break; // One authoritative risk assessment per evaluation.
+    }
   }
   private rememberScout(observation: ScoutObservation): void {
+    if (!observation.clearing && observation.targetOwnerId === null) observation = { ...observation,
+      clearing: this.scouting?.observations.find(o => o.targetId === observation.targetId && o.clearing)?.clearing };
     this.saved.scouting = [observation, ...(this.saved.scouting ?? []).filter(o =>
       !(o.scope === observation.scope && o.villageId === observation.villageId && o.sentTick === observation.sentTick))].slice(0, 32);
     if (this.scouting) this.scouting.observations = this.saved.scouting;
@@ -421,6 +475,37 @@ export class Controller {
     }
     await this.persist();
   }
+  private rememberRaid(attempt: RaidAttempt): void {
+    // Keep every still-usable report consumed, even if many villages raid in one round.
+    this.saved.raids = [attempt, ...(this.saved.raids ?? []).filter(a =>
+      a.scope === attempt.scope && a.reportId !== attempt.reportId && attempt.sentTick - a.sentTick <= 900)];
+    this.raids.attempts = this.saved.raids;
+  }
+  private async reconcileRaid(context: AdvisorContext, p: Pending): Promise<void> {
+    const state = context.state;
+    const v = state.villages.find(v => v.id === p.proposal.villageId)!;
+    const report = p.itemId ? this.scoutReports.reports.find(r => r.commandId === p.itemId && r.kind === "battle" &&
+      r.role === "attacker" && r.attacker.id === v.id && r.attacker.ownerId === state.player.id &&
+      r.defender.id === p.raid!.targetId && r.tick >= p.createdTick && r.tick <= state.world.tick) : undefined;
+    if (p.phase === "accepted") {
+      if (report) {
+        this.record("confirmed", `Raid report ${report.id}: ${report.outcome} at tick ${report.tick}. Actual losses and loot belong to its full battle detail.`, p.proposal, p.action.clientId, state.world.tick);
+        this.saved.pending = null;
+      } else if (!state.commands.outgoing.some(c => c.id === p.itemId)) {
+        this.record("cancelled", "Raid command disappeared without a matching report; no victory or loot is inferred.", p.proposal, p.action.clientId, state.world.tick);
+        this.saved.pending = null;
+      }
+    } else if ((v.units.home[p.action.type === "send" && p.action.units.lancer === 30 ? "lancer" : "raider"] ?? 0) !== p.proposal.currentLevel || state.commands.outgoing.some(c => c.from.id === v.id && ((c.units.raider ?? 0) > 0 || (c.units.lancer ?? 0) > 0))) {
+      this.rememberRaid(p.raid!);
+      this.record("uncertain", "Raid troops or commands changed after an uncertain send; consume this report and suppress replay without attributing success.", p.proposal, p.action.clientId, state.world.tick);
+      this.saved.pending = null;
+    } else if (state.world.tick >= p.expiresTick) {
+      this.automatic = false;
+      this.backoffUntil = this.now() + 60000;
+      this.record("uncertain", "Raid idempotency window expired; execution paused pending activity inspection.", p.proposal, p.action.clientId, state.world.tick);
+    }
+    await this.persist();
+  }
   private plan(context: AdvisorContext): void {
     this.view.world = context.state.world;
     this.view.villages = context.state.villages.map((v) => ({
@@ -432,7 +517,7 @@ export class Controller {
     this.view.proposals = [economicAdvisor, militaryAdvisor].flatMap(
       (advisor) => advisor.evaluate(context),
     );
-    this.view.proposals.push(...evaluateScoutDispatch(context, this.scouting));
+    this.view.proposals.push(...evaluateScoutDispatch(context, this.scouting), ...evaluateRaidExecution(context, this.scouting, this.raids));
     this.view.selection = selectProposal(this.view.proposals);
     if (this.saved.pending?.phase === "accepted") {
       const p = this.saved.pending.proposal;
@@ -492,7 +577,8 @@ export class Controller {
       return;
     }
     if (p.action.type === "send") {
-      await this.reconcileScout(context, p);
+      if (p.raid) await this.reconcileRaid(context, p);
+      else await this.reconcileScout(context, p);
       return;
     }
     if (p.action.type === "train") {
@@ -653,6 +739,7 @@ export class Controller {
         fresh.state,
       );
       this.view.production = productionView(this.saved.production);
+      await this.readScouting(fresh);
       this.plan(fresh);
       await this.reconcile(fresh);
       if (!this.automatic || revision !== this.revision || this.stopped) return;
@@ -683,13 +770,18 @@ export class Controller {
           createdTick: fresh.state.world.tick,
           expiresTick: fresh.state.world.tick + ttl - 1,
           phase: "prepared",
-          ...(selected.action.type === "send" ? { scout: {
+          ...(selected.action.type === "send" && selected.action.units.scout === 2 ? { scout: {
             scope: this.scoutingScope(fresh.state), villageId: selected.villageId,
             targetId: selected.action.target,
             targetOwnerId: this.scouting!.map.villages.find(v => v.id === (selected.action.type === "send" ? selected.action.target : ""))!.ownerId!,
             sentTick: fresh.state.world.tick,
           } } : {}),
         };
+        if (selected.action.type === "send" && (selected.action.units.raider === 10 || selected.action.units.lancer === 30)) {
+          const observation = this.scouting!.observations.find(o => selected.id.endsWith(`:raid:${o.report?.id}`))!;
+          pending.raid = { scope: this.scoutingScope(fresh.state), villageId: selected.villageId,
+            targetId: selected.action.target, reportId: observation.report!.id, sentTick: fresh.state.world.tick };
+        }
         this.saved.pending = pending;
         this.record(
           "prepared",
@@ -740,6 +832,15 @@ export class Controller {
             Math.max(10000, Number(result.error.details?.retryAfterMs) || 0);
         } else if (pending.action.type === "send" && "command" in result.data) {
           const command = result.data.command;
+          if (pending.raid) {
+            if (command.kind !== "attack" || command.from.id !== pending.action.village || command.to.id !== pending.action.target ||
+                JSON.stringify(command.units) !== JSON.stringify(pending.action.units))
+              throw new RemoteError(0, 5000, "Unexpected raid command result; inspect activity.");
+            pending.phase = "accepted";
+            pending.itemId = command.id;
+            this.rememberRaid({ ...pending.raid, sentTick: command.sentTick });
+            this.record("accepted", `${pending.action.units.lancer === 30 ? "Thirty Lancers" : "Ten Raiders"} dispatched as ${command.id}; arrival tick ${command.arrivalTick}. Await the matching battle report.`, selected, pending.action.clientId, response.tick);
+          } else {
           if (command.kind !== "attack" || command.from.id !== pending.action.village || command.to.id !== pending.action.target ||
               command.units.scout !== 2 || Object.entries(command.units).some(([unit, count]) => unit !== "scout" && count > 0))
             throw new RemoteError(0, 5000, "Unexpected scouting command result; inspect activity.");
@@ -751,6 +852,7 @@ export class Controller {
             this.rememberScout(pending.scout);
           }
           this.record("accepted", `Two Scouts dispatched as ${command.id}; arrival tick ${command.arrivalTick}. Await the matching report.`, selected, pending.action.clientId, response.tick);
+          }
         } else if (
           (pending.action.type === "build" && "item" in result.data) ||
           (pending.action.type === "train" && "batch" in result.data)

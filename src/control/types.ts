@@ -1,3 +1,4 @@
+import type { RaidAttempt } from "../advisors/raid-execution.js";
 import type { ScoutObservation } from "../advisors/scout-dispatch.js";
 import type {
   Action,
@@ -25,6 +26,7 @@ export interface Pending {
   phase: "prepared" | "submitted" | "uncertain" | "accepted";
   itemId?: string;
   scout?: ScoutObservation;
+  raid?: RaidAttempt;
 }
 export interface Decision {
   id: string;
@@ -50,6 +52,7 @@ export interface SavedControl {
   decisions: Decision[];
   production?: ProductionLedger;
   scouting?: ScoutObservation[];
+  raids?: RaidAttempt[];
   /** Persisted execution preference; service restarts must not override an operator pause. */
   automatic?: boolean;
 }

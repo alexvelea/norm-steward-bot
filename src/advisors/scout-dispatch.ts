@@ -1,4 +1,4 @@
-import type { MapResponse, ReportSummary, StateResponse } from "../shared/api.js";
+import type { MapResponse, Report, ReportSummary, StateResponse } from "../shared/api.js";
 import type { AdvisorContext, Proposal } from "./types.js";
 
 export const SCOUT_REPORT_MAX_AGE = 300;
@@ -7,10 +7,13 @@ export interface ScoutObservation {
   scope: string;
   villageId: string;
   targetId: string;
-  targetOwnerId: string;
+  targetOwnerId: string | null;
   sentTick: number;
   commandId?: string;
   report?: ReportSummary;
+  detail?: Report;
+  /** Own authoritative victory establishing the hamlet militia reset. */
+  clearing?: Report;
 }
 export interface ScoutingContext {
   scope: string;
@@ -32,7 +35,7 @@ export function usableScoutObservation(observation: ScoutObservation, state: Sta
     Number.isSafeInteger(map.snapshotTick) && map.snapshotTick <= map.tick && state.world.tick - map.snapshotTick <= 30;
 }
 
-/** One pair of Scouts, one nearby house-bot target, no human targets or early loss of protection. */
+/** One pair of Scouts, a nearby house bot or previously cleared hamlet, no human targets. */
 export function evaluateScoutDispatch({ state, rules }: AdvisorContext, scouting?: ScoutingContext): Proposal[] {
   if (!scouting || state.world.status !== "running" || (state.player.protectedUntilTick ?? 0) > state.world.tick) return [];
   const { map, scope, observations } = scouting;
@@ -51,9 +54,14 @@ export function evaluateScoutDispatch({ state, rules }: AdvisorContext, scouting
     if ((state.player.nextActTick ?? state.world.tick) > state.world.tick) continue;
     if (observations.some(o => o.scope === scope && o.villageId === v.id && state.world.tick - o.sentTick < SCOUT_RETRY_TICKS)) continue;
     const target = map.villages.filter(t => {
-      if (!t.ownerId || t.ownerId === state.player.id || t.id === v.id) return false;
-      const player = map.players.find(p => p.id === t.ownerId);
-      if (!player?.houseBot || (player.protectedUntilTick ?? 0) > state.world.tick) return false;
+      if (t.ownerId === state.player.id || t.id === v.id) return false;
+      if (t.ownerId === null) {
+        if ((v.units.home.lancer ?? 0) < 30 || !observations.some(o =>
+          o.scope === scope && o.targetId === t.id && o.clearing?.outcome === "won" && o.clearing.defender.ownerId === null)) return false;
+      } else {
+        const player = map.players.find(p => p.id === t.ownerId);
+        if (!player?.houseBot || (player.protectedUntilTick ?? 0) > state.world.tick) return false;
+      }
       const travel = Math.ceil(Math.hypot(t.x - v.x, t.y - v.y) * speed);
       if (!Number.isSafeInteger(travel) || travel < 1 || travel > 300 || state.world.tick + 2 * travel + 60 > state.world.endsAtTick) return false;
       return !observations.some(o => o.targetId === t.id && usableScoutObservation(o, state, map, scope));
@@ -62,7 +70,7 @@ export function evaluateScoutDispatch({ state, rules }: AdvisorContext, scouting
     proposals.push({ id: `${state.world.epoch}:${v.id}:scout:${target.id}`, advisor: "military", villageId: v.id, villageName: v.name,
       action: { type: "send", village: v.id, target: target.id, kind: "attack", units: { scout: 2 } },
       buildingName: `Scout ${target.name}`, currentLevel: v.units.home.scout ?? 0, targetLevel: 2, importance: 72,
-      reason: "Dispatch two Scouts to a nearby unprotected house bot after our protection ends. Keep all combat troops; allow one reconnaissance command and a 600-tick retry interval. Report summaries establish historical observations only, not raid profitability.",
+      reason: "Dispatch two Scouts to a nearby unprotected house bot or a previously cleared hamlet after our protection ends. Keep all combat troops; allow one reconnaissance command and a 600-tick retry interval. Report summaries establish historical observations only, not raid profitability.",
       requirements: { timber: 0, stone: 0, iron: 0 }, blockers: [], status: "ready", affordableAtTick: state.world.tick });
   }
   return proposals;

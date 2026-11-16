@@ -229,3 +229,211 @@ confirmed the candidate's matching report without another POST. Reuse was reject
 a changed target owner or a different epoch scope. A second real send with a deliberately lost
 successful response was suppressed after a paused restart, with zero duplicate sends. All created
 worlds were deleted. These are reconnaissance/recovery results, not measured combat or loot gains.
+
+## Risk-gated raid execution (implementation verified; wrapper activation pending)
+
+The candidate collects full scouting detail only for a fresh, journal-linked successful report,
+checks it against the summary, command, village, owner and account/server/world/epoch scope, and
+persists valid intel. A summary alone cannot authorize a raid. Score 71 proposes exactly ten
+Raiders only against an unprotected house bot with no observed home/support defenders or wall.
+Keep ten Pikemen and five Shieldmen home, reject busy queues/orders/incoming attacks, permit
+one combat command globally, and require the intel to remain at most 300 ticks old on arrival.
+The round must leave the full return trip plus 60 ticks. A server simulation using `fromReport`
+must predict zero losses, at least 60 loot and a twofold attack/defense margin at the current tick.
+The executor revalidates state and map/intel/assessment before submission; map reads and immutable
+report-based simulations are reused only within the same account/world/epoch and exact tick.
+Historical intel still cannot
+guarantee arrival conditions.
+
+The existing President and executor journal the exact command before writing, consume the report
+on accepted or observably uncertain sends, retain IDs for safe retries, and reconcile matching
+battle reports across paused restarts. A report authorizes one raid; each origin waits 600 ticks
+between attempts. Changed troops/commands suppress uncertain replay; expired uncertainty pauses
+execution. The gameplay pause is preserved. This candidate adds no other executor.
+
+`scripts/experiment-raids.ts --compare` uses managed owner-only worlds and the existing trusted
+read-only evidence helper for maps, full reports and non-mutating report-based simulations. The
+Warden scenario is deliberately a negative case: full intel reveals substantial defenders and a
+wall, and ten Raiders are predicted to die. The private unsafe alternative is tested separately
+from the policy comparison. The favorable real-server dispatch, returned loot and recovery are
+now verified by the matched cleared-hamlet comparison below. The house-bot experiments establish
+rejection of unsafe targets; unit fixtures cover the house-bot dispatch and recovery path.
+
+The first comparison attempt exposed a fixture error: hardcoded 120-tick alignment left the real
+public map older than the 30-tick limit, so the candidate correctly skipped detail use and the
+experiment's assertion failed. The script now aligns using live `SCORING.publicSnapshotTicks` and
+retains the returned map in the artifact. The corrected pair passed: both policies bought Storehouse
+2 at tick 5100 for 76 timber, 63 stone and 51 iron and were observed at tick 5160. The candidate
+retrieved full intel, rejected the dangerous raid and preserved pause across restart. A separate
+unsafe private attack actually lost all ten Raiders, agreeing with the server prediction. This
+negative comparison establishes rejection and its opportunity cost, not a profitable raid.
+
+`scripts/experiment-raids.ts --favorable` constructs identical defended origins against a Reaver,
+times real scouting arrivals to authoritative public snapshots, and compares the first President
+decision and equal-tick outcome. Additional origin defenses are explicit test setup, not candidate
+military purchases. The script requires actual zero-loss loot, paused restart confirmation and
+lost-response suppression before it passes. Failed fixtures retain their per-action errors in
+private run artifacts; they do not authorize activation.
+
+The Reaver continuation exposed a reconnaissance constraint before any policy raid: two Scouts
+were removed by repeated enemy scouting, while the origin's combat troops survived. A larger
+private origin force reached tick 7330 with 90 Pikemen, 15 Shieldmen, 20 Raiders and 18 Scouts.
+Its two-Scout attack at tick 7500 failed, so it supplied no usable full intel. The attempted
+report-based simulation returned HTTP 400; the experiment now retains failed report detail before
+attempting simulation and skips that invalid request. This is a reproducible negative scouting
+result, not a profitable raid.
+
+The Scout-clearing continuation succeeded: a larger reconnaissance command arrived one tick
+before the two-Scout observation at tick 7500. Both observation Scouts survived and full intel
+revealed Wall 6, 99 Pikemen, three Raiders and four Lancers. This rejects the fixture's assumption
+that clearing Scouts exposes an undefended Reaver; the raid risk gate must remain intact.
+Another ordinary-action fixture funded and trained 200 additional Raiders, but Workshop 1 failed
+with `REQUIREMENTS_NOT_MET` because the live server requires Smithy 10. No siege or favorable
+policy raid occurred. `--favorable --siege` now reads Workshop prerequisites from live rules,
+funds shared economic setup, and raises Cellar protection for that production. Its corrected siege
+path remains unverified. The actual tick-7841 state and authoritative durations put even its
+optimistic full use horizon at tick 11229, beyond the 10800-tick round, before resource/population
+waits. Do not rerun that 200-Raider fixture unchanged. Next test fresh scouting of a Sovereign's
+newly acquired outpost as a different controlled target for the same pinned raid task. Preserve
+the risk gate and require actual favorable dispatch, returned loot and recovery before activation.
+
+The Sovereign outpost continuation also rejected an apparently weak public target. At tick 6149,
+full scouting found Wall 2 and 24 Pikemen; the authoritative prediction killed all ten Raiders.
+Enemy scouting removed the observation Scouts before the next outpost could be inspected. A separate
+ordinary-action clearing fixture reached tick 7667 with a smaller siege force. Its tick-7999 win
+cost 28 Raiders, two Rams, six Trebuchets and five Scouts, took 128 of each resource, and left Wall 2.
+It did not establish a favorable raid target. Its second wave incorrectly reused original troop
+counts and was rejected; the reproducer now uses observed survivors and preserves ten Raiders and
+two Scouts. Do not repeat this expensive clearing setup unchanged. The saved raid candidate remains
+unactivated until a genuine favorable President dispatch, returned loot and recovery pass. A matched
+Sovereign outpost comparison is available with `scripts/experiment-raids.ts --compare --sovereign`;
+it uses real map ownership and aligns scouting arrival to tick 6500, without changing intel dates.
+
+The matched Sovereign pair passed at ticks 6600–6660 with equal initial buildings, resources,
+population and units. Both policies spent 76 timber, 63 stone and 51 iron on Storehouse 2. Full
+candidate intel showed Wall 3 and 24 Pikemen, so no raid was proposed; pause survived restart.
+A separate unsafe private attack lost all ten Raiders, agreeing with the server prediction. All
+four worlds created in this continuation were deleted. This verifies another dangerous-target
+rejection, not the still-missing favorable dispatch, returned loot or raid recovery.
+
+The next clearing continuation now sizes the force before buying it. Authoritative simulations of
+real outpost intelligence showed that twelve Trebuchets leave Barracks 2, and sixteen leave
+Barracks 1. A separate explicit historical server scenario predicts forty Raiders, eight Rams and
+twenty Trebuchets remove Wall 3 and Barracks 5, losing two Raiders and one Trebuchet. This is a
+fixture-sizing result, not fresh raid authorization or a measured profitable policy action.
+`experiment-raid-plan.ts --outpost` collects the observation; `experiment-raid-budget.ts` reproduces
+the smaller historical scenario. `experiment-raids.ts --favorable --planned --candidate-only`
+continues the ordinary-action fixture while preserving every raid gate. A complete matched
+baseline comparison remains required. Run managed experiments sequentially: concurrent broker
+calls exposed a registry temporary-file collision; the failed world was deleted and the sequential
+retry succeeded. Full-intel collections now reject scalar/array values instead of treating them
+as empty troop collections.
+
+The next earlier fixture reached tick 5,250 with production built first, but the Sovereign still
+owned only its capital. Both simulated clearing forces were unsuitable: the smaller lost and the
+larger left Wall 5 with substantial casualties. An overlapping-queue continuation prepared eighty
+Raiders, eight Rams and twenty Trebuchets at tick 6,709. Fresh tick-6,900 scouting found a different
+acquired outpost with Wall 4, Barracks 6 and 24 Pikemen. Its authoritative clearing prediction left
+both buildings at level 1, so the fixture rejected the attack and deleted the world. The older
+Wall-3/Barracks-5 observation is insufficient to size future clearing purchases.
+
+Eight explicit historical server simulations of this new observation found that forty Raiders,
+twelve Rams and twenty-four Trebuchets clear the observed buildings, losing two Raiders, one Ram
+and one Trebuchet. The four additional Rams and Trebuchets would cost 2,440 timber, 2,400 stone and
+1,240 iron and take 340 Workshop ticks from the prepared state. This does not predict future
+building levels, guarantee arrival conditions or demonstrate a profitable raid. Reproduce sizing
+with `scripts/experiment-raid-frontier.ts` using the run's retained rejected observation.
+
+`scripts/experiment-raid-window.ts` now preserves this smaller-Raider alternative, fresh prediction
+checks, shared storage headroom before measuring returned loot, and a candidate-only probe option.
+Run its candidate probe before spending on a matched pair; revalidate actual outpost strength before
+any clearing action. A favorable President dispatch, credited returned loot, lost-response recovery
+and a matched baseline comparison are still required. Do not activate the raid candidate from these
+negative clearing experiments or historical sizing results.
+
+The next ordinary clearing attack confirmed why those predictions are historical: tick-7200
+intel predicted Wall 4 and Barracks 6 would fall, but the tick-8100 battle encountered 47 Pikemen
+and 19 Shieldmen instead of 24 Pikemen. It won while losing fourteen Raiders, three Scouts,
+four Rams and eight Trebuchets, leaving Wall 1 and Barracks 3. No policy raid followed.
+The window fixture now sends immediately after its prediction, selects the lowest-point acquired
+outpost from a current public snapshot, accepts `--seed=73422`, and uses observed home Scouts
+instead of assuming ten remain after enemy reconnaissance. A three-seed public geography survey
+is reproduced by `scripts/experiment-raid-distance.ts`; geography alone establishes no hidden
+strength. `--baseline-from=<same-run completed candidate JSON>` can complete a matched comparison
+without repeating a successful candidate probe; it still checks equal starting state and ticks.
+
+The corrected seed-73422 fixture reached the newly acquired Marshhaven and sent immediately at
+tick 7500. The report-based prediction cleared Wall 3 and Barracks 3 against 28 Pikemen, but the
+tick-7981 battle met 57 Pikemen and 26 Shieldmen with Wall 4 and Barracks 5. It lost twenty Raiders,
+four Scouts, six Rams and twelve Trebuchets, leaving Wall 2 and Barracks 2. The predicted favorable
+clearing state did not occur, so the President was never asked to raid. Do not repeat this siege
+purchase unchanged or treat an even larger historical clearing prediction as arrival evidence.
+The next fixture must control or divert the Sovereign's reinforcements through ordinary private
+actions before clearing, or demonstrate an already undefended target; rescout before policy use.
+Favorable dispatch, credited loot, recovery and the matched policy comparison remain unverified.
+
+The raid candidate now also requires per-resource storage room for its predicted returned loot
+plus production over the entire round trip, using current live rates and no assumed intervening
+spending. Exact capacity is allowed; one milli-resource of overflow rejects the proposal. This
+prevents an apparently profitable raid whose return would be discarded at storage capacity.
+This guard does not establish favorable combat or authorize activation by itself.
+
+The seed-73422 simultaneous capital diversion was tested through ordinary private actions. A
+20-Pikeman/one-Ram threat to the capital at tick 7500 did not prevent reinforcement of Marshhaven:
+the tick-7981 clearing battle met 59 Pikemen and 23 Shieldmen, lost 19 Raiders, four Scouts, six
+Rams and eleven Trebuchets, and left Wall 2 and Barracks 1. No policy raid followed. The saved
+`--multi-diversion` variant threatens every other owned village and retains the managed action
+log around the attack so reinforcement behavior can be distinguished from local recruitment.
+`--early-conquest` preserves a smaller ten-Ram/ten-Trebuchet fixture that starts looking for the
+first acquired outpost as soon as its force is ready. Neither option changes the policy's risk
+gates; require actual favorable dispatch, credited return, recovery and matched baseline results.
+
+The all-village diversion reduced the tick-7981 garrison to 56 Pikemen and 13 Shieldmen. The
+ordinary clearing attack lost thirteen Raiders, three Scouts, four Rams and eight Trebuchets,
+destroyed Barracks 5, and left Wall 1. The managed action log shows outgoing support at tick 7505,
+then recalls at ticks 7890 and 7925 as the shorter diversion battles finish, as well as local
+Pikeman recruitment. Thus a simultaneous dispatch does not keep all diversion threats active
+until the more distant clearing arrival. The revised saved variant adds three clearing Rams
+while preserving the tick-7500 dispatch; this remains fixture setup, not a policy purchase.
+A future timing fixture should keep the other threats active through clearing arrival and
+avoid unnecessary snapshot alignment before non-policy clearing reconnaissance.
+
+The revised fifteen-Ram clearing wave succeeded at tick 7981: Wall 4 and Barracks 5 both fell
+to zero, with thirteen Raiders, three Scouts, five Rams and eight Trebuchets lost. This establishes
+a real cleared state, but not a useful raid window. By the next ordinary two-Scout observation,
+the target had rebuilt Wall 4 and Barracks 6 and had 49 Pikemen home. The current return/build/
+rescout sequence therefore cannot authorize a raid. Do not repeat this fixture with more siege
+alone: the next controlled case must address rebuilding and arrival-time exposure, or use a
+materially different naturally undefended target. Favorable execution, returned raid loot,
+recovery and a matched baseline remain unverified; activation stays disabled.
+
+A materially different continuation adds a conditional cleared-hamlet path: thirty already-owned
+Lancers can raid a neutral target after our authoritative victory and fresh two-Scout observation.
+The controller collects the account's own victory detail in the current world/epoch scope; a public
+map or scouting alone cannot establish the militia reset. The live MAP militia rules are projected
+through Lancer arrival, rounded upward, and sent as explicit baseDefense to the authoritative
+report-based simulator. The assessment must match this arrival bound at the exact planning tick.
+Zero predicted losses, the twofold margin, at least sixty loot, home defensive complement, storage
+headroom, round deadline, one combat command and durable recovery requirements still apply.
+Neutral scouting retains the same distance and deadline checks. No Lancer recruitment or siege
+purchase is automated. Reproduce with `node --import tsx scripts/experiment-raid-hamlet.ts`.
+Its common ordinary setup includes costly clearing troops; returned raid loot alone cannot establish
+payback of those setup purchases or the usefulness of buying this force live.
+
+The completed matched run is recorded in
+`/var/lib/norm-steward-review/runs/20261116T053017Z/raid-hamlet-comparison.json`.
+Both policies started with identical buildings, stocks, population and units at tick 8100, planned
+with world status running while the private clock was paused, and were observed at tick 8159.
+The President selected thirty already-owned Lancers for the candidate. The authoritative battle
+lost none and returned 850 timber, 850 stone and 850 iron, confirmed from home stocks after
+subtracting production. The baseline instead upgraded Mine 7 to 8 for 362 timber, 313 stone and
+338 iron, retaining that productive asset. The comparison measures one allocation decision,
+not long-term superiority over the economic investment.
+
+Journal-before-write, accepted-command confirmation after a paused restart, and suppression of
+replay after a deliberately lost successful response all passed. Both managed worlds were deleted;
+their receipts match the current advisor/executor fingerprint. Typecheck, all 166 tests, the web
+build and the experiment's separate TypeScript check passed. The saved implementation is ready
+for wrapper publication and activation; gameplay's persisted execution preference was unchanged.
+The common initial clearing lost nine Lancers and three Rams. This result supports conditional
+use of an existing force and cleared target, and does not justify purchasing that setup live.
