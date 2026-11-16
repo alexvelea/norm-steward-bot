@@ -7,6 +7,7 @@
 - [Scheduled reviews](reviews.md): Codex timer, usage/backoff, durable backlog and deployment recovery.
 - [Unit stats and recruitment budgets](unit-stats.md): combat stats, training times and continuous resource demand.
 - [Strategy](strategy.md): priorities and next measurements.
+- [Conquest experiment](experiments/conquest-opening.md): producer-15 / Hall-13 / Barracks-10 opening and confirmed private capture.
 - [Control center](control-center.md): deterministic advisors, scoring, allocation, execution and credentials.
 - [Operator handoff](OPERATOR.md): instructions for an ad hoc scouting/troop agent.
 - [Dashboard](dashboard.md): imported hybrid UI, manual commands, town view, and visibility rules.

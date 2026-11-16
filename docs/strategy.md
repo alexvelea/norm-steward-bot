@@ -69,6 +69,22 @@ Next measure: observe the approved hybrid in the next live world, including prod
 troops, Wall timing, spending and building-queue occupancy. Later test threats and the upstream training-speed changes only
 after live rules actually expose them. Saved Farm deadline work remains a separate unactivated candidate.
 
+## Sandbox-tested expansion proposal (2026-11-16)
+
+The owner requested a transition after at least 150 Pikemen and producer minimum 15: pause
+routine production investment, push Hall 13, Barracks 10, Smithy 10, Market 5 and Court, and take
+an unowned town using Raiders plus one Envoy. A paid seed-73430 rules-v3 private prototype
+succeeded at tick 6656 (110:56), preserving 153 Pikemen/51 Shieldmen at home. It trained 140
+Raiders alongside infrastructure; one Envoy made four successful attacks, with loyalty regen
+requiring the fourth. Conquest consumed the Envoy; 108 Raiders remained as support at the new town.
+
+No additional producer upgrades were needed after 15/15/15. Funding gaps of 209 and 22 ticks
+were handled by saving; the producer fallback was unit-checked but not exercised in this case.
+This is a scripted sandbox extension, **not a deployed conquest advisor**. The existing live
+advisor list has not changed. Detailed timing, costs, Hall-speed accounting, limits and reproduction
+are in [the conquest experiment](experiments/conquest-opening.md). Preserve this evidence when
+designing an integrated phase; do not infer combat safety or optimal thresholds from one peaceful seed.
+
 ## Saved recruitment-Farm timing candidate (2026-11-16)
 
 The pinned `phased-economy-full-round-allocation` work now has a tested end-round
