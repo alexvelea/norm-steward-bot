@@ -3,7 +3,7 @@ import type {AdvisorContext,Proposal} from "./types.js";
 import {completionWindow} from "./completion.js";
 import {defenseBudget} from "./defense-budget.js";
 import {RECRUIT_USE_TICKS} from "./defense-budget.js";
-/** One affordable construction step toward Barracks 10 -> Smithy 5 -> Stable 3. */
+/** One affordable step toward sustainable military prerequisites from producer level 10. */
 export function evaluateMilitaryDevelopment({state,rules}:AdvisorContext):Proposal<Extract<Action,{type:"build"}>>[]{
  if(rules.version!==state.world.rulesVersion)throw new Error("Live rules do not match this world's rules version.");
  const metadata=rules.rules.BUILDINGS as Record<BuildingId,{name:string;requires:Partial<Record<BuildingId,number>>}>;
@@ -48,7 +48,7 @@ export function evaluateWalls({state,rules}:AdvisorContext):Proposal<Extract<Act
  const units=rules.rules.UNITS as Record<string,{defense:Record<string,number>;cost:Resources}>;
  const proposals:Proposal<Extract<Action,{type:"build"}>>[]=[];
  for(const v of state.villages){
-  if([v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard].some(n=>n<5))continue;
+  if([v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard].some(n=>n<13))continue;
   const o=v.options.build.find(o=>o.building==="wall");if(!o||o.level<=v.buildings.wall)continue;
   const cost=Object.values(o.cost).reduce((a,b)=>a+b,0),bundleCost=Object.values(units.pikeman.cost).reduce((a,b)=>a+3*b,0)+Object.values(units.shieldman.cost).reduce((a,b)=>a+b,0);
   const troops={...v.units.home};for(const stack of v.supportHere)for(const [u,n] of Object.entries(stack.units))troops[u as keyof typeof troops]=(troops[u as keyof typeof troops]??0)+n;
@@ -68,7 +68,7 @@ export function evaluateWalls({state,rules}:AdvisorContext):Proposal<Extract<Act
   const completion=completionWindow(state,v,o);if(completion&&completion.completionTick+120>state.world.endsAtTick){needed=false;blockers.push("ROUND_END_TOO_SOON");}
   if(state.world.status!=="running")blockers.push("WORLD_NOT_RUNNING");if((state.player.nextActTick??state.world.tick)>state.world.tick)blockers.push("COUNCIL_COOLDOWN");
   proposals.push({id:`${state.world.epoch}:${v.id}:wall:${o.level}`,advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"wall"},buildingName:"Wall",currentLevel:v.buildings.wall,targetLevel:o.level,importance:84,
-   reason:`Wall ${o.level} adds ${Object.entries(gains).map(([t,n])=>`${Math.round(n)} ${t}`).join(", ")} defence from troops at home/support plus base defence and the wall multiplier. Worst-type defence per resource is ${efficiency.toFixed(2)}x another 3Pi1Sh at the current wall; require at least 1.10x. Away troops excluded. Static comparison assumes no attacking Rams; it is not a battle prediction.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
+   reason:`All resource producers have reached 13; Wall ${o.level} adds ${Object.entries(gains).map(([t,n])=>`${Math.round(n)} ${t}`).join(", ")} defence from troops at home/support plus base defence and the wall multiplier. Worst-type defence per resource is ${efficiency.toFixed(2)}x another 3Pi1Sh at the current wall; require at least 1.10x. Away troops excluded. Static comparison assumes no attacking Rams; it is not a battle prediction.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
  }
  return proposals;
 }

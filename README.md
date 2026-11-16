@@ -8,6 +8,10 @@ This repository is a client setup. The central game server runs the simulation, 
 maintains accounts and worlds, and saves progress. There is no game engine or game server here.
 The local Node process serves the personal UI, coordinates advisors and proxies API/WebSocket/MCP traffic to the game.
 
+For the complete machine setup, see [setup](docs/setup.md). For an external engineering review,
+start with [the architect handoff](docs/ARCHITECT_REVIEW.md) and [architecture/state map](docs/architecture.md).
+Review instructions are versioned in [the agent prompt](scripts/review/prompt.md).
+
 ## Personal control center
 
 The root page is your Economic Advisor dashboard, not a public landing/signup page. Settings holds
@@ -70,7 +74,7 @@ sudo systemctl reload caddy
 ```
 
 Caddy supplies HTTPS at https://alex.norn-steward.velea.cc and forwards to the loopback control
-process. It now serves from this checkout's `web/dist`; copying files to the old static directory
+process. It serves the active immutable release's `web/dist`; copying files to the old static directory
 is no longer the deployment path. On edits rebuild UI and restart the control service for server
 changes (`systemctl restart norm-steward-control`). A restart resumes the economic policy and reconciles any tracked construction.
 Use `systemctl status norm-steward-control` and `journalctl -u norm-steward-control` to inspect it.

@@ -89,7 +89,7 @@ private worker logs, full action traces and ten-minute checkpoint tables, then c
 The dashboard's Strategic reviews panel shows job status and each case's latest checkpoint, even
 when Codex is budget-paused. Completion means equal requested endpoints, matched initial assets,
 rules versions and successful owned-world action/step/cleanup receipts; it does not declare a winner.
-Reviews must interpret benefits and costs. Existing jobs with the same source fingerprints, baseline,
+Reviews must interpret benefits and costs. Existing queued/running jobs with the same source fingerprints, baseline,
 seed and horizon are reused instead of duplicated.
 
 Each case has a 90-minute wall-clock bound, at most three automatic attempts with 30-minute backoff,
@@ -108,7 +108,8 @@ a new attempt. No queued experiment enables or disables gameplay automation.
 
 For activation, a completed worker comparison may substitute for same-run receipts **only when the
 current candidate policy fingerprint exactly matches the immutable tested source**. Later policy edits
-invalidate that evidence. The verdict must still support the change, all checks must pass, and normal
+invalidate that evidence. The tested rules version must also match the fresh gameplay evidence;
+upstream balance changes require a new comparison, and completed jobs are never silently reused by submit. The verdict must still support the change, all checks must pass, and normal
 push/health/rollback gates still apply. No-change research does not deploy runtime files.
 
 ## Verified deployment and recovery

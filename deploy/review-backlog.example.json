@@ -1,0 +1,12 @@
+[
+  {
+    "id": "initial-allocation-review",
+    "title": "Assess the current economy, army and fortification allocation",
+    "priority": 1,
+    "effortPoints": 3,
+    "delivery": "research",
+    "acceptance": "Use recent gameplay to choose one falsifiable allocation hypothesis. Compare matched private cases with relevant horizons, spending, production, delivered troops and queue occupancy. Explain benefits, costs and evidence limits; a supported rejection is a valid result.",
+    "requiredPaths": [],
+    "nextStep": "Read current strategy and live evidence. Inspect previous experiments, select one high-value question, and submit a matched baseline/candidate experiment if the answer is not already supported."
+  }
+]

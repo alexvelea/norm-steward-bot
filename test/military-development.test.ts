@@ -16,7 +16,7 @@ test("military construction targets Barracks 3 and Smithy 1, and defers cavalry 
  v.buildings.smithy=5;v.buildings.stable=1;v.options.build.find(o=>o.building==="stable")!.level=2;assert.equal(evaluateMilitaryDevelopment(c)[0].action.building,"stable");
 });
 test("wall value grows with the home garrison and ignores troops stationed away",()=>{
- const c=ready(),v=c.state.villages[0];v.units.home={};v.units.away={pikeman:300,shieldman:100};
+ const c=ready(),v=c.state.villages[0];Object.assign(v.buildings,{lumberyard:13,quarry:13,mine:13});v.units.home={};v.units.away={pikeman:300,shieldman:100};
  assert.equal(evaluateWalls(c)[0].status,"not-needed");
  v.units.home={pikeman:300,shieldman:100};assert.equal(evaluateWalls(c)[0].status,"ready");assert.match(evaluateWalls(c)[0].reason,/base defence/);
  c.state.world.endsAtTick=c.state.world.tick+10;assert.ok(evaluateWalls(c)[0].blockers.includes("ROUND_END_TOO_SOON"));
@@ -27,4 +27,12 @@ test("cavalry uses its Stable queue independently and respects funding, populati
  v.options.train=[{unit:"pikeman",cost:{timber:45,stone:35,iron:15},pop:1,ticksEach:7,maxCount:100,ok:true,blockers:[],affordableAtTick:null},{unit:"shieldman",cost:{timber:35,stone:30,iron:65},pop:1,ticksEach:10,maxCount:100,ok:true,blockers:[],affordableAtTick:null},{unit:"lancer",cost:{timber:120,stone:110,iron:240},pop:4,ticksEach:12,maxCount:20,ok:true,blockers:[],affordableAtTick:null}];
  const p=evaluateCavalry(c)[0];assert.equal(p.action.count,6);assert.equal(p.status,"ready");
  v.population.used=150;assert.equal(evaluateCavalry(c)[0].status,"not-needed");
+});
+
+test("walls wait for every resource producer to reach 13 even with a valuable garrison",()=>{
+ const c=ready(),v=c.state.villages[0];v.units.home={pikeman:300,shieldman:100};
+ Object.assign(v.buildings,{lumberyard:13,quarry:13,mine:12});
+ assert.deepEqual(evaluateWalls(c),[]);
+ v.buildings.mine=13;assert.equal(evaluateWalls(c)[0].status,"ready");
+ v.buildings.lumberyard=12;assert.deepEqual(evaluateWalls(c),[]);
 });

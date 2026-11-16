@@ -1,5 +1,8 @@
 # Documentation
 
+- [Complete machine setup](setup.md): services, credentials boundaries, review/worker installation and recovery.
+- [Architecture](architecture.md): execution paths, deployment and durable state.
+- [Architect review handoff](ARCHITECT_REVIEW.md): a copyable GitHub-only review prompt.
 - [Setup and hosting](../README.md): install, run, configure, and publish this client.
 - [Scheduled reviews](reviews.md): Codex timer, usage/backoff, durable backlog and deployment recovery.
 - [Unit stats and recruitment budgets](unit-stats.md): combat stats, training times and continuous resource demand.

@@ -376,6 +376,8 @@ must drain first. Queued or owned Shieldmen satisfy the remembered target. Chang
 server, world or epoch, a lost village, a finished round, or losses below the completed Pikeman
 target discard this memory; it never authorizes replacement Pikemen.
 
+Walls are ineligible until **all three resource producers reach level 13**. Recruitment remains
+eligible from producer minimum 10, subject to sustainable income and prerequisites. After that gate,
 Walls score 84 only when their marginal defence per resource is at least 1.10 times a new
 3Pi1Sh for **every** attack type. Live wall flat/base/multiplier rules and actual home plus supporting
 troops determine the gain; away troops are excluded. This static efficiency test includes base

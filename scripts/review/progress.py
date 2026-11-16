@@ -69,12 +69,12 @@ def queued_research(report,task):
             if spec['status']!='complete' or summary.get('passed') is not True:continue
             cases=summary.get('cases',[])
             if len(cases)!=2:continue
-            valid=True
+            valid=True;versions=set()
             for policy in ['baseline','candidate']:
                 case=job/policy;value=json.loads((case/'result.json').read_text())
-                receipt=sandbox_evidence(case,case/'source')
+                receipt=sandbox_evidence(case,case/'source');versions.add(value.get('rulesVersion'))
                 valid &= fingerprint(case/'source')==spec[policy+'Fingerprint'] and value.get('passed') is True and value.get('deleted') is True and value.get('lastTick')==spec['ticks'] and value.get('seed')==spec['seed'] and value.get('worldId') in receipt['worlds'] and value.get('worldId') in receipt['successfulActionWorlds']
-            if valid:return {'state':'complete','job':spec['id'],'candidateFingerprint':spec['candidateFingerprint']}
+            if valid and len(versions)==1 and None not in versions:return {'state':'complete','job':spec['id'],'candidateFingerprint':spec['candidateFingerprint'],'rulesVersion':next(iter(versions))}
         except (OSError,ValueError,KeyError,TypeError):continue
     return None
 
@@ -91,7 +91,10 @@ def assess(report,task,paths,run,work,changed,changed_paths=None):
         except (ValueError,AttributeError,TypeError):pass
     experimented=len(receipt['worlds'])>=2 and bool(receipt['successfulActionWorlds']) and bool(comparisons)
     worker=queued_research(report,task)
-    if worker and worker['state']=='complete' and worker['candidateFingerprint']==fingerprint(work):experimented=True
+    current_rules=None
+    try:current_rules=json.loads((pathlib.Path(run)/'evidence/rules.json').read_text()).get('version')
+    except (OSError,ValueError):pass
+    if worker and worker['state']=='complete' and worker['candidateFingerprint']==fingerprint(work) and current_rules==worker['rulesVersion']:experimented=True
     research=worker if task.get('delivery')=='research' and not report.get('activate') else None
     has_runtime=runtime_change(paths if changed_paths is None else changed_paths)
     real_blocker=bool(report.get('blocker')) and bool(receipt['failedAttempts'])

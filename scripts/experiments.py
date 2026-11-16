@@ -25,7 +25,7 @@ def _submit(baseline,candidate,hypothesis,metric,ticks=7200,seed=73430):
     candidate_hash=fingerprint(pathlib.Path(candidate).resolve())
     for old in sorted(JOBS.glob('*/job.json')):
         previous=read(old)
-        if previous.get('status') in ['queued','running','complete'] and (previous.get('baselineCommit'),previous.get('candidateFingerprint'),previous.get('ticks'),previous.get('seed'))==(revision,candidate_hash,ticks,seed):return old.parent
+        if previous.get('status') in ['queued','running'] and (previous.get('baselineCommit'),previous.get('candidateFingerprint'),previous.get('ticks'),previous.get('seed'))==(revision,candidate_hash,ticks,seed):return old.parent
     job=JOBS/(time.strftime('%Y%m%dT%H%M%SZ',time.gmtime())+'-'+uuid.uuid4().hex[:6]);job.mkdir(mode=0o700)
     revision=subprocess.check_output(['git','rev-parse',baseline+'^{commit}'],cwd=ROOT,text=True).strip()
     for policy in ['baseline','candidate']:

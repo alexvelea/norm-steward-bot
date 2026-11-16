@@ -52,6 +52,7 @@ class ExperimentTests(unittest.TestCase):
 
  def test_completed_worker_can_validate_exact_candidate_without_repeating_long_test(self):
   self.report.update(activate=True,verdict='supports-change');work=self.job/'candidate/source'
+  (self.root/'evidence').mkdir();(self.root/'evidence/rules.json').write_text('{"version":"r1"}')
   with patch.object(progress,'EXPERIMENT_JOBS',self.jobs):r=assess(self.report,{**self.task,'delivery':'gameplay'},['src/advisors/policy.ts'],self.root,work,True)
   self.assertEqual(r['kind'],'implementation');self.assertFalse(r['needsRetry'])
  def test_submission_snapshots_code_and_reuses_duplicate_job(self):
@@ -69,3 +70,9 @@ class ExperimentTests(unittest.TestCase):
    (repo/'src/advisors/policy.ts').write_text('next change')
    self.assertEqual((job/'candidate/source/src/advisors/policy.ts').read_text(),'candidate')
    self.assertNotEqual(worker.submit('HEAD',repo,'another variant','army and production',600),job)
+
+ def test_upstream_rule_change_invalidates_old_worker_activation_evidence(self):
+  self.report.update(activate=True,verdict='supports-change');work=self.job/'candidate/source'
+  (self.root/'evidence').mkdir();(self.root/'evidence/rules.json').write_text('{"version":"r2"}')
+  with patch.object(progress,'EXPERIMENT_JOBS',self.jobs):r=assess(self.report,{**self.task,'delivery':'gameplay'},['src/advisors/policy.ts'],self.root,work,True)
+  self.assertEqual(r['kind'],'validation-missing')
