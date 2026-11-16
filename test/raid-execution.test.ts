@@ -179,3 +179,60 @@ test("neutral scouting retains distance, deadline, scope and existing-observatio
     (y:typeof x)=>{delete y.scouting.observations[0].clearing;},
   ]){const y=seed();mutate(y);assert.deepEqual(evaluateScoutDispatch(y.c,y.scouting),[],String(mutate));}
 });
+
+test("neutral repeats require new intel and 120 ticks; house bot retries retain 600 ticks", () => {
+  const x = neutralFixture();
+  x.raids.attempts = [{ scope: x.scope, villageId: "v1", targetId: x.detail.defender.id, reportId: "previous-intel", sentTick: -20 }];
+  assert.equal(evaluateRaidExecution(x.c, x.scouting, x.raids).length, 1, "120 ticks permits newly scouted neutral raid");
+  x.raids.attempts[0].sentTick++;
+  assert.deepEqual(evaluateRaidExecution(x.c, x.scouting, x.raids), [], "119 ticks defers neutral raid");
+  x.raids.attempts[0].sentTick = -20;
+  x.raids.attempts[0].reportId = x.detail.id;
+  assert.deepEqual(evaluateRaidExecution(x.c, x.scouting, x.raids), [], "consumed report never authorizes another raid");
+  const bot = fixture();
+  bot.raids.attempts = [{ scope: bot.scope, villageId: "v1", targetId: bot.detail.defender.id, reportId: "previous-intel", sentTick: -20 }];
+  assert.deepEqual(evaluateRaidExecution(bot.c, bot.scouting, bot.raids), [], "house bot still waits 600 ticks");
+  bot.raids.attempts[0].sentTick = -500;
+  assert.equal(evaluateRaidExecution(bot.c, bot.scouting, bot.raids).length, 1);
+});
+
+test("only consumed neutral intelligence allows fresh reconnaissance before expiry", () => {
+  const x = neutralFixture();
+  x.scouting.observations[0].sentTick = -20;
+  assert.deepEqual(evaluateScoutDispatch(x.c, x.scouting), [], "fresh unused intel avoids redundant scouting");
+  x.scouting.consumedReportIds = [x.detail.id];
+  assert.equal(evaluateScoutDispatch(x.c, x.scouting).length, 1, "new pair may scout after exact 120-tick cooldown");
+  x.scouting.observations[0].sentTick++;
+  assert.deepEqual(evaluateScoutDispatch(x.c, x.scouting), []);
+  const bot = fixture(); bot.scouting.consumedReportIds = [bot.detail.id]; bot.scouting.observations[0].sentTick = -600;
+  assert.deepEqual(evaluateScoutDispatch(bot.c, bot.scouting), [], "house bot behavior is unchanged");
+});
+
+test("controller never replaces a newer neutral victory with an older retained report", async () => {
+  const x = neutralFixture();
+  const newest = { ...structuredClone(x.scouting.observations[0].clearing!), id: "newest-victory", tick: 98 };
+  const settings: Settings = { serverUrl: "https://sandbox.invalid", worldId: x.c.state.world.id, apiKey: "test" };
+  let saved: SavedControl = { settings, pending: null, automatic: false, decisions: [], scouting: [
+    ...x.scouting.observations,
+    { scope: x.scope, villageId: "v1", targetId: x.detail.defender.id, targetOwnerId: null, sentTick: -600, clearing: newest },
+  ] };
+  const storage = { load: async () => structuredClone(saved), save: async (s: SavedControl) => { saved = structuredClone(s); } };
+  const reads: string[] = [];
+  const remote: Remote = async <T>(_s: unknown, path: string): Promise<T> => {
+    reads.push(path);
+    if (path === "/me") return { account: { id: x.c.state.player.id }, worlds: [], sandboxes: [] } as T;
+    if (path === "/worlds") return [x.c.state.world] as T;
+    if (path.endsWith("/state")) return x.c.state as T;
+    if (path.endsWith("/rules")) return x.c.rules as T;
+    if (path.endsWith("/history")) return { samples: [] } as T;
+    if (path.endsWith("/map")) return x.scouting.map as T;
+    if (path.endsWith("/reports")) return { reports: [newest, x.scouting.observations[0].clearing], next: null } as T;
+    if (path.endsWith("/simulate/battle")) return x.battle as T;
+    throw new Error(`Unexpected read ${path}`);
+  };
+  const c = await Controller.create(storage, settings, remote); await c.cycle(); await c.cycle();
+  assert.equal(c.snapshot().error, null);
+  assert.ok(saved.scouting?.some(o => o.clearing?.id === newest.id));
+  assert.equal(reads.some(p => p.includes("/reports/")), false, "older clearing detail must not be reloaded");
+  assert.equal(c.snapshot().automatic, false);
+});

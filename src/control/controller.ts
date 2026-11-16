@@ -395,12 +395,13 @@ export class Controller {
     if (this.saved.pending?.action.type === "send" || state.villages.some(v => (v.units.home.lancer ?? 0) >= 30)) {
       this.scoutReports = await this.request<ReportsResponse>(this.settings, this.path("/reports"));
     }
-    this.scouting = { scope, map, observations: (this.saved.scouting ?? []).filter(o => o.scope === scope) };
+    this.scouting = { scope, map, observations: (this.saved.scouting ?? []).filter(o => o.scope === scope),
+      consumedReportIds: this.raids.attempts.filter(a => a.scope === scope).map(a => a.reportId) };
     for (const r of this.scoutReports.reports) {
       if (r.kind !== "battle" || r.role !== "attacker" || r.outcome !== "won" || r.attacker.ownerId !== state.player.id ||
           r.defender.ownerId !== null || !r.commandId || !state.villages.some(v => v.id === r.attacker.id) ||
           r.tick > state.world.tick || state.world.tick - r.tick > 600 ||
-          this.scouting.observations.some(o => o.targetId === r.defender.id && o.clearing?.id === r.id)) continue;
+          this.scouting.observations.some(o => o.targetId === r.defender.id && o.clearing && o.clearing.tick >= r.tick)) continue;
       const clearing = await this.request<Report>(this.settings, this.path(`/reports/${encodeURIComponent(r.id)}`));
       if (clearing.id === r.id && clearing.commandId === r.commandId && clearing.tick === r.tick && !clearing.conquered &&
           clearing.kind === "battle" && clearing.role === "attacker" && clearing.outcome === "won" &&
@@ -480,6 +481,7 @@ export class Controller {
     this.saved.raids = [attempt, ...(this.saved.raids ?? []).filter(a =>
       a.scope === attempt.scope && a.reportId !== attempt.reportId && attempt.sentTick - a.sentTick <= 900)];
     this.raids.attempts = this.saved.raids;
+    if (this.scouting) this.scouting.consumedReportIds = this.saved.raids.filter(a => a.scope === this.scouting!.scope).map(a => a.reportId);
   }
   private async reconcileRaid(context: AdvisorContext, p: Pending): Promise<void> {
     const state = context.state;

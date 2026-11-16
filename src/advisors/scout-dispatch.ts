@@ -3,6 +3,7 @@ import type { AdvisorContext, Proposal } from "./types.js";
 
 export const SCOUT_REPORT_MAX_AGE = 300;
 export const SCOUT_RETRY_TICKS = 600;
+export const HAMLET_RETRY_TICKS = 120;
 export interface ScoutObservation {
   scope: string;
   villageId: string;
@@ -19,6 +20,8 @@ export interface ScoutingContext {
   scope: string;
   map: MapResponse;
   observations: ScoutObservation[];
+  /** Scoped reports already consumed by a durable raid attempt. */
+  consumedReportIds?: readonly string[];
 }
 /** Reports have no epoch field: only a report linked to our journalled command has provenance. */
 export function usableScoutObservation(observation: ScoutObservation, state: StateResponse, map: MapResponse, scope: string): boolean {
@@ -52,9 +55,10 @@ export function evaluateScoutDispatch({ state, rules }: AdvisorContext, scouting
     if (v.buildQueue.length || Object.values(v.training).some(q => q.length) || v.orders.build.length || v.orders.train.length || v.orders.raids.length || v.orders.paused.length) continue;
     if (state.commands.incoming.some(c => c.kind === "attack" && c.to.id === v.id)) continue;
     if ((state.player.nextActTick ?? state.world.tick) > state.world.tick) continue;
-    if (observations.some(o => o.scope === scope && o.villageId === v.id && state.world.tick - o.sentTick < SCOUT_RETRY_TICKS)) continue;
     const target = map.villages.filter(t => {
       if (t.ownerId === state.player.id || t.id === v.id) return false;
+      const retry = t.ownerId === null ? HAMLET_RETRY_TICKS : SCOUT_RETRY_TICKS;
+      if (observations.some(o => o.scope === scope && o.villageId === v.id && state.world.tick - o.sentTick < retry)) return false;
       if (t.ownerId === null) {
         if ((v.units.home.lancer ?? 0) < 30 || !observations.some(o =>
           o.scope === scope && o.targetId === t.id && o.clearing?.outcome === "won" && o.clearing.defender.ownerId === null)) return false;
@@ -64,13 +68,14 @@ export function evaluateScoutDispatch({ state, rules }: AdvisorContext, scouting
       }
       const travel = Math.ceil(Math.hypot(t.x - v.x, t.y - v.y) * speed);
       if (!Number.isSafeInteger(travel) || travel < 1 || travel > 300 || state.world.tick + 2 * travel + 60 > state.world.endsAtTick) return false;
-      return !observations.some(o => o.targetId === t.id && usableScoutObservation(o, state, map, scope));
+      return !observations.some(o => o.targetId === t.id && usableScoutObservation(o, state, map, scope) &&
+        !(t.ownerId === null && scouting.consumedReportIds?.includes(o.report!.id)));
     }).sort((a, b) => Math.hypot(a.x - v.x, a.y - v.y) - Math.hypot(b.x - v.x, b.y - v.y) || a.id.localeCompare(b.id))[0];
     if (!target) continue;
     proposals.push({ id: `${state.world.epoch}:${v.id}:scout:${target.id}`, advisor: "military", villageId: v.id, villageName: v.name,
       action: { type: "send", village: v.id, target: target.id, kind: "attack", units: { scout: 2 } },
       buildingName: `Scout ${target.name}`, currentLevel: v.units.home.scout ?? 0, targetLevel: 2, importance: 72,
-      reason: "Dispatch two Scouts to a nearby unprotected house bot or a previously cleared hamlet after our protection ends. Keep all combat troops; allow one reconnaissance command and a 600-tick retry interval. Report summaries establish historical observations only, not raid profitability.",
+      reason: "Dispatch two Scouts to a nearby unprotected house bot or a previously cleared hamlet after our protection ends. Keep all combat troops; allow one reconnaissance command and a 600-tick retry interval for house bots or 120 ticks for cleared neutral hamlets. A consumed neutral report permits fresh reconnaissance, never a second raid from the same intel. Report summaries establish historical observations only, not raid profitability.",
       requirements: { timber: 0, stone: 0, iron: 0 }, blockers: [], status: "ready", affordableAtTick: state.world.tick });
   }
   return proposals;

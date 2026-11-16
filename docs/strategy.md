@@ -437,3 +437,44 @@ build and the experiment's separate TypeScript check passed. The saved implement
 for wrapper publication and activation; gameplay's persisted execution preference was unchanged.
 The common initial clearing lost nine Lancers and three Rams. This result supports conditional
 use of an existing force and cleared target, and does not justify purchasing that setup live.
+
+## Repeatable raid economics (implementation verified; wrapper activation pending)
+
+Cleared neutral targets use a 120-tick retry interval. Fresh reconnaissance is allowed after a
+neutral report has been durably consumed, and newer own victory reports retain the latest militia
+reset instead of reloading an older victory. House-bot retries remain 600 ticks. Each raid still
+requires a new full intelligence report, a current authoritative arrival-defense assessment, zero
+predicted losses, home defence, storage headroom and the existing President/durable executor.
+This step buys no forces or prerequisites and preserves the gameplay execution preference.
+
+Reproduce with `node --import tsx scripts/experiment-repeatable-raids.ts` in the managed review
+environment. It reconstructs the exact deployed baseline at
+cd1f087715e6596e016bd927e4b1367963f78a82 into private run artifacts. Both policies plan with status
+running while their private clocks are paused, receive the same 100-tick evaluations plus Scout
+arrival evaluations, and finish at the same tick. `--coarse` reproduces the older sparse schedule,
+which missed Scout-arrival map freshness windows and did not verify repeat raiding.
+
+The corrected matched pair ran from tick 8100 to 10000. The candidate completed four raids against
+the commonly cleared neutral target; the baseline completed one. Each used a distinct journalled
+intelligence report. Actual raids lost zero troops, all commands returned, and a paused candidate
+restart preserved the pause and continued without duplicate raids. Candidate raid loot was 3400
+of each resource versus 850 for the baseline. Both owner-only worlds were deleted; broker receipts
+match the tested advisor/executor fingerprint. Typecheck, all 169 tests, web build, experiment
+TypeScript check and diff check passed.
+
+Economic costs remain explicit. Candidate policy spend was 3700 timber, 4017 stone and 3122 iron,
+versus baseline spend of 6003/6354/5193. Candidate home stocks finished higher by
+4013.883/4964/1611.088, partly because it invested less. Retained production differed by
+-839.117 timber, +77 stone and -3009.912 iron. Final candidate/baseline Lumberyard levels were
+12/13, Mine 9/11 and Cellar 8/9; final timber production was 10.015/11.668 per tick and iron
+6.334/8.597. These observations support the repeated-loot capability, while whole-economy
+profitability and the value of future output remain unproven. Stocks do not refund building costs.
+
+Common clearing returned 595 of each resource and lost nine Lancers and three Rams, with
+replacement costs of 1920 timber, 1650 stone and 2730 iron. Candidate clearing-plus-raid loot
+exceeded those casualty replacement costs by 2075/2345/1265; the baseline remained short by
+475/205/1285. Full troop acquisition cost 11825/10200/17655 and was not repaid: candidate
+clearing-plus-raid loot remained short by 7830/6205/13660. Acquisition and replacement losses
+are separate views and must not be charged twice. Surviving troops and buildings remain assets.
+This comparison supports conditional use of existing forces and a cleared target, without
+justifying live acquisition of this expensive fixture or establishing live target availability.

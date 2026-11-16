@@ -1,5 +1,5 @@
 import type { Action, Report, SimulateBattleResponse, StateResponse } from "../shared/api.js";
-import { usableScoutObservation, type ScoutObservation, type ScoutingContext } from "./scout-dispatch.js";
+import { HAMLET_RETRY_TICKS, SCOUT_RETRY_TICKS, usableScoutObservation, type ScoutObservation, type ScoutingContext } from "./scout-dispatch.js";
 import type { AdvisorContext, Proposal } from "./types.js";
 
 export interface RaidAttempt {
@@ -77,7 +77,7 @@ export function evaluateRaidExecution({ state, rules }: AdvisorContext, scouting
       if (unit === "lancer" && baseDefense === undefined) continue;
       // A single successful scouting report authorizes at most one raid, including uncertain sends.
       if (raids.attempts.some(a => a.scope === scouting.scope && (a.reportId === o.detail.id ||
-          (a.villageId === v.id && state.world.tick - a.sentTick < 600)))) continue;
+          (a.villageId === v.id && state.world.tick - a.sentTick < (unit === "lancer" ? HAMLET_RETRY_TICKS : SCOUT_RETRY_TICKS))))) continue;
       const intel = o.detail.intel!;
       if (intel.buildings.wall !== 0 || Object.values(intel.unitsHome).some(n => n > 0) || Object.values(intel.supportTotal).some(n => n > 0)) continue;
       const assessment = raids.assessments.find(a => a.scope === scouting.scope && a.reportId === o.detail.id && a.tick === state.world.tick && (a.unit ?? "raider") === unit);
