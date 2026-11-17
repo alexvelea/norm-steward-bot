@@ -203,3 +203,17 @@ test('incoming attacks do not prevent entering the conquest phase at 150 home Pi
  const c=await x.create();await c.setAutomatic(false);await c.cycle();
  assert.equal(x.saved().conquest?.status,'preparing');assert.equal(x.writes.length,0);
 });
+
+test('Raider escort is funded in minute batches, letting affordable Smithy work proceed while training',()=>{
+ const {context,v,c}=fixture();v.units.home.raider=0;v.units.home.envoy=0;v.buildings.smithy=5;v.buildings.court=0;
+ v.resourcesMilli={timber:2000000,stone:2000000,iron:2000000};
+ const o=v.options.build.find(o=>o.building==='smithy')!;o.level=6;o.ok=true;o.blockers=[];o.cost={timber:699,stone:572,iron:762};
+ let proposals=applyConquest(context,[],c);let selected=selectProposal(proposals).selected;
+ assert.equal(selected?.action.type,'train');if(selected?.action.type==='train')assert.equal(selected.action.count,16);
+ v.training.barracks=[{id:'raiders',unit:'raider',count:16,remaining:16,costEach:{timber:55,stone:35,iron:45},nextTick:104,endTick:164}];
+ v.resourcesMilli={timber:1120000,stone:1440000,iron:1280000};
+ proposals=applyConquest(context,[],c);selected=selectProposal(proposals).selected;
+ assert.equal(selected?.action.type,'build');if(selected?.action.type==='build')assert.equal(selected.action.building,'smithy');
+ v.training.barracks=[];v.units.home.raider=132;
+ const last=applyConquest(context,[],c).find(p=>p.action.type==='train'&&p.action.unit==='raider');if(last?.action.type==='train')assert.equal(last.action.count,8);else assert.fail('Missing final bounded batch');
+});

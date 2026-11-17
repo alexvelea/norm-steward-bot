@@ -63,7 +63,12 @@ The Economic and Military Advisors are registered with the same President.
 The President is a sorted filter, not a planner. It submits at most one build, training batch or bounded scouting command per one-second cycle.
 The single executor journals one in-flight write at a time and tracks accepted operations in independent
 per-village construction and per-training-building queues. Construction, Barracks and Stable work
-can overlap. Each occupied queue is excluded from normal allocation until its work completes.
+can overlap. Training queues remain occupied until their work completes. Construction may accept
+one successor when its sole running item has strictly less than ten **real** seconds remaining
+(`remaining ticks / world speed`). A waiting successor prevents any third item. Fresh server state
+is checked again before payment; unknown writes and standing orders still block competing work.
+Build-only forecasts account for the paid level and remaining wait without unlocking training or
+spending projected income. Durations stay conservative across queued Hall upgrades.
 
 Scouting and risk-checked raids can use troops already at home while recruitment continues.
 Queued troops never count toward a dispatch or its home garrison. Scouts may also travel during
@@ -236,7 +241,10 @@ The live conquest transition uses this same
 President and durable executor. After 150 home Pikemen,
 it finishes the paid defensive cohort, catches all three producers up to 15, then funds
 Hall 13, Barracks 10, Smithy 10, Market 5 and Court. Capacity remains an ordinary paid
-prerequisite. It prepares one bounded Raider escort and one Envoy, retaining home infantry.
+prerequisite. It prepares one bounded Raider escort in approximately minute-long batches once Barracks 10 is
+ready, plus one Envoy, retaining home infantry. At four ticks per Raider, each full batch contains
+16 Raiders (64 game seconds); the last batch is capped at the remaining escort count. An occupied
+Barracks queue releases the construction budget instead of reserving the whole escort cost.
 It targets an unowned town and rechecks ownership and the server battle simulation before
 each attack, allowing at most six waves with the surviving Envoy and escort. Incoming attacks
 do not pause home construction, training, phase entry or an eligible Raider/Envoy dispatch.

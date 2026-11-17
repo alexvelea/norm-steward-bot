@@ -76,7 +76,8 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   if(v!.buildings[u.building]<u.buildingLevel||v!.buildings.smithy<u.smithyLevel)return null;
   const owned=(v!.units.home[unit]??0)+(v!.units.away[unit]??0);
   const queued=Object.values(v!.training).flat().filter(q=>q.unit===unit).reduce((n,q)=>n+q.remaining,0);
-  const count=goal-owned-queued;if(count<=0)return null;
+  const remaining=goal-owned-queued;
+  const count=unit==='raider'?Math.min(remaining,Math.ceil(61/o.ticksEach)):remaining;if(count<=0)return null;
   if(free<o.pop*count+buffer)return build('farm',96);
   const cost=Object.fromEntries(resources.map(r=>[r,o.cost[r]*count])) as Resources;
   if(resources.some(r=>cost[r]>v!.storage))return build('storehouse',96);
@@ -84,12 +85,12 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   if(v!.training[u.building].length)b.push('TRAIN_QUEUE_BUSY');
   for(const r of resources)if(v!.resourcesMilli[r]<cost[r]*1000&&!b.includes('INSUFFICIENT_RESOURCES'))b.push('INSUFFICIENT_RESOURCES');
   const funded=Math.max(state.world.tick,...resources.map(r=>state.world.tick+Math.max(0,Math.ceil((cost[r]*1000-v!.resourcesMilli[r])/v!.productionPerTickMilli[r]))));
-  const capture=conquestCaptureTick(context,c!,funded+o.ticksEach*count);
+  const capture=conquestCaptureTick(context,c!,funded+o.ticksEach*(unit==='raider'?remaining:count));
   if(capture===null||capture+60>state.world.endsAtTick)b.push('ROUND_END_TOO_SOON');
   if(count>(rules.rules.ECONOMY as {trainBatchMax:number}).trainBatchMax)b.push('BATCH_CAPACITY');
   return {id:`${state.world.epoch}:${v!.id}:conquest:train:${unit}:${goal}`,advisor:'conquest',villageId:v!.id,villageName:v!.name,
    action:{type:'train',village:v!.id,unit,count},buildingName:`Conquest ${unit}`,currentLevel:owned,targetLevel:owned+count,
-   importance:90,reason:'One bounded escort and one reusable Envoy; no recurring Raider stream. Paid defensive troops remain at home.',requirements:cost,
+   importance:90,reason:'Fund the bounded escort in minute-long Raider batches and one reusable Envoy; no recurring Raider stream. Paid defensive troops remain at home.',requirements:cost,
    blockers:[...new Set(b)],status:b.length?'waiting':'ready',affordableAtTick:funded};
  }
  const producers=['lumberyard','quarry','mine'] as const;
@@ -109,7 +110,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   if(best)construction=best.p;
  }
  if(construction)retained.push(construction);
- if(plan.escort&&plan.waves===0){const p=train('raider',plan.escort);if(p)retained.push(p);}
+ if(plan.escort&&plan.waves===0&&v.buildings.barracks>=10){const p=train('raider',plan.escort);if(p)retained.push(p);}
  if(!next){const p=train('envoy',1);if(p)retained.push(p);}
  const raiders=v.units.home.raider??0;
  if(!next&&(v.units.home.envoy??0)>=1&&raiders>0&&!Object.values(v.training).some(q=>q.length)&&

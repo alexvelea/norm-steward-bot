@@ -1,3 +1,4 @@
+import {earlyBuildWindow,constructionContext} from '../advisors/build-queue.js';
 import { randomUUID } from "node:crypto";
 import {
   createServer as createLeaseServer,
@@ -618,18 +619,34 @@ export class Controller {
       (advisor) => advisor.evaluate(context),
     );
     this.view.proposals.push(...evaluateScoutDispatch(context, this.scouting), ...evaluateRaidExecution(context, this.scouting, this.raids));
+    if(this.conquest?.plan.status!=='preparing')prioritizeFarmRunway(context, this.view.proposals);
+    this.view.proposals=applyConquest(context,this.view.proposals,this.conquest);
+    const eligible=context.state.villages.filter(v=>earlyBuildWindow(context.state,v));
+    if(eligible.length){
+      const future=constructionContext(context);
+      let builds=[economicAdvisor,militaryAdvisor].flatMap(a=>a.evaluate(future));
+      if(this.conquest?.plan.status!=='preparing')prioritizeFarmRunway(future,builds);
+      builds=applyConquest(future,builds,this.conquest).filter(p=>p.action.type==='build'&&eligible.some(v=>v.id===p.villageId));
+      for(const p of builds){
+        const actual=eligible.find(v=>v.id===p.villageId)!;
+        if(p.action.type==='build')p.currentLevel=actual.buildings[p.action.building];
+        p.reason+=` Queue the next building with ${earlyBuildWindow(context.state,actual)!.seconds.toFixed(1)} real seconds left; pay from current stocks.`;
+      }
+      this.view.proposals=this.view.proposals.filter(p=>p.action.type!=='build'||!eligible.some(v=>v.id===p.villageId)).concat(builds);
+    }
     const lane = (a: Proposal["action"]) => a.type === "build" ? `${a.village}:build` : a.type === "send" ? "combat" : `${a.village}:train:${(context.rules.rules.UNITS as Record<string,{building:string}>)[a.unit].building}`;
     for (const proposal of this.view.proposals) {
       const occupied = (this.saved.active ?? []).filter(p => lane(p.action) === lane(proposal.action));
       // A recorded 3Pi1Sh cohort may add its second unit type to the same Barracks queue.
       const complement = proposal.defenseBatch && proposal.action.type === "train" && occupied.length === 1 &&
         occupied[0].proposal.defenseBatch && occupied[0].action.type === "train" && occupied[0].action.unit !== proposal.action.unit;
-      if (occupied.length && !complement && proposal.status === "ready") {
+      const v=context.state.villages.find(v=>v.id===proposal.villageId);
+      const early=proposal.action.type==='build'&&v&&earlyBuildWindow(context.state,v)&&occupied.length===1&&
+        occupied[0].phase==='accepted'&&occupied[0].itemId===v.buildQueue[0].id;
+      if (occupied.length && !complement && !early && proposal.status === "ready") {
         proposal.status = "waiting"; proposal.blockers.push("EXECUTOR_QUEUE_BUSY");
       }
     }
-    if(this.conquest?.plan.status!=='preparing')prioritizeFarmRunway(context, this.view.proposals);
-    this.view.proposals=applyConquest(context,this.view.proposals,this.conquest);
     this.view.selection = selectProposal(this.saved.pending ? this.view.proposals.filter(p => p.id === this.saved.pending!.proposal.id) : this.view.proposals);
     if (!this.view.selection.selected && this.saved.active?.length) {
       this.view.selection.reason += ` Tracking ${this.saved.active.length} accepted operation(s) across independent construction/training/command queues.`;
@@ -737,7 +754,7 @@ export class Controller {
     }
     if (
       v.buildings[building] !== p.proposal.currentLevel ||
-      v.buildQueue.some((q) => q.building === building)
+      v.buildQueue.some((q) => q.building === building && q.level >= p.proposal.targetLevel)
     ) {
       this.record(
         "uncertain",

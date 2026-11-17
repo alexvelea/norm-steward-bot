@@ -41,6 +41,19 @@ intentionally in the economy-only stage; do not call that recruitment starvation
 throughput tests at producer >=10 with income sufficient for the live Barracks speed and the
 construction allowance. Threat response, opportunity cost and the 20% allowance remain to evaluate.
 
+## Queue continuity and bounded Raider funding (2026-11-17)
+
+The owner requests one construction successor below ten real seconds of remaining work. The
+executor uses live world speed, keeps at most one waiting successor and refreshes before writes.
+Paid levels are considered only for building selection; current stock, population and server
+prerequisite blockers remain authoritative. Reaching a queued milestone must not buy an extra
+level (Hall 13 queues Barracks next, rather than Hall 14). Uncertain append retries retain their IDs.
+
+The initial conquest implementation incorrectly reserved the entire 140-Raider escort in one
+purchase, preventing affordable Smithy construction. Fund Raiders in roughly one-minute batches
+at Barracks 10, capped by the remaining escort goal. While a batch trains, the President may fund
+construction. This preserves the total escort target without treating it as one upfront bill.
+
 ## Owner correction: incoming attacks do not suspend conquest (2026-11-17)
 
 An incoming-attack guard previously suppressed every origin proposal, including construction.
