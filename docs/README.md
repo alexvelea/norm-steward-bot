@@ -2,6 +2,7 @@
 
 - [Complete machine setup](setup.md): services, credentials boundaries, review/worker installation and recovery.
 - [Architecture](architecture.md): execution paths, deployment and durable state.
+- [Bot refactor design](bot-refactor-design.md): proposed mission graph, world adapters, execution boundaries and staged implementation handoff.
 - [Operations](operations.md): verified host inventory, dated runtime observations and status interpretation.
 - [Architect review handoff](ARCHITECT_REVIEW.md): a copyable GitHub-only review prompt.
 - [Setup and hosting](../README.md): install, run, configure, and publish this client.
