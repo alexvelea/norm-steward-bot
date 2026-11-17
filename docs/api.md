@@ -4,10 +4,10 @@ Everything a player does goes through this API. It's built for programs first: o
 whole state, one call to act (in batches), retries that are safe, scheduled actions for exact timing,
 and errors that say exactly what's missing and when it won't be.
 
-The shapes are defined once, in [`src/shared/api.ts`](../src/shared/api.ts); this page names them.
-The mechanics behind every action are in [design.md](design.md). Every limit is a key in
-[`src/rules/config.ts`](../src/rules/config.ts) (`LIMITS`, `SERVER`, `SANDBOX`). A machine-readable
-description is served at `GET /api/v1/openapi.json`.
+The wire shapes are in [`src/shared/api.ts`](../src/shared/api.ts). The mechanics behind every action
+are in [design.md](design.md). The quota values on this page come from the upstream game server's
+configuration. This repo's [`src/rules/config.ts`](../src/rules/config.ts) is a client snapshot and can
+lag upstream. The server publishes a machine-readable description at `GET /api/v1/openapi.json`.
 
 ## Basics
 
@@ -29,29 +29,46 @@ description is served at `GET /api/v1/openapi.json`.
 |---|---|
 | 400 `VALIDATION` | The body or query doesn't match the shape: a field it doesn't know is refused, never ignored, and an empty query value (`?after=`) is refused, never read as 0. `details.issues` lists each problem with its path |
 | 401 `UNAUTHORIZED` | Missing or wrong key |
-| 403 `FORBIDDEN` | A write carrying the dashboard header |
+| 403 `FORBIDDEN` | A non-`GET` REST request marked `X-Steward-Client: dashboard` |
 | 404 `NOT_FOUND` | No such world, village, report… or not yours |
 | 409 | `NOT_IN_WORLD`, `WORLD_NOT_RUNNING` (the round is over), `NAME_TAKEN`, `LIMIT_REACHED` |
-| 429 `RATE_LIMITED` | Too many calls; `Retry-After` header and `details.retryAfterMs` |
+| 429 `RATE_LIMITED` | A request was rate-limited. See [Limits](#limits) for the retry fields |
 | 500 `INTERNAL` | A bug on the server's side; it's logged there, and the message says nothing more |
 
 ## Limits
 
-- **Calls, per account:** a token bucket (`SERVER.callBurst`, refilling `callsPerSecond`). Every
-  response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`. A long-poll counts
-  once; at most `concurrentWaitsPerAccount` waits at a time (a newer one ends the oldest with no events).
-  Over MCP, every JSON-RPC message is a call: a batch of a hundred tool calls costs a hundred.
-- **Actions, per account:** a second bucket (`actionBurst`, `actionsPerSecond`) counting actions, not
-  calls, across REST and MCP. An action over budget fails with `RATE_LIMITED` inside the results.
-  Standing orders don't count.
-- **Council worlds:** one batch per `actIntervalTicks` per player; an early batch fails whole with
-  429 `RATE_LIMITED` and `details.nextActTick`. `PlayerSummary.nextActTick` says when.
-- **Without a key:** per client IP, `keylessBurst` / `keylessPerSecond`.
+- **Normal authenticated calls:** burst 200, refill 100/s (`SERVER.callBurst`, `callsPerSecond`).
+  Each REST request costs one token. MCP JSON-RPC requests also draw from this bucket, one token per
+  request in a batch. A long-poll counts once. At most `concurrentWaitsPerAccount` waits can be open at
+  a time, including dashboard waits. A newer wait ends the oldest with no events when all slots are used.
+- **Actions:** burst 1,000, refill 125/s (`actionBurst`, `actionsPerSecond`). A batch costs one action
+  token per action admitted to processing, including failed actions and idempotent repeats, on top of
+  the call token. Standing orders are exempt.
+- **Authenticated dashboard GETs:** burst 100, refill 20/s (`dashboardBurst`, `dashboardPerSecond`).
+  Each marked read draws one token from this bucket in place of the normal call token.
+- **Calls without a key:** burst 100, refill 25/s (`keylessBurst`, `keylessPerSecond`) per client IP,
+  with IPv6 addresses grouped by /64. Keyless dashboard GETs also use this bucket.
+
+The normal call, action and dashboard buckets are each keyed by account ID and span all live worlds
+and sandboxes. Rotating the API key keeps the account's buckets. Normal calls and actions share their
+respective budgets across REST and MCP. REST responses that reach the call-bucket check carry
+`RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset` for the selected bucket.
+
+- **REST 429s:** call-bucket, signup and key-rotation throttles include `error.details.retryAfterMs`
+  in milliseconds and `Retry-After` in whole seconds (`max(1, ceil(retryAfterMs / 1000))`).
+- **Council worlds:** one batch per `actIntervalTicks` per player. An early batch fails whole with
+  429 `RATE_LIMITED`, with `error.details.nextActTick` as the sole retry hint. `PlayerSummary.nextActTick`
+  gives the same tick.
+- **Action budget exhaustion:** each action over budget gets `RATE_LIMITED` and `error.details.retryAfterMs`
+  in its result inside HTTP 200.
+- **MCP throttling:** an HTTP 429 from `/mcp` carries the same rounded `Retry-After` and a JSON-RPC
+  error with `code` and `message` only. A rate-limited tool call can return a tool error instead.
 - **Batches:** up to `LIMITS.actionsPerBatch` actions. Bodies over `SERVER.bodyLimitBytes` are refused.
 - **Signup:** `signupsPerIpPerHour`. **Key rotation:** `rotationsPerHour`.
 - **Streams:** `socketsPerIp`, and `socketsPerAccountPerWorld`.
-- **Sandboxes:** `SANDBOX.perAccount` running per account, and `SERVER.sandboxesMax` on the server
-  (see [Sandboxes](#sandboxes) for what happens to ended and idle ones).
+- **Sandbox slots:** 2 per account (`SANDBOX.perAccount`), 20 server-wide (`SERVER.sandboxesMax`).
+  Both count all non-ended sandboxes, including paused ones. See [Sandboxes](#sandboxes) for the
+  developer mode exception and how ended and idle sandboxes are handled.
 
 ## Accounts
 
@@ -82,7 +99,8 @@ description is served at `GET /api/v1/openapi.json`.
 One endpoint for every action. Send `ActionsRequest`: a list of `Action`s, applied **in order, all at
 the same tick**, each on its own. One failing doesn't stop the rest; each gets an `ActionResult`. The
 batch answers 200 even when every action failed. Add a `note` to say why (the dashboard shows it), and
-`returnState: true` to get the fresh state back.
+`returnState: true` to include the fresh state in the same response at zero additional call or action
+tokens.
 
 An action with a field its type doesn't take fails alone with `VALIDATION`, naming the field and the
 one it most likely meant (`arrivalTick` → `arriveAtTick`, `at_tick` → `atTick`), so a misspelled time
@@ -204,24 +222,33 @@ your `key` you get your own channels; without one, the public ones.
 | `map` | anyone | Villages whose owner or name changed, and on each public snapshot the points |
 | `events` | you | Each `GameEvent` as it happens |
 | `state` | you | Your full `StateResponse`, at most `stateMessagesPerSecond`, when something changed |
-| `activity` | you | Each call your steward makes (`ActivityEntry`) |
+| `activity` | you | Each entry in your steward's activity log (`ActivityEntry`) |
 | `god` | a sandbox's creator | Every army on the map and every battle: the whole truth, for debugging a bot |
 
 Public channels also get every `conquest`: who took which village is public. Battles are not.
 
-A plain `GET` without the WebSocket upgrade answers 426 with an `ErrorResponse`. A client that stops
+A plain `GET` or `HEAD` without the WebSocket upgrade answers 426. A client that stops
 reading doesn't make the server buffer without end: while its socket is backed up, `tick` and `state`
 messages wait (the latest goes out once it drains), and once too much waits for it the socket closes
 with code 4008. Reconnect and re-read the state.
 
 ## Your steward's log
 
-`GET /worlds/{w}/activity?after=&limit=` returns `ActivityResponse`: the calls your account made in
-this world (REST, MCP and standing orders), the last `SERVER.activityKept`, kept in memory only.
+`GET /worlds/{w}/activity?after=&limit=` returns `ActivityResponse` with logged REST and MCP calls and
+standing orders for your account in this world. The last `SERVER.activityKept` entries are kept in memory.
 
-The dashboard marks its own calls with `X-Steward-Client: dashboard`. That header is honoured only on
-`GET` requests and the stream: those calls aren't logged and use their own small bucket
-(`dashboardBurst`, `dashboardPerSecond`). Any other method carrying it is refused with 403.
+`X-Steward-Client: dashboard` selects the account's dashboard bucket for authenticated REST `GET`s.
+Any non-`GET` request handled by the REST hook with that value gets 403 before authentication or
+quota charging. The `/worlds/{w}/stream` route bypasses that hook. WebSocket upgrades use stream
+authentication and connection limits.
+
+Marked reads are omitted from both `GET /worlds/{w}/activity` and the live `activity` channel. They
+still use ordinary endpoint permissions and behavior. Reads that resolve a sandbox refresh its idle
+timer, and an event long-poll can still advance a lockstep sandbox. Fastify request logging still
+applies when enabled.
+`GET /sandboxes/{w}/log` returns the engine's action log, which records actions only. Bots and test
+harnesses can mark sandbox reads and share the dashboard's quota with the UI. Omit the header on
+world reads when you need them in the activity feed.
 
 ## Sandboxes
 
@@ -235,14 +262,21 @@ controls the clock; house bots are the opponents.
 | `GET /sandboxes/{w}/log` | `SandboxLogResponse`: every applied action (yours, your standing orders' and the house bots', each marked `by`), for reproducing a run |
 | `DELETE /sandboxes/{w}` | 204 |
 
-A paused sandbox still accepts actions; they apply at the paused tick. Steps and runs are processed
-in chunks so they never stall other worlds; the call returns once the clock has the work. A step or
-run cut short by a server restart comes back paused.
+A paused sandbox still accepts actions at the paused tick. `step` takes a whole number of ticks from
+1 through 3,600 (`SANDBOX.stepMax`) per request. The POST costs one normal call token, with zero
+action tokens and zero extra API tokens per tick. The scheduler uses a separate server-wide sandbox
+tick budget with a burst of 2,000 ticks and a refill of 2,000 ticks/s (`SERVER.sandboxTickBudgetPerSecond`).
 
-An ended sandbox stays readable (its log, its leaderboard) for `SERVER.endedSandboxTtlMs`, but
-creating a sandbox drops your oldest ended ones past `SANDBOX.perAccount`. When the server already
-runs `SERVER.sandboxesMax`, a new one takes the slot of the sandbox idle longest (paused, or lockstep
-and not waiting, with no call from its creator for `SERVER.endedSandboxTtlMs`), and is refused with
-`LIMIT_REACHED` only when none is. On a server
-you run yourself with `STEWARD_DEV=1`, sandboxes go up to `SANDBOX.devSpeedMax` and the per-account
-limits are lifted.
+`step` and `run_until` queue work asynchronously. The response contains only the `WorldSummary` at
+submission, with `status: "running"` and the starting tick. An uninterrupted step pauses after the
+requested number of ticks or stops sooner if the round ends. Poll `GET /worlds/{w}/state` for
+`world.tick` and `world.status` to see completion and get the updated player state. The scheduler
+yields between chunks. A step or run cut short by a server restart comes back paused.
+
+An ended sandbox stays readable (its log, its leaderboard) for `SERVER.endedSandboxTtlMs`. Outside
+developer mode, creating a sandbox also drops your oldest ended ones past `SANDBOX.perAccount`.
+At the server-wide cap, a new sandbox takes the slot of the eligible sandbox idle longest, or gets
+`LIMIT_REACHED` if no slot can be freed. A sandbox is eligible when paused or in lockstep with no
+clock work in progress and its creator has left it untouched for `SERVER.endedSandboxTtlMs`.
+`STEWARD_DEV=1` raises the sandbox speed cap to `SANDBOX.devSpeedMax` and lifts the per-account sandbox
+count limit. The server-wide cap, step bounds and API quotas still apply.
