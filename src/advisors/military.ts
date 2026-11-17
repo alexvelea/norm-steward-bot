@@ -1,13 +1,13 @@
 import { evaluateMilitaryDevelopment, evaluateWalls, evaluateCavalry } from "./military-development.js";
 import { evaluateSustainedDefense } from "./sustained-defense.js";
 import { evaluateDefensiveSmithy } from "./smithy.js";
-import { evaluateScouting } from "./scouting.js";
 import { completionWindow } from "./completion.js";
 import type { Action, BuildingId, Resources } from "../shared/api.js";
 import type { Advisor, AdvisorContext, Proposal } from "./types.js";
+import { proposalTask } from "../bot/plan/graph.js";
 
 /** Bounded military proposals share the President and its durable executor. */
-export const militaryAdvisor: Advisor = { id: "military", evaluate: (context) => [...evaluateMilitary(context), ...evaluateScouting(context), ...evaluateSustainedDefense(context), ...evaluateMilitaryDevelopment(context), ...evaluateWalls(context), ...evaluateCavalry(context)] };
+export const militaryAdvisor: Advisor = { id: "military", evaluate: (context) => [...evaluateMilitary(context), ...evaluateSustainedDefense(context), ...evaluateMilitaryDevelopment(context), ...evaluateWalls(context), ...evaluateCavalry(context)] };
 export function evaluateMilitary({ state, rules }: AdvisorContext): Proposal<Extract<Action, {type: "build"}>>[] {
   if (rules.version !== state.world.rulesVersion)
     throw new Error("Live rules do not match this world's rules version.");
@@ -56,7 +56,9 @@ export function evaluateMilitary({ state, rules }: AdvisorContext): Proposal<Ext
     if (state.world.status !== "running") add("WORLD_NOT_RUNNING");
     if ((state.player.nextActTick ?? state.world.tick) > state.world.tick) add("COUNCIL_COOLDOWN");
     proposals.push({
-      id: `${state.world.epoch}:${v.id}:barracks:1`, advisor: "military",
+      id: `${state.world.epoch}:${v.id}:barracks:1`,
+      task: proposalTask("military", { type: "build", building: "barracks" }, 1),
+      advisor: "military",
       villageId: v.id, villageName: v.name,
       action: { type: "build", village: v.id, building: "barracks" },
       buildingName: metadata.name, currentLevel: 0, targetLevel: 1,
@@ -89,7 +91,7 @@ export function evaluateMilitaryHall({state,rules}:AdvisorContext): Proposal<Ext
     if(window&&window.completionTick+300>window.endsAtTick){needed=false;blockers.push("ROUND_END_TOO_SOON");}
     if(v.population.max-v.population.used<o.pop){needed=false;blockers.push("POPULATION_CAPACITY");}
     for(const r of ["timber","stone","iron"] as const)if(v.resourcesMilli[r]<o.cost[r]*1000){needed=false;if(!blockers.includes("INSUFFICIENT_RESOURCES"))blockers.push("INSUFFICIENT_RESOURCES");}
-    proposals.push({id:`${state.world.epoch}:${v.id}:military-hall:${o.level}`,advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"hall"},buildingName:`Great Hall for ${facility}`,currentLevel:v.buildings.hall,targetLevel:o.level,importance:79,
+    proposals.push({id:`${state.world.epoch}:${v.id}:military-hall:${o.level}`,task:proposalTask("military",{type:"build",building:"hall"},o.level),advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"hall"},buildingName:`Great Hall for ${facility}`,currentLevel:v.buildings.hall,targetLevel:o.level,importance:79,
       reason:`Production opening complete. Reach the live ${facility} Hall prerequisite (${required}) to convert income into troops; stop this unlock chain once that facility is available. Only currently affordable steps, with 300 ticks left for use.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
   }
   return proposals;

@@ -8,10 +8,10 @@ class SandboxError(RuntimeError): pass
 
 def fingerprint(work):
     digest=hashlib.sha256()
-    for folder in ['src/advisors','src/control']:
-        for path in sorted((pathlib.Path(work)/folder).glob('*.ts')):
-            if path.name in ['reviews.ts','review-types.ts','http.ts','access.ts']:continue
-            digest.update(str(path.relative_to(work)).encode());digest.update(path.read_bytes())
+    digest.update(b'norm-steward-source-fingerprint-v2\0')
+    for folder in ['src/advisors','src/control','src/bot','src/review']:
+        for path in sorted((pathlib.Path(work)/folder).rglob('*.ts')):
+            digest.update(str(path.relative_to(work)).encode());digest.update(b'\0');digest.update(path.read_bytes())
     return digest.hexdigest()
 
 class Broker:

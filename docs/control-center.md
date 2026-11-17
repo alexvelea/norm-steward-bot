@@ -60,7 +60,8 @@ checks are separate from training quotas. Historical starter policies live only 
 proposals. Each proposal names its advisor, village, action, target level, importance (0–100),
 reason, per-resource requirements, blockers, affordability tick, and ready/waiting/queued/not-needed status.
 The Economic and Military Advisors are registered with the same President.
-The President is a sorted filter, not a planner. It submits at most one build, training batch or bounded scouting command per one-second cycle.
+The President is a sorted filter, not a planner. It submits at most one build, training batch or
+conquest command per one-second cycle.
 The single executor journals one in-flight write at a time and tracks accepted operations in independent
 per-village construction and per-training-building queues. Construction, Barracks and Stable work
 can overlap. Training queues remain occupied until their work completes. Construction may accept
@@ -70,11 +71,8 @@ is checked again before payment; unknown writes and standing orders still block 
 Build-only forecasts account for the paid level and remaining wait without unlocking training or
 spending projected income. Durations stay conservative across queued Hall upgrades.
 
-Scouting and risk-checked raids can use troops already at home while recruitment continues.
-Queued troops never count toward a dispatch or its home garrison. Scouts may also travel during
-already-paid construction when every queued item has a valid end tick at or before Scout arrival. Standing orders still defer dispatch. Raids wait for an empty
-construction queue and fresh production/storage state before checking loot headroom. The President
-allocates commands through the same durable executor and command lane.
+Automated scouting and raid advisors and dispatchers have been removed. Manual map commands and
+public battle/scouting reports remain available independently of bot planning.
 
 The Economic Advisor considers Great Hall, lumberyard, quarry, mine, storehouse, cellar and farm.
 The server's build options determine cost, prerequisites, affordability and next level. The live
@@ -221,6 +219,13 @@ therefore stops or changes the selection. The remote engine remains the final ar
 independent client can still act between revalidation and submission. There is no cross-client
 resource reservation or atomic expected-level check in the upstream API.
 
+The bot architecture is split under `src/bot/`: declarative plan and projection, live/scripted
+adapters, runner, allocation, mission and commitment strategy, execution journal, persistence, and
+diagnostics. The Controller remains the HTTP facade. The control store uses version 2; startup
+migrates legacy state and writes a private mode-0600 backup. Unsupported versions require recovery
+and block execution rather than being overwritten. Automated scouting and raid bot behavior has
+been removed; manual commands and reports are not part of the bot proposal loop.
+
 Journal the exact action/clientId before POST. Never change its ID on an uncertain retry. A fresh
 queue or changed level after an uncertain result suppresses replay without falsely claiming which
 actor caused it. Expired idempotency windows pause automatic mode; inspect game activity before
@@ -338,27 +343,8 @@ rules version, and are fetched again immediately before an action. Idle cycles a
 second state read. This stays within the upstream four-per-second dashboard read budget while the
 browser polls the local snapshot every second. Rate-limit/error backoff remains in effect.
 
-The bounded scouting readiness policy proposes Stable 1 (73) and up to two owned Scouts (74)
-after the defensive complement and ten Raiders exist. It buys no Stable prerequisite levels and
-requires current funding for infrastructure plus the entire missing Scout complement, the normal
-population buffer and 600 ticks after full training. It shares the same President, queue/order
-checks, persisted pause and durable build/train reconciliation. The separate bounded dispatch proposal (72) sends exactly two home Scouts to the nearest eligible
-house-bot village within 300 travel ticks. It waits until our protection expires, rejects protected
-or human targets, requires the existing defensive/raiding complement, idle queues and no standing
-orders or incoming attack, and leaves the round-trip duration plus 60 ticks before round end.
-One Scout command may be out globally, and each village waits 600 ticks between attempts.
-The President retains capacity, protection and recruitment priorities. No combat troops are sent.
-
-The same executor journals the exact send before POST and tracks the returned command ID until a
-matching report or command disappearance. Paused restarts reconcile without sending; uncertain
-Scout/command changes suppress replay, and expired uncertain IDs pause execution. Per-action errors
-remain rejected decisions. Up to 32 command observations are persisted under account/server/world/
-epoch scope. Only a successful attacker scouting summary linked to that command, from our village,
-with matching target ownership, age at most 300 ticks and map observation/snapshot ages at most 30
-ticks is usable as a historical scouting observation. Future timestamps, different epochs, failed
-scouting and ownership changes fail closed. Summaries do not establish hidden troops, resources or
-raid profitability; full intelligence collection and raid decisions remain separate work.
-Reproduce the matched private executor comparison with scripts/experiment-scout-dispatch.ts.
+Automated scouting and raid proposal, dispatch, and experiment paths have been removed from the live
+bot. The map's manual commands and the game's public scouting/battle reports remain available.
 
 ## Income versus spending policy (2026-11-16)
 
@@ -374,7 +360,7 @@ For resource r, low runway means production is below demand AND current stock is
 then scores 82 minus its usual coverage rank (80–82). It outranks routine recruitment, provided
 its existing total-resource payback test passes and its current level is below 20. Otherwise
 available troop spending outranks discretionary producer and Hall investment. Capacity and
-Cellar protection, starter unlocks, scouting and validated raids retain their priorities.
+Cellar protection, starter unlocks, and military development retain their policy priorities.
 
 The Farm also considers room for the next bundle above the usual free-population buffer, with
 time left to construct and use it. This avoids stopping exactly at the reserve. The small Hall
@@ -401,7 +387,7 @@ lane globally. This is concurrency of server work, not concurrent duplicate netw
 
 The military construction path is Barracks 3 -> Smithy 1, with later Stable prerequisites only when sustainable. It follows live missing
 prerequisites one affordable step at a time, scores 76 and leaves 600 ticks after construction.
-Existing Scout readiness funds Stable 1 and its Scouts; development then extends it to Stable 3.
+The former automated Scout-readiness policy was removed; there is no bot Stable/Scout proposal path.
 The existing production opening, resource-deficit policy, capacity and population constraints remain. The scarce-resource candidate retains one complete next minute-long cohort’s funding for each resource whose production is below defensive training demand before allowing military development. This applies after the starter force, including while Barracks training is active, only with population and round time to use another cohort. It releases construction when the step and cohort are both funded; production upgrades remain eligible through the President. Manual training orders bypass this automatic recruitment buffer. A feasible unfunded sustained cohort is a resource-only waiting proposal, allowing the President to save at score 70 ahead of discretionary production. Full-cohort affordability, training and 60 ticks of use must fit before round end; zero income, storage, population, manual orders and hard server blockers release that reservation. Deficient income, capacity, protection and valuable Walls retain their higher scores.
 Stable 3 enables minute-sized Lancer batches toward a first force of 30 owned/queued (score 72),
 including away troops; no new movement policy is introduced. Barracks training does not block

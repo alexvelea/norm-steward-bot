@@ -70,7 +70,7 @@ test("personal settings, keys and game proxy require authentication and same-ori
     assert.equal(logout.status, 200);
     assert.equal((await fetch(base + "/control/state", { headers: { Cookie: cookie } })).status, 401);
   } finally {
-    controller.stop();
+    await controller.stop();
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

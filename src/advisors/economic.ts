@@ -9,6 +9,7 @@ import {
   type AdvisorContext,
   type Proposal,
 } from "./types.js";
+import { proposalTask } from "../bot/plan/graph.js";
 
 export const ECONOMIC_BUILDINGS = [
   "hall",
@@ -234,6 +235,7 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
       const target = queued?.level ?? option.level;
       proposals.push({
         id: `${state.world.epoch}:${v.id}:${building}:${target}`,
+        task: proposalTask("economic", { type: "build", building }, target),
         advisor: "economic",
         villageId: v.id,
         villageName: v.name,

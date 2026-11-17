@@ -1,6 +1,3 @@
-import type { RaidAttempt } from "../advisors/raid-execution.js";
-import type {ConquestPlan} from "../advisors/conquest.js";
-import type { ScoutObservation } from "../advisors/scout-dispatch.js";
 import type {
   Action,
   MeResponse,
@@ -10,6 +7,9 @@ import type {
 import type { EconomicForecast } from "../advisors/economic.js";
 import type { ProductionLedger, ProductionView } from "./production.js";
 import type { Proposal, Selection } from "../advisors/types.js";
+import type { StrategicCommitment } from "../bot/strategy/commitments.js";
+import type { MissionInstance } from "../bot/strategy/missions/conquest.js";
+import type { PlanningProjection } from "../bot/diagnostics/planning.js";
 export interface Settings {
   serverUrl: string;
   worldId: string;
@@ -26,9 +26,7 @@ export interface Pending {
   expiresTick: number;
   phase: "prepared" | "submitted" | "uncertain" | "accepted";
   itemId?: string;
-  scout?: ScoutObservation;
-  raid?: RaidAttempt;
-  conquest?: boolean;
+  missionId?: string;
 }
 export interface Decision {
   id: string;
@@ -53,14 +51,12 @@ export interface SavedControl {
   pending: Pending | null;
   /** Accepted operations occupy independent game queues; only one write can be in flight. */
   active?: Pending[];
-  /** Confirmed Pikemen whose journalled cohort still needs its Shieldman component. */
-  defenseComplements?: Pick<Pending, "proposal" | "serverUrl" | "worldId" | "epoch" | "accountId">[];
   decisions: Decision[];
   production?: ProductionLedger;
-  scouting?: ScoutObservation[];
-  raids?: RaidAttempt[];
-  /** Research candidate: scoped first-conquest progress, independent of execution pause. */
-  conquest?: ConquestPlan;
+  missions?: MissionInstance[];
+  commitments?: StrategicCommitment[];
+  persistenceFault?: string;
+  recoveryRequired?: string;
   /** Persisted execution preference; service restarts must not override an operator pause. */
   automatic?: boolean;
 }
@@ -88,5 +84,6 @@ export interface ControlView {
   conflicts: string[];
   production: ProductionView | null;
   economicForecasts: EconomicForecast[];
+  planning: PlanningProjection;
 }
 export type StateReader = () => Promise<StateResponse>;

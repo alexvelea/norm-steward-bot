@@ -40,6 +40,24 @@ The lease is host-local. Running the starter bot or a second machine with this p
 still compete; coordination with external/manual actions is a limitation to evaluate, not a distributed
 lock guarantee. The server remains the final validator of resources, limits and prerequisites.
 
+## Bot core and planning
+
+`src/bot/` separates the declarative plan (`plan/graph.ts`, `plan/evaluate.ts`), live and scripted
+world adapters, serialized runner, President allocation wrapper, mission/commitment strategy,
+execution journal, persistence schema, and planning diagnostics. The Controller remains the HTTP
+facade and composes these parts; the generated graph is documented in [plan.md](plan.md).
+
+Automated scouting and raid advisors, dispatchers, and experiment runners were removed. Manual map
+commands and the public battle/scouting reports remain separate dashboard capabilities.
+
+## Versioned control state
+
+The private control store uses envelope version 2. Startup migrates the legacy control file while
+preserving execution preference and supported active state, writes a private mode-0600 legacy
+backup, and continues with the versioned store. An unsupported store version sets
+`recoveryRequired` and blocks execution rather than overwriting state. The original private
+connection settings and access-token boundaries remain outside Git.
+
 ## Strategic review and experimental learning
 
 `scripts/review.py` owns the review lock, actual usage/auth checks, current evidence collection,

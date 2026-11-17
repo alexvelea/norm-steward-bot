@@ -4,6 +4,7 @@ import type {
   RulesResponse,
   StateResponse,
 } from "../shared/api.js";
+import type { TaskKey } from "../bot/plan/graph.js";
 
 export interface AdvisorContext {
   state: StateResponse;
@@ -13,6 +14,7 @@ export interface AdvisorContext {
 export type AdvisorAction = Extract<Action, { type: "build" | "train" | "send" }>;
 export interface Proposal<A extends AdvisorAction = AdvisorAction> {
   id: string;
+  task: TaskKey;
   advisor: string;
   villageId: string;
   villageName: string;

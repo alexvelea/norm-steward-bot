@@ -1,0 +1,127 @@
+{
+  "settings": {
+    "serverUrl": "https://sandbox.invalid",
+    "worldId": "world-fixture",
+    "apiKey": "REDACTED"
+  },
+  "automatic": false,
+  "pending": {
+    "proposal": {
+      "id": "pending-build",
+      "advisor": "economic",
+      "villageId": "v1",
+      "buildingName": "Storehouse",
+      "currentLevel": 2,
+      "targetLevel": 3,
+      "action": { "type": "build", "village": "v1", "building": "storehouse" }
+    },
+    "action": {
+      "type": "build",
+      "village": "v1",
+      "building": "storehouse",
+      "clientId": "pending-client"
+    },
+    "accountId": "p1",
+    "worldId": "world-fixture",
+    "epoch": "epoch-1",
+    "serverUrl": "https://sandbox.invalid",
+    "createdTick": 10,
+    "expiresTick": 70,
+    "phase": "prepared"
+  },
+  "active": [
+    {
+      "proposal": {
+        "id": "active-train",
+        "advisor": "military",
+        "villageId": "v1",
+        "unitName": "Pikeman",
+        "action": { "type": "train", "village": "v1", "unit": "pikeman", "count": 9 }
+      },
+      "action": {
+        "type": "train",
+        "village": "v1",
+        "unit": "pikeman",
+        "count": 9,
+        "clientId": "active-client"
+      },
+      "accountId": "p1",
+      "worldId": "world-fixture",
+      "epoch": "epoch-1",
+      "serverUrl": "https://sandbox.invalid",
+      "createdTick": 11,
+      "expiresTick": 71,
+      "phase": "accepted",
+      "itemId": "queue-1"
+    },
+    {
+      "proposal": {
+        "id": "old-scout-send",
+        "advisor": "military",
+        "villageId": "v1",
+        "action": {
+          "type": "send",
+          "from": "v1",
+          "to": "hamlet",
+          "units": { "scout": 1 }
+        }
+      },
+      "action": {
+        "type": "send",
+        "from": "v1",
+        "to": "hamlet",
+        "units": { "scout": 1 },
+        "clientId": "retired-scout-client"
+      },
+      "scout": true,
+      "accountId": "p1",
+      "worldId": "world-fixture",
+      "epoch": "epoch-1",
+      "serverUrl": "https://sandbox.invalid",
+      "createdTick": 12,
+      "expiresTick": 72,
+      "phase": "uncertain"
+    }
+  ],
+  "decisions": [],
+  "production": {
+    "scope": "https://sandbox.invalid|p1|world-fixture|epoch-1",
+    "fromTick": 2,
+    "toTick": 12,
+    "generatedMilli": { "timber": 100, "stone": 200, "iron": 300 },
+    "ratesMilli": { "timber": 10, "stone": 20, "iron": 30 }
+  },
+  "scouting": { "lastTick": 12 },
+  "raids": [{ "id": "retired-raid" }],
+  "conquest": {
+    "scope": "https://sandbox.invalid|p1|world-fixture|epoch-1",
+    "villageId": "v1",
+    "startedTick": 5,
+    "status": "preparing",
+    "waves": 1,
+    "targetId": "target-1",
+    "escort": 140
+  },
+  "defenseComplements": [
+    {
+      "proposal": {
+        "id": "cohort-pikes",
+        "advisor": "military",
+        "villageId": "v1",
+        "createdTick": 8,
+        "targetLevel": 0,
+        "defenseBatch": {
+          "baselinePikemen": 10,
+          "baselineShieldmen": 4,
+          "pikemen": 9,
+          "shieldmen": 3
+        },
+        "action": { "type": "train", "village": "v1", "unit": "pikeman", "count": 9 }
+      },
+      "serverUrl": "https://sandbox.invalid",
+      "worldId": "world-fixture",
+      "epoch": "epoch-1",
+      "accountId": "p1"
+    }
+  ]
+}

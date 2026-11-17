@@ -15,7 +15,8 @@
     "bot": "tsx bots/typescript/starter.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
     "test": "node --import tsx --test web/test/*.test.ts test/*.test.ts",
-    "access:init": "node scripts/access-token.mjs"
+    "access:init": "node scripts/access-token.mjs",
+    "plan:doc": "node --import tsx scripts/plan-doc.mts"
   },
   "dependencies": {
     "http-proxy": "^1.18.1"

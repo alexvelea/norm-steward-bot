@@ -2,6 +2,20 @@ import { useEffect, useState } from "react";
 import type { ControlView } from "../../../src/control/types";
 import { apiKey } from "./keyStore";
 export type { ControlView };
+export type {
+  PlanningAllocation,
+  PlanningBlocker,
+  PlanningCandidate,
+  PlanningCommitment,
+  PlanningNode,
+  PlanningNodeState,
+  PlanningOperation,
+  PlanningMission,
+  PlanningProjection,
+  PlanningReservation,
+  PlanningVillage,
+  TaskState,
+} from "../../../src/bot/diagnostics/planning";
 export async function controlRequest<T>(path: string, method = "GET", body?: unknown): Promise<T> {
   const r = await fetch("/control" + path, {
     method,

@@ -16,6 +16,20 @@ def atomic(path,data):
     finally:os.close(descriptor)
 def switch(target):
     temp=DEPLOY/'next';temp.unlink(missing_ok=True);temp.symlink_to(target);os.replace(temp,DEPLOY/'current')
+def supported_store_versions(release):
+    manifest=pathlib.Path(release)/'deploy/store-compat.json'
+    if not manifest.exists():return {1}
+    try:
+        value=json.loads(manifest.read_text());versions=value.get('readableStoreVersions')
+        if not isinstance(versions,list) or any(type(version) is not int for version in versions):return set()
+        if type(value.get('storeVersion')) is not int or value['storeVersion'] not in versions:return set()
+        return set(versions)
+    except (OSError,ValueError,AttributeError):return set()
+def state_store_version(value):
+    if not isinstance(value,dict):return None
+    if 'storeVersion' not in value:return 1
+    version=value['storeVersion']
+    return version if type(version) is int and version>0 else None
 def activate(worktree,commit):
     DEPLOY.mkdir(parents=True,exist_ok=True,mode=0o700)
     release=DEPLOY/'releases'/commit;release.mkdir(parents=True,exist_ok=True,mode=0o700)
@@ -47,7 +61,12 @@ def activate(worktree,commit):
             except Exception as failure:error=failure
         raise RuntimeError('Release health check failed') from error
     except Exception:
-        command(['systemctl','stop','norm-steward-control']);switch(previous)
-        command(['systemctl','start','norm-steward-control'])
-        atomic(DEPLOY/'deployment.json',{'commit':commit,'status':'rolled-back','previous':str(previous),'at':time.time()})
-        raise RuntimeError('New release failed health check; previous release restored')
+        command(['systemctl','stop','norm-steward-control'])
+        try:current_version=state_store_version(json.loads(private.read_text()))
+        except (OSError,ValueError):current_version=None
+        if current_version is not None and current_version in supported_store_versions(previous):
+            switch(previous);command(['systemctl','start','norm-steward-control'])
+            atomic(DEPLOY/'deployment.json',{'commit':commit,'status':'rolled-back','previous':str(previous),'storeVersion':current_version,'at':time.time()})
+            raise RuntimeError('New release failed health check; previous release restored')
+        atomic(DEPLOY/'deployment.json',{'commit':commit,'status':'recovery-required','previous':str(previous),'release':str(release),'storeVersion':current_version,'at':time.time()})
+        raise RuntimeError('New release failed health check; previous release is incompatible, recovery required')

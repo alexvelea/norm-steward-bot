@@ -2,9 +2,9 @@
 import hashlib, json, pathlib, re
 from sandbox import fingerprint
 
-RUNTIME=('src/advisors/','src/control/','web/src/','scripts/serve.mjs')
+RUNTIME=('src/advisors/','src/control/','src/bot/','src/review/','web/src/','scripts/serve.mjs')
 EXPERIMENT_JOBS=pathlib.Path('/var/lib/norm-steward-review/experiments/jobs')
-POLICY=('src/advisors/','src/control/controller.ts','src/control/types.ts')
+POLICY=('src/advisors/','src/control/controller.ts','src/control/types.ts','src/bot/','src/review/')
 def runtime_change(paths):return any(any(p.startswith(prefix) for prefix in RUNTIME) for p in paths)
 def policy_change(paths):return any(any(p.startswith(prefix) for prefix in POLICY) for p in paths)
 def source_digest(work):

@@ -189,6 +189,6 @@ test("logging out also stops an already authenticated stream from forwarding pri
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await new Promise<void>((resolve) => upstream.close(() => resolve()));
-    controller.stop();
+    await controller.stop();
   }
 });

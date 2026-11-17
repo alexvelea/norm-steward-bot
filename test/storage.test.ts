@@ -16,7 +16,15 @@ test("private settings and journal survive atomic saves without leaving temporar
       decisions: [],
     };
     await storage.save(value);
-    assert.deepEqual(await storage.load(), value);
+    assert.deepEqual(await storage.load(), {
+      ...value,
+      active: [],
+      automatic: true,
+      missions: [],
+      commitments: [],
+      production: undefined,
+      persistenceFault: undefined,
+    });
     assert.equal((await stat(join(directory, "control.json"))).mode & 0o777, 0o600);
     assert.deepEqual(await readdir(directory), ["control.json"]);
     await writeFile(join(directory, "control.json"), '{"apiKey":"do-not-echo-this-secret');

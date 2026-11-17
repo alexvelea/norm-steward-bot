@@ -70,6 +70,7 @@ export function evaluateRecruitment({ state, rules }: AdvisorContext): Proposal<
     if (start > state.world.tick) add("COUNCIL_COOLDOWN");
     proposals.push({
       id: `${state.world.epoch}:${v.id}:train:${unitId}:${owned}:${count}`,
+      task: unitId === "raider" ? "conquest.escort" : "defense.cohort",
       advisor: "military", villageId: v.id, villageName: v.name,
       action: { type: "train", village: v.id, unit: unitId, count },
       buildingName: `${unit.name} troops`, currentLevel: owned, targetLevel: owned + count,

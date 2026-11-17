@@ -136,6 +136,6 @@ test("authenticated proxy pins REST and WebSocket identity to the configured pla
     await new Promise<void>((resolve) => sockets.close(() => resolve()));
     await close(ui);
     await close(upstream);
-    controller.stop();
+    await controller.stop();
   }
 });

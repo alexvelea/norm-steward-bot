@@ -12,13 +12,17 @@ and proxies game traffic; the central game server continues to own all simulatio
 
 **Personal control center** (`/`)
 - Existing player only: no public pitch, signup, key generation or onboarding cards.
+- Navigation is **Bot**, **Map & commands**, and **Settings**. Bot tabs are **Plan**, **Advisors**,
+  **Budgets**, **Execution**, and **Reviews**. The selected tab, plan node, and village are addressed
+  by the URL query parameters `tab`, `node`, and `village`.
 - Account, selected world, villages, last evaluation and connection status.
 - Economic Advisor proposals ranked by score, with reasons, costs, blockers and readiness.
 - President's selection/reservation and recent recommendation/submission/outcome history.
 - Bot status and automatic execution by the persistent service. Browser tabs never execute advisor loops.
 - Estimated cumulative gross production and per-village three-minute supply/cost coverage.
 - **Settings** (`/settings`): server origin, selected world and masked key. Reveal/edit are explicit;
-  saving changes revalidates the connection and resumes the bot. Private routes require the configured owner key.
+  saving changes revalidates the connection and preserves the execution preference; it does not resume
+  paused gameplay. Private routes require the configured owner key.
 - See [control-center.md](control-center.md) for policy, authentication and persistent execution.
 
 **A world** (`/w/<id>`)

@@ -23,14 +23,18 @@ import {
 } from "./production.js";
 import { economicAdvisor, forecastEconomy } from "../advisors/economic.js";
 import { militaryAdvisor } from "../advisors/military.js";
-import { evaluateScoutDispatch, usableScoutObservation, type ScoutingContext, type ScoutObservation } from "../advisors/scout-dispatch.js";
-import { evaluateRaidExecution, hamletArrivalDefense, usableRaidIntel, type RaidContext, type RaidAttempt } from "../advisors/raid-execution.js";
-import { selectProposal } from "../advisors/president.js";
 import { prioritizeFarmRunway } from "../advisors/farm-runway.js";
 import {applyConquest, conquestScope, conquestTravel, type ConquestContext} from "../advisors/conquest.js";
 import {safeEnvoyAttack} from "../review/conquest-plan.js";
 import type { AdvisorContext, Proposal } from "../advisors/types.js";
 import type { ControlStorage } from "./storage.js";
+import { allocateWithPresident } from "../bot/allocation/president.js";
+import { evaluatePlanning } from "../bot/plan/evaluate.js";
+import { PLAN } from "../bot/plan/graph.js";
+import { BotRunner } from "../bot/runner/runner.js";
+import { prepareJournalEntry } from "../bot/execution/journal.js";
+import { commitmentFromPending, reconcileCommitments } from "../bot/strategy/commitments.js";
+import { conquestMission, conquestPlan, type MissionInstance } from "../bot/strategy/missions/conquest.js";
 import {
   remoteRequest,
   RemoteError,
@@ -79,11 +83,10 @@ export class Controller {
     version: number;
     rules: RulesResponse;
   } | null = null;
-  private scouting: ScoutingContext | undefined;
   private conquest: ConquestContext | undefined;
-  private raids: RaidContext = { attempts: [], assessments: [] };
-  private scoutReports: ReportsResponse = { reports: [], next: null };
+  private conquestReports: ReportsResponse = { reports: [], next: null };
   private persistence: Promise<void> = Promise.resolve();
+  private runner!: BotRunner<void>;
   private view: Omit<
     ControlView,
     | "settings"
@@ -109,6 +112,24 @@ export class Controller {
     conflicts: [],
     production: null,
     economicForecasts: [],
+    planning: {
+      version: 1,
+      revision: 0,
+      scope: "",
+      rulesVersion: 0,
+      observedTick: 0,
+      evaluatedAt: "",
+      nodes: [],
+      edges: PLAN.edges,
+      villages: [],
+      missions: [],
+      commitments: [],
+      candidates: [],
+      allocation: { selectedCandidateId: null, reasonCode: "NOT_EVALUATED", excluded: [] },
+      reservations: [],
+      operations: [],
+      wake: null,
+    },
   };
   private constructor(
     saved: SavedControl,
@@ -117,6 +138,7 @@ export class Controller {
     private now: () => number,
   ) {
     this.saved = saved;
+    this.runner = new BotRunner(() => this.runCycle());
   }
   static async create(
     storage: ControlStorage,
@@ -129,10 +151,20 @@ export class Controller {
       settings: initial,
       pending: null,
       decisions: [],
+      missions: [],
+      commitments: [],
     };
-    saved.settings.serverUrl = validateOrigin(saved.settings.serverUrl);
+    if (!saved.recoveryRequired && !saved.persistenceFault)
+      saved.settings.serverUrl = validateOrigin(saved.settings.serverUrl);
     const controller = new Controller(saved, storage, request, now);
-    controller.automatic = options.execute ?? saved.automatic ?? true;
+    controller.automatic = saved.recoveryRequired || saved.persistenceFault
+      ? false
+      : options.execute ?? saved.automatic ?? true;
+    if (saved.recoveryRequired || saved.persistenceFault) {
+      controller.view.connection = "error";
+      controller.view.error = saved.recoveryRequired ?? saved.persistenceFault ?? null;
+      return controller;
+    }
     await controller.persist();
     return controller;
   }
@@ -161,10 +193,22 @@ export class Controller {
     };
   }
   private persist(): Promise<void> {
+    if (this.saved.recoveryRequired || this.saved.persistenceFault) {
+      return Promise.reject(new Error(
+        this.saved.recoveryRequired ?? "Control state persistence failed; execution is blocked.",
+      ));
+    }
     const value = structuredClone({ ...this.saved, automatic: this.automatic });
     this.persistence = this.persistence
       .catch(() => undefined)
-      .then(() => this.storage.save(value));
+      .then(() => this.storage.save(value))
+      .catch((error: unknown) => {
+        this.saved.persistenceFault = "Control state persistence failed; execution is blocked.";
+        this.automatic = false;
+        this.view.connection = "error";
+        this.view.error = this.saved.persistenceFault;
+        throw error;
+      });
     return this.persistence;
   }
   private record(
@@ -222,6 +266,8 @@ export class Controller {
     await this.cycle();
   }
   async setAutomatic(enabled: boolean): Promise<void> {
+    if (enabled && (this.saved.recoveryRequired || this.saved.persistenceFault))
+      throw new Error(this.saved.recoveryRequired ?? "Control state persistence failed; execution is blocked.");
     if (
       enabled &&
       (this.view.connection !== "connected" ||
@@ -265,7 +311,7 @@ export class Controller {
       pending.action.clientId,
     );
     this.saved.pending = null;
-    this.automatic = true;
+    this.automatic = !this.saved.persistenceFault && !this.saved.recoveryRequired;
     this.backoffUntil = 0;
     await this.persist();
   }
@@ -277,10 +323,11 @@ export class Controller {
     };
     void run();
   }
-  stop(): void {
+  async stop(): Promise<void> {
     this.stopped = true;
     this.revision++;
     if (this.timer) clearTimeout(this.timer);
+    await this.runner.stop();
   }
   private path(suffix: string): string {
     return `/worlds/${encodeURIComponent(this.saved.settings.worldId)}${suffix}`;
@@ -384,98 +431,38 @@ export class Controller {
     );
     return joined;
   }
-  private scoutingScope(state: StateResponse): string {
-    return JSON.stringify([this.settings.serverUrl, this.view.account?.id, state.world.id, state.world.epoch]);
-  }
-  private async readScouting(context: AdvisorContext): Promise<void> {
-    const state = context.state;
-    const scope = this.scoutingScope(state);
-    const needed = [this.saved.pending, ...(this.saved.active ?? [])].some(p => p?.action.type === "send") || (this.saved.scouting ?? []).some(o => o.scope === this.scoutingScope(state) && o.report && state.world.tick - o.report.tick <= 300) || state.villages.some(v => (v.units.home.scout ?? 0) >= 2);
-    this.scoutReports = { reports: [], next: null };
-    this.raids = { attempts: this.saved.raids ?? [], assessments: this.raids.assessments.filter(a => a.scope === scope && a.tick === state.world.tick) };
-    if (!needed) { this.scouting = undefined; return; }
-    // A public map is enough for a scouting destination; never infer hidden defenders from it.
-    // Reuse only a map read at this exact tick and scope during immediate pre-write revalidation.
-    const map = this.scouting?.scope === scope && this.scouting.map.tick === state.world.tick
-      ? this.scouting.map : await this.request<MapResponse>(this.settings, this.path("/map"));
-    if ([this.saved.pending, ...(this.saved.active ?? [])].some(p => p?.action.type === "send") || state.villages.some(v => (v.units.home.lancer ?? 0) >= 30)) {
-      this.scoutReports = await this.request<ReportsResponse>(this.settings, this.path("/reports"));
-    }
-    this.scouting = { scope, map, observations: (this.saved.scouting ?? []).filter(o => o.scope === scope),
-      consumedReportIds: this.raids.attempts.filter(a => a.scope === scope).map(a => a.reportId) };
-    for (const r of this.scoutReports.reports) {
-      if (r.kind !== "battle" || r.role !== "attacker" || r.outcome !== "won" || r.attacker.ownerId !== state.player.id ||
-          r.defender.ownerId !== null || !r.commandId || !state.villages.some(v => v.id === r.attacker.id) ||
-          r.tick > state.world.tick || state.world.tick - r.tick > 600 ||
-          this.scouting.observations.some(o => o.targetId === r.defender.id && o.clearing && o.clearing.tick >= r.tick)) continue;
-      const clearing = await this.request<Report>(this.settings, this.path(`/reports/${encodeURIComponent(r.id)}`));
-      if (clearing.id === r.id && clearing.commandId === r.commandId && clearing.tick === r.tick && !clearing.conquered &&
-          clearing.kind === "battle" && clearing.role === "attacker" && clearing.outcome === "won" &&
-          clearing.attacker.ownerId === state.player.id && clearing.defender.id === r.defender.id && clearing.defender.ownerId === null) {
-        this.rememberScout({ scope, villageId: r.attacker.id, targetId: r.defender.id, targetOwnerId: null, sentTick: -600, clearing });
-      }
-      break;
-    }
-    // Fetch only a journal-linked, fresh successful report. Reading detail marks it read upstream.
-    for (const o of this.scouting.observations) {
-      if (!o.detail && o.report && usableScoutObservation(o, state, map, scope)) {
-        const detail = await this.request<Report>(this.settings, this.path(`/reports/${encodeURIComponent(o.report.id)}`));
-        // Persist full detail only if provenance and shape agree with the original observation.
-        const candidate = { ...o, detail };
-        if (usableRaidIntel(candidate, state, this.scouting)) this.rememberScout(candidate);
-        break; // Bound reads to one detail per evaluation.
-      }
-    }
-    if (state.commands.outgoing.some(c => c.kind === "attack" && Object.entries(c.units).some(([unit, n]) => unit !== "scout" && n > 0))) return;
-    for (const o of this.scouting.observations) {
-      if (!usableRaidIntel(o, state, this.scouting) || this.raids.attempts.some(a => a.scope === scope && a.reportId === o.detail.id)) continue;
-      const intel = o.detail.intel!;
-      const village = state.villages.find(v => v.id === o.villageId);
-      const owner = map.players.find(p => p.id === o.targetOwnerId);
-      const unit = o.targetOwnerId === null ? "lancer" : "raider";
-      const count = unit === "lancer" ? 30 : 10;
-      if (!village || (village.units.home[unit] ?? 0) < count || (o.targetOwnerId !== null && !owner?.houseBot) ||
-          intel.buildings.wall !== 0 || Object.values(intel.unitsHome).some(n => n > 0) || Object.values(intel.supportTotal).some(n => n > 0)) continue;
-      if (this.raids.assessments.some(a => a.reportId === o.detail.id)) break;
-      const target = map.villages.find(t => t.id === o.targetId)!;
-      const speed = (context.rules.rules.UNITS as Record<string, { speed: number }>)[unit]?.speed;
-      const travel = Math.ceil(Math.hypot(target.x - village.x, target.y - village.y) * speed);
-      const baseDefense = unit === "lancer" ? hamletArrivalDefense(o, state, context.rules, travel) : undefined;
-      if (unit === "lancer" && (!Number.isSafeInteger(travel) || travel < 1 || travel > 300 || baseDefense === undefined)) continue;
-      const battle = await this.request<SimulateBattleResponse>(this.settings, this.path("/simulate/battle"), {
-        fromReport: o.detail.id, attacker: { [unit]: count }, ...(baseDefense === undefined ? {} : { baseDefense }),
-      });
-      this.raids.assessments.push({ scope, reportId: o.detail.id, tick: state.world.tick, battle, unit, baseDefense });
-      break; // One authoritative risk assessment per evaluation.
-    }
-  }
   /** Research transition uses only the existing executor. No timers or independent spender. */
   private async readConquest(context: AdvisorContext): Promise<void> {
     const {state,rules}=context;
     const scope=conquestScope(this.settings.serverUrl,this.view.account!.id,context);
-    if(this.saved.conquest?.scope!==scope)this.saved.conquest=undefined;
-    if(!this.saved.conquest&&state.villages.length===1&&state.world.status==='running'){
+    let mission=this.saved.missions?.find(value=>value.scope===scope&&value.definition==='firstConquest');
+    if(!mission&&state.villages.length===1&&state.world.status==='running'){
       const v=state.villages[0];
       if((v.units.home.pikeman??0)>=150&&!Object.values(v.orders).some(q=>q.length))
-        this.saved.conquest={scope,villageId:v.id,startedTick:state.world.tick,status:'preparing',waves:0};
+        mission=conquestMission({scope,villageId:v.id,startedTick:state.world.tick,status:'preparing',waves:0});
     }
-    const plan=this.saved.conquest;
-    if(!plan){this.conquest=undefined;return;}
+    if(!mission){this.conquest=undefined;this.conquestReports={reports:[],next:null};return;}
+    const plan=conquestPlan(mission);
+    const hasPendingWave=[this.saved.pending,...(this.saved.active??[])].some(p=>p?.missionId===mission!.id&&p.action.type==='send');
+    this.conquestReports=hasPendingWave
+      ? await this.request<ReportsResponse>(this.settings,this.path('/reports'))
+      : {reports:[],next:null};
+    const savePlan=()=>{this.saveConquestPlan(plan);};
     const v=state.villages.find(v=>v.id===plan.villageId);
     if(!v){plan.status='stopped';plan.reason='Origin lost';}
     if(plan.targetId&&state.villages.some(v=>v.id===plan.targetId)){
       plan.status='captured';plan.capturedTick??=state.world.tick;
     }
     this.conquest={plan};
-    if(plan.status!=='preparing'||!v||Math.min(v.buildings.lumberyard,v.buildings.quarry,v.buildings.mine)<15)return;
+    if(plan.status!=='preparing'||!v||Math.min(v.buildings.lumberyard,v.buildings.quarry,v.buildings.mine)<15){savePlan();return;}
     const map=await this.request<MapResponse>(this.settings,this.path('/map'));
     this.conquest.map=map;
     if(!plan.targetId){
       plan.targetId=map.villages.filter(t=>t.ownerId===null).sort((a,b)=>
         Math.hypot(a.x-v.x,a.y-v.y)-Math.hypot(b.x-v.x,b.y-v.y)||a.id.localeCompare(b.id))[0]?.id;
-      if(!plan.targetId){plan.status='stopped';plan.reason='No unowned target';return;}
+      if(!plan.targetId){plan.status='stopped';plan.reason='No unowned target';savePlan();return;}
     }
-    if(map.villages.find(t=>t.id===plan.targetId)?.ownerId!==null){plan.status='stopped';plan.reason='Target ownership changed';return;}
+    if(map.villages.find(t=>t.id===plan.targetId)?.ownerId!==null){plan.status='stopped';plan.reason='Target ownership changed';savePlan();return;}
     const hamlet=rules.rules.MAP as {hamletLevels:{wall:number[]};hamletBaseDefense:number;hamletMilitiaCap:number;hamletMilitiaPerTick:number};
     if(!plan.escort){
       for(let n=20;n<=1000;n+=20){
@@ -484,9 +471,9 @@ export class Controller {
           baseDefense:hamlet.hamletBaseDefense+hamlet.hamletMilitiaCap});
         if(safeEnvoyAttack(battle)){plan.escort=n;break;}
       }
-      if(!plan.escort){plan.status='stopped';plan.reason='No bounded surviving-Envoy escort';return;}
+      if(!plan.escort){plan.status='stopped';plan.reason='No bounded surviving-Envoy escort';savePlan();return;}
     }
-    if((v.units.home.envoy??0)<1||(v.units.home.raider??0)<1||state.commands.outgoing.some(c=>c.from.id===v.id))return;
+    if((v.units.home.envoy??0)<1||(v.units.home.raider??0)<1||state.commands.outgoing.some(c=>c.from.id===v.id)){savePlan();return;}
     const travel=conquestTravel(context,this.conquest)!;
     const last=plan.lastBattle;
     // Only a journal-linked own victory may reset militia. Otherwise use the maximum.
@@ -495,22 +482,29 @@ export class Controller {
     const battle=await this.request<SimulateBattleResponse>(this.settings,this.path('/simulate/battle'),{
       attacker:{raider:v.units.home.raider,envoy:1},defender:{},wall:hamlet.hamletLevels.wall[1],loyalty:100,baseDefense});
     this.conquest.assessment={tick:state.world.tick,raiders:v.units.home.raider!,battle};
+    savePlan();
+  }
+  private saveConquestPlan(plan: ConquestContext["plan"]): MissionInstance {
+    const mission=conquestMission(plan);
+    this.saved.missions=[...(this.saved.missions??[]).filter(value=>
+      value.definition!==mission.definition||value.scope!==mission.scope),mission];
+    return mission;
   }
   private async reconcileConquest(context: AdvisorContext,p: Pending): Promise<void> {
-    const state=context.state,plan=this.saved.conquest;
-    if(!plan||plan.scope!==conquestScope(this.settings.serverUrl,this.view.account!.id,context)){
-      this.clearOperation(p);return;
+    const state=context.state;
+    const mission=this.saved.missions?.find(value=>value.id===p.missionId&&value.definition==='firstConquest');
+    if(!mission||mission.scope!==conquestScope(this.settings.serverUrl,this.view.account!.id,context)){
+      this.clearOperation(p);await this.persist();return;
     }
-    // Ownership establishes the objective even when the last request/report is uncertain.
-    // Do not downgrade a captured plan or attribute that ownership to an unknown write.
+    const plan=conquestPlan(mission);
     const captured=!!plan.targetId&&state.villages.some(v=>v.id===plan.targetId);
     if(captured){plan.status='captured';plan.capturedTick??=state.world.tick;}
     if(captured&&p.phase!=='accepted'){
       this.record('uncertain','Fresh state confirms conquest target ownership; final request attribution remains unknown. Suppress replay.',p.proposal,p.action.clientId,state.world.tick);
-      this.clearOperation(p);await this.persist();return;
+      this.clearOperation(p);this.saveConquestPlan(plan);await this.persist();return;
     }
     if(p.phase==='accepted'){
-      const report=this.scoutReports.reports.find(r=>r.commandId===p.itemId&&r.kind==='battle'&&r.role==='attacker'&&
+      const report=this.conquestReports.reports.find(r=>r.commandId===p.itemId&&r.kind==='battle'&&r.role==='attacker'&&
         r.attacker.id===plan.villageId&&r.attacker.ownerId===state.player.id&&r.defender.id===plan.targetId&&r.tick>=p.createdTick&&r.tick<=state.world.tick);
       if(report){
         const detail=await this.request<Report>(this.settings,this.path(`/reports/${encodeURIComponent(report.id)}`));
@@ -535,78 +529,14 @@ export class Controller {
     }else if(state.world.tick>=p.expiresTick){
       this.automatic=false;this.record('uncertain','Conquest idempotency window expired; inspect activity before resuming.',p.proposal,p.action.clientId,state.world.tick);
     }
-    await this.persist();
-  }
-  private rememberScout(observation: ScoutObservation): void {
-    if (!observation.clearing && observation.targetOwnerId === null) observation = { ...observation,
-      clearing: this.scouting?.observations.find(o => o.targetId === observation.targetId && o.clearing)?.clearing };
-    this.saved.scouting = [observation, ...(this.saved.scouting ?? []).filter(o =>
-      !(o.scope === observation.scope && o.villageId === observation.villageId && o.sentTick === observation.sentTick))].slice(0, 32);
-    if (this.scouting) this.scouting.observations = this.saved.scouting;
-  }
-  private async reconcileScout(context: AdvisorContext, p: Pending): Promise<void> {
-    if (p.action.type !== "send") return;
-    const state = context.state;
-    const v = state.villages.find(v => v.id === p.proposal.villageId)!;
-    const report = p.itemId ? this.scoutReports.reports.find(r => r.commandId === p.itemId) : undefined;
-    if (p.phase === "accepted") {
-      if (report && p.scout) {
-        this.rememberScout({ ...p.scout, commandId: p.itemId, report });
-        this.record(report.kind === "scouting" && report.outcome === "scouted" ? "confirmed" : "cancelled",
-          `Scouting report ${report.id}: ${report.outcome} at tick ${report.tick}. Observation age and current ownership must be checked before target use.`, p.proposal, p.action.clientId, state.world.tick);
-        this.clearOperation(p);
-      } else if (!state.commands.outgoing.some(c => c.id === p.itemId)) {
-        this.record("cancelled", "Scouting command disappeared without a retained matching report; no intelligence or success is inferred.", p.proposal, p.action.clientId, state.world.tick);
-        this.clearOperation(p);
-      }
-    } else if ((v.units.home.scout ?? 0) !== p.proposal.currentLevel || state.commands.outgoing.some(c => c.from.id === v.id && (c.units.scout ?? 0) > 0)) {
-      if (p.scout) this.rememberScout(p.scout);
-      this.record("uncertain", "Scout troops or commands changed after an uncertain send; suppress replay without attributing the command or claiming intelligence.", p.proposal, p.action.clientId, state.world.tick);
-      this.clearOperation(p);
-    } else if (state.world.tick >= p.expiresTick) {
-      this.automatic = false;
-      this.backoffUntil = this.now() + 60000;
-      this.record("uncertain", "Scouting idempotency window expired; execution paused pending activity inspection.", p.proposal, p.action.clientId, state.world.tick);
-    }
-    await this.persist();
-  }
-  private rememberRaid(attempt: RaidAttempt): void {
-    // Keep every still-usable report consumed, even if many villages raid in one round.
-    this.saved.raids = [attempt, ...(this.saved.raids ?? []).filter(a =>
-      a.scope === attempt.scope && a.reportId !== attempt.reportId && attempt.sentTick - a.sentTick <= 900)];
-    this.raids.attempts = this.saved.raids;
-    if (this.scouting) this.scouting.consumedReportIds = this.saved.raids.filter(a => a.scope === this.scouting!.scope).map(a => a.reportId);
-  }
-  private async reconcileRaid(context: AdvisorContext, p: Pending): Promise<void> {
-    const state = context.state;
-    const v = state.villages.find(v => v.id === p.proposal.villageId)!;
-    const report = p.itemId ? this.scoutReports.reports.find(r => r.commandId === p.itemId && r.kind === "battle" &&
-      r.role === "attacker" && r.attacker.id === v.id && r.attacker.ownerId === state.player.id &&
-      r.defender.id === p.raid!.targetId && r.tick >= p.createdTick && r.tick <= state.world.tick) : undefined;
-    if (p.phase === "accepted") {
-      if (report) {
-        this.record("confirmed", `Raid report ${report.id}: ${report.outcome} at tick ${report.tick}. Actual losses and loot belong to its full battle detail.`, p.proposal, p.action.clientId, state.world.tick);
-        this.clearOperation(p);
-      } else if (!state.commands.outgoing.some(c => c.id === p.itemId)) {
-        this.record("cancelled", "Raid command disappeared without a matching report; no victory or loot is inferred.", p.proposal, p.action.clientId, state.world.tick);
-        this.clearOperation(p);
-      }
-    } else if ((v.units.home[p.action.type === "send" && p.action.units.lancer === 30 ? "lancer" : "raider"] ?? 0) !== p.proposal.currentLevel || state.commands.outgoing.some(c => c.from.id === v.id && ((c.units.raider ?? 0) > 0 || (c.units.lancer ?? 0) > 0))) {
-      this.rememberRaid(p.raid!);
-      this.record("uncertain", "Raid troops or commands changed after an uncertain send; consume this report and suppress replay without attributing success.", p.proposal, p.action.clientId, state.world.tick);
-      this.clearOperation(p);
-    } else if (state.world.tick >= p.expiresTick) {
-      this.automatic = false;
-      this.backoffUntil = this.now() + 60000;
-      this.record("uncertain", "Raid idempotency window expired; execution paused pending activity inspection.", p.proposal, p.action.clientId, state.world.tick);
-    }
+    this.saveConquestPlan(plan);
     await this.persist();
   }
   private plan(context: AdvisorContext): void {
     // A completed first component can outlive its accepted queue item across a pause/restart.
     // Do not use that memory to append to an unrelated/manual Barracks queue.
-    const complements = (this.saved.defenseComplements ?? []).filter(p =>
-      !context.state.villages.find(v => v.id === p.proposal.villageId)?.training.barracks.length);
+    const complements = (this.saved.commitments ?? []).filter(commitment =>
+      !context.state.villages.find(v => v.id === commitment.villageId)?.training.barracks.length);
     context = {...context, activeProposals:[...(this.saved.active ?? []), ...complements].map(p => p.proposal)};
     this.view.world = context.state.world;
     this.view.villages = context.state.villages.map((v) => ({
@@ -618,7 +548,6 @@ export class Controller {
     this.view.proposals = [economicAdvisor, militaryAdvisor].flatMap(
       (advisor) => advisor.evaluate(context),
     );
-    this.view.proposals.push(...evaluateScoutDispatch(context, this.scouting), ...evaluateRaidExecution(context, this.scouting, this.raids));
     if(this.conquest?.plan.status!=='preparing')prioritizeFarmRunway(context, this.view.proposals);
     this.view.proposals=applyConquest(context,this.view.proposals,this.conquest);
     const eligible=context.state.villages.filter(v=>earlyBuildWindow(context.state,v));
@@ -647,7 +576,45 @@ export class Controller {
         proposal.status = "waiting"; proposal.blockers.push("EXECUTOR_QUEUE_BUSY");
       }
     }
-    this.view.selection = selectProposal(this.saved.pending ? this.view.proposals.filter(p => p.id === this.saved.pending!.proposal.id) : this.view.proposals);
+    const missionScope=conquestScope(this.settings.serverUrl,this.view.account!.id,context);
+    const mission=this.saved.missions?.find(value=>
+      value.definition==='firstConquest'&&value.status==='active'&&value.scope===missionScope);
+    const allocation=allocateWithPresident(this.view.proposals,{
+      ...(this.conquest?.plan.status==='preparing'&&mission?{
+        activeConquest:{
+          id:mission.id,
+          villageId:mission.villageId,
+          allowedTasks:[
+            "defense.cohort",
+            "conquest.producer-investment",
+            "conquest.hall13",
+            "conquest.barracks10",
+            "conquest.smithy10",
+            "conquest.market5",
+            "conquest.court",
+            "conquest.capacity",
+            "conquest.escort",
+            "conquest.envoy",
+            "conquest.dispatch",
+          ],
+        },
+      }:{}),
+      pending:this.saved.pending?.proposal??null,
+    });
+    this.view.selection = allocation.selection;
+    const scope=productionScope(this.settings.serverUrl,this.view.account!.id,context.state);
+    const journal=[...(this.saved.active??[]),...(this.saved.pending?[this.saved.pending]:[])];
+    this.view.planning=evaluatePlanning({
+      context,
+      memory:{missions:this.saved.missions??[],commitments:this.saved.commitments??[],scope},
+      candidates:this.view.proposals,
+      journal,
+      evaluatedAt:new Date(this.now()).toISOString(),
+      selectedId:this.view.selection.selected?.id??null,
+      allocationReasonCode:allocation.reasonCodes[0]??"NO_ACTION_NEEDED",
+      excludedCandidates:allocation.excluded,
+      reservations:allocation.reservations,
+    });
     if (!this.view.selection.selected && this.saved.active?.length) {
       this.view.selection.reason += ` Tracking ${this.saved.active.length} accepted operation(s) across independent construction/training/command queues.`;
     }
@@ -689,15 +656,13 @@ export class Controller {
   private async reconcile(context: AdvisorContext): Promise<void> {
     for (const p of [...(this.saved.active ?? []), ...(this.saved.pending ? [this.saved.pending] : [])]) await this.reconcileOne(context, p);
     this.archiveAccepted();
-    this.saved.defenseComplements = (this.saved.defenseComplements ?? []).filter(p => {
-      const s = context.state, v = s.villages.find(v => v.id === p.proposal.villageId), plan = p.proposal.defenseBatch;
-      if (!v || !plan || s.world.status === "ended" || p.serverUrl !== this.settings.serverUrl ||
-          p.worldId !== s.world.id || p.epoch !== s.world.epoch || p.accountId !== this.view.account?.id) return false;
-      const owned = (unit: "pikeman" | "shieldman") => (v.units.home[unit] ?? 0) + (v.units.away[unit] ?? 0);
-      // Losses must not turn a remembered complement into replacement Pikemen.
-      if (owned("pikeman") < plan.baselinePikemen + plan.pikemen) return false;
-      const shieldsQueued = v.training.barracks.filter(q => q.unit === "shieldman").reduce((n, q) => n + q.remaining, 0);
-      return owned("shieldman") + shieldsQueued < plan.baselineShieldmen + plan.shieldmen;
+    this.saved.commitments=reconcileCommitments(this.saved.commitments??[],context.state.villages,{
+      value:productionScope(this.settings.serverUrl,this.view.account!.id,context.state),
+      serverUrl:this.settings.serverUrl,
+      worldId:context.state.world.id,
+      epoch:context.state.world.epoch,
+      accountId:this.view.account!.id,
+      ended:context.state.world.status==="ended",
     });
   }
   private async reconcileOne(context: AdvisorContext, p: Pending): Promise<void> {
@@ -722,9 +687,16 @@ export class Controller {
       return;
     }
     if (p.action.type === "send") {
-      if(p.conquest)await this.reconcileConquest(context,p);
-      else if (p.raid) await this.reconcileRaid(context, p);
-      else await this.reconcileScout(context, p);
+      if(p.missionId)await this.reconcileConquest(context,p);
+      else if(p.phase!=="accepted"){
+        this.automatic=false;
+        this.record("uncertain","An unclassified legacy send is retained for operator inspection and will not be replayed.",p.proposal,p.action.clientId,s.world.tick);
+        await this.persist();
+      }else if(!s.commands.outgoing.some(command=>command.id===p.itemId)){
+        this.record("cancelled","An unclassified accepted send left the outgoing command list; no outcome is inferred.",p.proposal,p.action.clientId,s.world.tick);
+        this.clearOperation(p);
+        await this.persist();
+      }
       return;
     }
     if (p.action.type === "train") {
@@ -805,12 +777,12 @@ export class Controller {
         context.state.world.tick,
       );
       if (complete && unit === "pikeman" && p.proposal.defenseBatch) {
-        // Keep the original counts/baselines, independently of the completed operation.
-        // Fresh policy checks still own funding, population, manual orders and the deadline.
-        const { proposal, serverUrl, worldId, epoch, accountId } = p;
-        this.saved.defenseComplements = [
-          ...(this.saved.defenseComplements ?? []).filter(c => c.proposal.villageId !== proposal.villageId),
-          { proposal: structuredClone(proposal), serverUrl, worldId, epoch, accountId },
+        const commitment=commitmentFromPending(p,productionScope(
+          this.settings.serverUrl,this.view.account!.id,context.state,
+        ));
+        if(commitment)this.saved.commitments=[
+          ...(this.saved.commitments??[]).filter(value=>value.villageId!==commitment.villageId),
+          commitment,
         ];
       }
       this.clearOperation(p);
@@ -840,7 +812,16 @@ export class Controller {
     }
     await this.persist();
   }
-  async cycle(): Promise<void> {
+  cycle(): Promise<void> {
+    return this.runner.cycle();
+  }
+  private async runCycle(): Promise<void> {
+    if (this.saved.recoveryRequired || this.saved.persistenceFault) {
+      this.automatic=false;
+      this.view.connection="error";
+      this.view.error=this.saved.recoveryRequired??this.saved.persistenceFault??"Control state persistence failed.";
+      return;
+    }
     if (this.busy || this.stopped || this.now() < this.backoffUntil) return;
     if (!this.saved.settings.apiKey) {
       this.view.connection = "unconfigured";
@@ -879,7 +860,6 @@ export class Controller {
         history.samples,
       );
       this.view.production = productionView(this.saved.production);
-      await this.readScouting(context);
       await this.readConquest(context);
       await this.reconcile(context);
       this.plan(context);
@@ -895,7 +875,6 @@ export class Controller {
         fresh.state,
       );
       this.view.production = productionView(this.saved.production);
-      await this.readScouting(fresh);
       await this.readConquest(fresh);
       await this.reconcile(fresh);
       this.plan(fresh);
@@ -917,29 +896,16 @@ export class Controller {
           throw new Error(
             "Live idempotency TTL is unavailable; refusing to execute.",
           );
-        pending = {
-          proposal: selected,
-          action: { ...selected.action, clientId: `econ-${randomUUID()}` },
+        pending = prepareJournalEntry(selected,{
           accountId: me.account.id,
           worldId: fresh.state.world.id,
           epoch: fresh.state.world.epoch,
           serverUrl: this.saved.settings.serverUrl,
           createdTick: fresh.state.world.tick,
           expiresTick: fresh.state.world.tick + ttl - 1,
-          phase: "prepared",
-          ...(selected.action.type === "send" && selected.action.units.scout === 2 ? { scout: {
-            scope: this.scoutingScope(fresh.state), villageId: selected.villageId,
-            targetId: selected.action.target,
-            targetOwnerId: this.scouting!.map.villages.find(v => v.id === (selected.action.type === "send" ? selected.action.target : ""))!.ownerId!,
-            sentTick: fresh.state.world.tick,
-          } } : {}),
-        };
-        if(selected.advisor==='conquest'&&selected.action.type==='send')pending.conquest=true;
-        if (selected.advisor!=='conquest'&&selected.action.type === "send" && (selected.action.units.raider === 10 || selected.action.units.lancer === 30)) {
-          const observation = this.scouting!.observations.find(o => selected.id.endsWith(`:raid:${o.report?.id}`))!;
-          pending.raid = { scope: this.scoutingScope(fresh.state), villageId: selected.villageId,
-            targetId: selected.action.target, reportId: observation.report!.id, sentTick: fresh.state.world.tick };
-        }
+        },`econ-${randomUUID()}`);
+        if(selected.advisor==='conquest'&&selected.action.type==='send')
+          pending.missionId=this.conquest?.plan?conquestMission(this.conquest.plan).id:undefined;
         this.saved.pending = pending;
         this.record(
           "prepared",
@@ -990,33 +956,15 @@ export class Controller {
             Math.max(10000, Number(result.error.details?.retryAfterMs) || 0);
         } else if (pending.action.type === "send" && "command" in result.data) {
           const command = result.data.command;
-          if(pending.conquest){
-            if(command.kind!=='attack'||command.from.id!==pending.action.village||command.to.id!==pending.action.target||
-              JSON.stringify(command.units)!==JSON.stringify(pending.action.units))throw new RemoteError(0,5000,'Unexpected conquest command; inspect activity.');
-            pending.phase='accepted';pending.itemId=command.id;
-            this.saved.conquest!.waves++;
-            this.record('accepted',`Conquest wave ${this.saved.conquest!.waves} dispatched; arrival tick ${command.arrivalTick}.`,selected,pending.action.clientId,response.tick);
-          } else if (pending.raid) {
-            if (command.kind !== "attack" || command.from.id !== pending.action.village || command.to.id !== pending.action.target ||
-                JSON.stringify(command.units) !== JSON.stringify(pending.action.units))
-              throw new RemoteError(0, 5000, "Unexpected raid command result; inspect activity.");
-            pending.phase = "accepted";
-            pending.itemId = command.id;
-            this.rememberRaid({ ...pending.raid, sentTick: command.sentTick });
-            this.record("accepted", `${pending.action.units.lancer === 30 ? "Thirty Lancers" : "Ten Raiders"} dispatched as ${command.id}; arrival tick ${command.arrivalTick}. Await the matching battle report.`, selected, pending.action.clientId, response.tick);
-          } else {
-          if (command.kind !== "attack" || command.from.id !== pending.action.village || command.to.id !== pending.action.target ||
-              command.units.scout !== 2 || Object.entries(command.units).some(([unit, count]) => unit !== "scout" && count > 0))
-            throw new RemoteError(0, 5000, "Unexpected scouting command result; inspect activity.");
+          if(!pending.missionId||command.kind!=='attack'||command.from.id!==pending.action.village||command.to.id!==pending.action.target||
+              JSON.stringify(command.units)!==JSON.stringify(pending.action.units))
+            throw new RemoteError(0,5000,'Unexpected conquest command; inspect activity.');
           pending.phase = "accepted";
           pending.itemId = command.id;
-          if (pending.scout) {
-            pending.scout.commandId = command.id;
-            pending.scout.sentTick = command.sentTick;
-            this.rememberScout(pending.scout);
-          }
-          this.record("accepted", `Two Scouts dispatched as ${command.id}; arrival tick ${command.arrivalTick}. Await the matching report.`, selected, pending.action.clientId, response.tick);
-          }
+          const mission=this.saved.missions?.find(value=>value.id===pending!.missionId);
+          if(!mission)throw new RemoteError(0,5000,'Conquest mission disappeared before command acceptance was recorded.');
+          mission.memory.waves++;
+          this.record('accepted',`Conquest wave ${mission.memory.waves} dispatched; arrival tick ${command.arrivalTick}.`,selected,pending.action.clientId,response.tick);
         } else if (
           (pending.action.type === "build" && "item" in result.data) ||
           (pending.action.type === "train" && "batch" in result.data)
@@ -1075,7 +1023,8 @@ export class Controller {
       }
     } catch (e) {
       this.view.connection = "error";
-      this.view.error = e instanceof Error ? e.message : "Evaluation failed.";
+      this.view.error = this.saved.persistenceFault ?? this.saved.recoveryRequired ??
+        (e instanceof Error ? e.message : "Evaluation failed.");
       const delay = e instanceof RemoteError ? e.retryMs : 10000;
       this.backoffUntil = this.now() + delay;
       if (e instanceof RemoteError && (e.status === 401 || e.status === 403)) {

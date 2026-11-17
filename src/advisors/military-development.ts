@@ -1,5 +1,6 @@
 import type {Action,BuildingId,Resources} from "../shared/api.js";
 import type {AdvisorContext,Proposal} from "./types.js";
+import { proposalTask } from "../bot/plan/graph.js";
 import {completionWindow} from "./completion.js";
 import {defenseBudget} from "./defense-budget.js";
 import {RECRUIT_USE_TICKS} from "./defense-budget.js";
@@ -36,7 +37,7 @@ export function evaluateMilitaryDevelopment({state,rules}:AdvisorContext):Propos
   }
   const completion=completionWindow(state,v,o);if(completion&&completion.completionTick+600>state.world.endsAtTick){needed=false;blockers.push("ROUND_END_TOO_SOON");}
   if(state.world.status!=="running")blockers.push("WORLD_NOT_RUNNING");if((state.player.nextActTick??state.world.tick)>state.world.tick)blockers.push("COUNCIL_COOLDOWN");
-  proposals.push({id:`${state.world.epoch}:${v.id}:development:${building}:${o.level}`,advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building},buildingName:metadata[building].name,currentLevel:v.buildings[building],targetLevel:o.level,importance:76,
+  proposals.push({id:`${state.world.epoch}:${v.id}:development:${building}:${o.level}`,task:proposalTask("military",{type:"build",building},o.level),advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building},buildingName:metadata[building].name,currentLevel:v.buildings[building],targetLevel:o.level,importance:76,
    reason:`Military construction path: Barracks 3, then Smithy 1, then Stable 3 for Scouts and Lancers. Next: ${metadata[building].name} ${o.level}${missing?` to unlock ${metadata[destination].name}`:""}. Fund this step now, retain the population buffer and at least 600 ticks after construction. Training continues in its own queue. For resources produced below the sustained defensive training demand, retain funding for one complete next cohort before this construction.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
  }
  return proposals;
@@ -67,7 +68,7 @@ export function evaluateWalls({state,rules}:AdvisorContext):Proposal<Extract<Act
   if(v.buildQueue.length)blockers.push("BUILD_QUEUE_BUSY");if(v.orders.build.length)blockers.push("EXTERNAL_BUILD_ORDERS");
   const completion=completionWindow(state,v,o);if(completion&&completion.completionTick+120>state.world.endsAtTick){needed=false;blockers.push("ROUND_END_TOO_SOON");}
   if(state.world.status!=="running")blockers.push("WORLD_NOT_RUNNING");if((state.player.nextActTick??state.world.tick)>state.world.tick)blockers.push("COUNCIL_COOLDOWN");
-  proposals.push({id:`${state.world.epoch}:${v.id}:wall:${o.level}`,advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"wall"},buildingName:"Wall",currentLevel:v.buildings.wall,targetLevel:o.level,importance:84,
+  proposals.push({id:`${state.world.epoch}:${v.id}:wall:${o.level}`,task:proposalTask("military",{type:"build",building:"wall"},o.level),advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"wall"},buildingName:"Wall",currentLevel:v.buildings.wall,targetLevel:o.level,importance:84,
    reason:`All resource producers have reached 13; Wall ${o.level} adds ${Object.entries(gains).map(([t,n])=>`${Math.round(n)} ${t}`).join(", ")} defence from troops at home/support plus base defence and the wall multiplier. Worst-type defence per resource is ${efficiency.toFixed(2)}x another 3Pi1Sh at the current wall; require at least 1.10x. Away troops excluded. Static comparison assumes no attacking Rams; it is not a battle prediction.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
  }
  return proposals;
@@ -91,7 +92,7 @@ export function evaluateCavalry({state,rules}:AdvisorContext):Proposal<Extract<A
   const start=Math.max(state.world.tick,state.player.nextActTick??state.world.tick);
   if(start+count*o.ticksEach+300>state.world.endsAtTick){needed=false;blockers.push("ROUND_END_TOO_SOON");}
   if(state.world.status!=="running")blockers.push("WORLD_NOT_RUNNING");if(start>state.world.tick)blockers.push("COUNCIL_COOLDOWN");
-  proposals.push({id:`${state.world.epoch}:${v.id}:lancer:${owned}:${count}`,advisor:"military",villageId:v.id,villageName:v.name,action:{type:"train",village:v.id,unit:"lancer",count},buildingName:"Lancer troops",currentLevel:owned,targetLevel:owned+count,importance:72,
+  proposals.push({id:`${state.world.epoch}:${v.id}:lancer:${owned}:${count}`,task:proposalTask("military",{type:"train",unit:"lancer"},owned+count),advisor:"military",villageId:v.id,villageName:v.name,action:{type:"train",village:v.id,unit:"lancer",count},buildingName:"Lancer troops",currentLevel:owned,targetLevel:owned+count,importance:72,
    reason:`Train ${count} Lancers (${count*o.ticksEach} ticks) toward 30 owned/queued, using the Stable independently of Barracks. Keep ${buffer} population free and 300 ticks for use. This is a bounded initial cavalry force; dispatch still requires intelligence and the existing risk checks.`,requirements,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
  }
  return proposals;

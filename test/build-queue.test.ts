@@ -4,6 +4,7 @@ import {earlyBuildWindow,constructionContext} from '../src/advisors/build-queue.
 import {developedContext} from './control-fixtures.js';
 import {Controller} from '../src/control/controller.js';
 import {conquestScope} from '../src/advisors/conquest.js';
+import {conquestMission} from '../src/bot/strategy/missions/conquest.js';
 import {RemoteError,type Remote} from '../src/control/remote.js';
 import type {Action} from '../src/shared/api.js';
 import type {SavedControl,Settings} from '../src/control/types.js';
@@ -33,7 +34,7 @@ async function harness(stale=false,retrySameBuilding=false){
  const {c,v}=queued(),settings={serverUrl:'https://sandbox.invalid',worldId:c.state.world.id,apiKey:'test'};
  if(retrySameBuilding){v.buildings.hall=11;v.buildQueue[0].level=12;v.options.build.find(o=>o.building==='hall')!.level=13;}
  const scope=conquestScope(settings.serverUrl,c.state.player.id,c),writes:any[]=[];let reads=0,now=0,failed=false;
- let saved:SavedControl={settings,pending:null,decisions:[],automatic:true,conquest:{scope,villageId:v.id,startedTick:90,status:'preparing',waves:0,targetId:'t',escort:140},active:[{phase:'accepted',itemId:'old',serverUrl:settings.serverUrl,worldId:settings.worldId,epoch:c.state.world.epoch,accountId:c.state.player.id,action:{type:'build',village:v.id,building:'hall',clientId:'old-request'},proposal:{id:'old',villageId:v.id,buildingName:'Hall',currentLevel:12,targetLevel:13,action:{type:'build',village:v.id,building:'hall'}},createdTick:90,expiresTick:9999} as any]};
+ let saved:SavedControl={settings,pending:null,decisions:[],automatic:true,missions:[conquestMission({scope,villageId:v.id,startedTick:90,status:'preparing',waves:0,targetId:'t',escort:140})],active:[{phase:'accepted',itemId:'old',serverUrl:settings.serverUrl,worldId:settings.worldId,epoch:c.state.world.epoch,accountId:c.state.player.id,action:{type:'build',village:v.id,building:'hall',clientId:'old-request'},proposal:{id:'old',task:'economy.hall',villageId:v.id,buildingName:'Hall',currentLevel:12,targetLevel:13,action:{type:'build',village:v.id,building:'hall'}},createdTick:90,expiresTick:9999} as any]};
  if(retrySameBuilding){saved.active![0].proposal.currentLevel=11;saved.active![0].proposal.targetLevel=12;}
  const storage={load:async()=>structuredClone(saved),save:async(s:SavedControl)=>{saved=structuredClone(s);}};
  const remote:Remote=async<T>(_s:Settings,path:string,body?:unknown):Promise<T>=>{

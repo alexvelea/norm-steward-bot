@@ -2,6 +2,7 @@ import { completionWindow } from "./completion.js";
 import { RECRUIT_USE_TICKS } from "./defense-budget.js";
 import type { Action, BuildingId } from "../shared/api.js";
 import type { AdvisorContext, Proposal } from "./types.js";
+import { proposalTask } from "../bot/plan/graph.js";
 /** Unlock the 3:1 training path directly, without a starter troop quota. */
 export function evaluateDefensiveSmithy({state,rules}:AdvisorContext):Proposal<Extract<Action,{type:"build"}>>[]{
  if(rules.version!==state.world.rulesVersion)throw new Error("Live rules do not match this world's rules version.");
@@ -26,7 +27,7 @@ export function evaluateDefensiveSmithy({state,rules}:AdvisorContext):Proposal<E
   if(window&&window.completionTick+use>window.endsAtTick)skip("ROUND_END_TOO_SOON");
   if(v.buildQueue.length)blockers.push("BUILD_QUEUE_BUSY");if(v.orders.build.length)blockers.push("EXTERNAL_BUILD_ORDERS");
   if(state.world.status!=="running")blockers.push("WORLD_NOT_RUNNING");if((state.player.nextActTick??state.world.tick)>state.world.tick)blockers.push("COUNCIL_COOLDOWN");
-  proposals.push({id:`${state.world.epoch}:${v.id}:smithy:1`,advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"smithy"},buildingName:metadata.name,currentLevel:0,targetLevel:1,importance:77,
+  proposals.push({id:`${state.world.epoch}:${v.id}:smithy:1`,task:proposalTask("military",{type:"build",building:"smithy"},1),advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"smithy"},buildingName:metadata.name,currentLevel:0,targetLevel:1,importance:77,
    reason:`Unlock Smithy 1 for minute-long 3Pi1Sh recruitment directly. No initial troop quota. Fund this construction plus ${3*bundles} Pikemen and ${bundles} Shieldmen, retaining ${buffer} population slots.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
  }
  return proposals;

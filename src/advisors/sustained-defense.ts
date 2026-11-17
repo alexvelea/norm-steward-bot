@@ -2,6 +2,7 @@ import type { Action, Resources } from "../shared/api.js";
 import type { AdvisorContext, Proposal } from "./types.js";
 import { defenseBudget, defenseReady, defenseSustainable } from "./defense-budget.js";
 import { RECRUIT_USE_TICKS } from "./defense-budget.js";
+import { proposalTask } from "../bot/plan/graph.js";
 /** Queue a little over one minute of 3Pi1Sh; fill both parts, then drain the whole cohort. */
 export function evaluateSustainedDefense({state,rules,activeProposals=[]}: AdvisorContext): Proposal<Extract<Action,{type:"train"}>>[] {
   if (rules.version !== state.world.rulesVersion) throw new Error("Live rules do not match this world's rules version.");
@@ -55,7 +56,7 @@ export function evaluateSustainedDefense({state,rules,activeProposals=[]}: Advis
     const remainingTicks=remainingP*p.ticksEach+remainingS*s.ticksEach;
     if(start+remainingTicks+RECRUIT_USE_TICKS>state.world.endsAtTick)skip("ROUND_END_TOO_SOON");
     if(state.world.status!=="running")add("WORLD_NOT_RUNNING");if((state.player.nextActTick??state.world.tick)>state.world.tick)add("COUNCIL_COOLDOWN");
-    result.push({id:`${state.world.epoch}:${v.id}:defense:${unit}:${plan.baselinePikemen}:${plan.baselineShieldmen}:${count}`,advisor:"military",villageId:v.id,villageName:v.name,
+    result.push({id:`${state.world.epoch}:${v.id}:defense:${unit}:${plan.baselinePikemen}:${plan.baselineShieldmen}:${count}`,task:proposalTask("military",{type:"train",unit},owned(unit)+count),advisor:"military",villageId:v.id,villageName:v.name,
       action:{type:"train",village:v.id,unit,count},buildingName:`3Pi1Sh: ${unit}`,currentLevel:owned(unit),targetLevel:owned(unit)+count,importance:active?100:70,
       reason:`Queue a 3Pi1Sh cohort: ${plan.pikemen} Pikemen + ${plan.shieldmen} Shieldmen, ${plan.ticks} ticks at current Barracks speed (whole 3:1 bundles covering over one minute). Submit ${count} ${unit} now; once both parts are queued, leave Barracks alone until the cohort drains. Save through the President for an unfunded but feasible complete cohort; higher-priority deficient income and capacity still win. Keep ${buffer} population free. Construction and other training buildings can operate alongside it.`,
       defenseBatch:plan,requirements,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:fundedAtTick});

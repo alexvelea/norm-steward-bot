@@ -69,7 +69,7 @@ class ProgressTests(unittest.TestCase):
   self.assertEqual(select_task(self.task,[{'title':'Avoid task','nextStep':'report'}]),self.task)
  def test_repeated_reporting_is_not_gameplay_progress(self):
   from progress import assess,advance
-  result=assess(self.report,self.task,['src/review/more-report.ts'],self.run,self.work,True)
+  result=assess(self.report,self.task,['docs/review-report.md'],self.run,self.work,True)
   self.assertTrue(result['needsRetry']);self.assertFalse(result['credit']);self.assertEqual(advance(self.task,result,self.report)['noProgressStreak'],1)
  def test_missing_evidence_without_attempt_is_not_external_blocker(self):
   from progress import assess
@@ -111,7 +111,7 @@ class ProgressTests(unittest.TestCase):
   self.assertNotEqual(delivered(task,{'implementationComplete':False},paths,{'commit':'partial','status':'healthy'})['stage'],'complete')
  def test_old_pending_runtime_diff_does_not_turn_new_reporting_into_progress(self):
   from progress import assess
-  result=assess(self.report,self.task,['src/advisors/pending.ts','src/review/report.ts'],self.run,self.work,True,['src/review/report.ts'])
+  result=assess(self.report,self.task,['src/advisors/pending.ts','src/review/report.ts'],self.run,self.work,True,['docs/review-report.md'])
   self.assertTrue(result['needsRetry'])
 
 class BrokerTests(unittest.TestCase):

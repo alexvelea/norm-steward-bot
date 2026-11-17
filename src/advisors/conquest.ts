@@ -3,6 +3,7 @@
  * Peaceful hamlet assumptions are experimental, not a player-threat policy. */
 import type {BuildingId, MapResponse, Report, Resources, SimulateBattleResponse, UnitId, VillageState} from '../shared/api.js';
 import type {AdvisorContext, Proposal} from './types.js';
+import { proposalTask } from '../bot/plan/graph.js';
 import {nextConquestBuilding, fundingUpgrade, conquestLoyalty} from '../review/conquest-plan.js';
 
 export interface ConquestPlan {
@@ -65,7 +66,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   for(const r of resources)if(v!.resourcesMilli[r]<o.cost[r]*1000&&!b.includes('INSUFFICIENT_RESOURCES'))b.push('INSUFFICIENT_RESOURCES');
   const funded=Math.max(state.world.tick,...resources.map(r=>v!.productionPerTickMilli[r]>0?state.world.tick+Math.max(0,Math.ceil((o.cost[r]*1000-v!.resourcesMilli[r])/v!.productionPerTickMilli[r])):Infinity));
   if(funded+o.ticks+60>state.world.endsAtTick)b.push('ROUND_END_TOO_SOON');
-  return {id:`${state.world.epoch}:${v!.id}:conquest:build:${building}:${o.level}`,advisor:'conquest',villageId:v!.id,villageName:v!.name,
+  return {id:`${state.world.epoch}:${v!.id}:conquest:build:${building}:${o.level}`,task:proposalTask('conquest',{type:'build',building},o.level),advisor:'conquest',villageId:v!.id,villageName:v!.name,
    action:{type:'build',village:v!.id,building},buildingName:metadata[building].name,currentLevel:v!.buildings[building],targetLevel:o.level,
    importance,reason:'Bounded conquest transition: retain the paid home defence, producers 15, Hall 13, Barracks 10, Smithy 10, Market 5 and Court; fund capacity as needed.',requirements:o.cost,blockers:[...new Set(b)],
    status:b.length?'waiting':'ready',affordableAtTick:Number.isFinite(funded)?funded:null};
@@ -88,7 +89,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   const capture=conquestCaptureTick(context,c!,funded+o.ticksEach*(unit==='raider'?remaining:count));
   if(capture===null||capture+60>state.world.endsAtTick)b.push('ROUND_END_TOO_SOON');
   if(count>(rules.rules.ECONOMY as {trainBatchMax:number}).trainBatchMax)b.push('BATCH_CAPACITY');
-  return {id:`${state.world.epoch}:${v!.id}:conquest:train:${unit}:${goal}`,advisor:'conquest',villageId:v!.id,villageName:v!.name,
+  return {id:`${state.world.epoch}:${v!.id}:conquest:train:${unit}:${goal}`,task:proposalTask('conquest',{type:'train',unit},goal),advisor:'conquest',villageId:v!.id,villageName:v!.name,
    action:{type:'train',village:v!.id,unit,count},buildingName:`Conquest ${unit}`,currentLevel:owned,targetLevel:owned+count,
    importance:90,reason:'Fund the bounded escort in minute-long Raider batches and one reusable Envoy; no recurring Raider stream. Paid defensive troops remain at home.',requirements:cost,
    blockers:[...new Set(b)],status:b.length?'waiting':'ready',affordableAtTick:funded};
@@ -120,7 +121,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   const capture=conquestCaptureTick(context,c),b=blockers();
   if(plan.waves>=6||capture===null||capture+60>state.world.endsAtTick)b.push('ROUND_END_TOO_SOON');
   if((v.units.home.pikeman??0)<150)b.push('HOME_DEFENCE_CHANGED');
-  retained.push({id:`${state.world.epoch}:${v.id}:conquest:send:${plan.waves}`,advisor:'conquest',villageId:v.id,villageName:v.name,
+  retained.push({id:`${state.world.epoch}:${v.id}:conquest:send:${plan.waves}`,task:proposalTask('conquest',{type:'send'},plan.waves+1),advisor:'conquest',villageId:v.id,villageName:v.name,
    action:{type:'send',village:v.id,target:plan.targetId!,kind:'attack',units:{raider:raiders,envoy:1}},buildingName:'Conquest attack',currentLevel:raiders,targetLevel:plan.waves+1,
    importance:94,reason:'Fresh unowned target, server-simulated surviving Envoy and retained 150 Pikemen. Confirm each battle before reusing the Envoy; stop after capture or six waves.',requirements:{timber:0,stone:0,iron:0},blockers:b,status:b.length?'waiting':'ready',affordableAtTick:state.world.tick});
  }

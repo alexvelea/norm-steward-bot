@@ -8,6 +8,7 @@ import {Controller} from '../src/control/controller.js';
 import {RemoteError, type Remote} from '../src/control/remote.js';
 import type {SavedControl, Settings} from '../src/control/types.js';
 import type {Action, Report} from '../src/shared/api.js';
+import { conquestMission } from '../src/bot/strategy/missions/conquest.js';
 
 function fixture(){
  const context:AdvisorContext=developedContext(),v=context.state.villages[0];
@@ -55,7 +56,7 @@ test('transition funds producer 15 before the Court path and saves through the P
 });
 test('transition keeps an already-paid cohort complement, suppressing discretionary origin spending',()=>{
  const {context,c}=fixture();
- const paid={id:'paid',villageId:'v1',action:{type:'train',village:'v1',unit:'shieldman',count:3},defenseBatch:{pikemen:9,shieldmen:3}} as Proposal;
+ const paid={id:'paid',task:'defense.cohort',villageId:'v1',action:{type:'train',village:'v1',unit:'shieldman',count:3},defenseBatch:{pikemen:9,shieldmen:3}} as Proposal;
  const routine={...paid,id:'new',action:{type:'train',village:'v1',unit:'pikeman',count:9}} as Proposal;
  context.activeProposals=[paid];
  const result=applyConquest(context,[paid,routine],c);
@@ -68,7 +69,7 @@ async function executor(mode: 'ok'|'lost'|'unapplied'|'reject' = 'ok') {
  const x=fixture(),writes:Action[]=[],reads:string[]=[];
  let now=0,first=true,stateReads=0,preflight: (()=>void)|undefined;
  const settings:Settings={serverUrl:'https://sandbox.invalid',worldId:x.context.state.world.id,apiKey:'test'};
- let saved:SavedControl={settings,pending:null,decisions:[],conquest:structuredClone(x.c.plan)};
+ let saved:SavedControl={settings,pending:null,decisions:[],missions:[conquestMission(structuredClone(x.c.plan))]};
  const reports:Report[]=[];
  const storage={load:async()=>structuredClone(saved),save:async(s:SavedControl)=>{saved=structuredClone(s);}};
  const remote:Remote=async <T>(_s:Settings,path:string,body?:unknown):Promise<T>=>{
@@ -110,15 +111,15 @@ async function executor(mode: 'ok'|'lost'|'unapplied'|'reject' = 'ok') {
 
 test('conquest journals its send and reconciles terminal capture across a paused restart',async()=>{
  const x=await executor();await x.controller.cycle();
- assert.equal(x.writes.length,1);assert.equal(x.saved().conquest?.waves,1);
- assert.equal(x.saved().pending?.conquest,true);
+ assert.equal(x.writes.length,1);assert.equal(x.saved().missions?.[0]?.memory.waves,1);
+ assert.equal(x.saved().pending?.missionId,x.saved().missions?.[0]?.id);
  await x.controller.setAutomatic(false);x.report(true);
  x.context.state.villages.push({...structuredClone(x.v),id:'t'});x.context.state.world.status='ended';
  const restarted=await x.create();await restarted.cycle();
  assert.equal(restarted.snapshot().error,null);assert.equal(restarted.snapshot().automatic,false);
- assert.equal(x.saved().conquest?.status,'captured');assert.equal(x.saved().conquest?.capturedTick,110);
+ assert.equal(x.saved().missions?.[0]?.status,'completed');assert.equal(x.saved().missions?.[0]?.memory.capturedTick,110);
  assert.equal(x.saved().pending,null);assert.equal(x.saved().active?.length,0);assert.equal(x.writes.length,1);
- assert.equal(x.saved().conquest?.lastBattle?.conquered,true);
+ assert.equal(x.saved().missions?.[0]?.memory.lastBattle?.conquered,true);
  assert.ok(restarted.snapshot().decisions.some(d=>d.kind==='confirmed'&&d.text.includes('Conquest battle')));
 });
 
@@ -126,11 +127,11 @@ test('uncertain conquest sends suppress applied replays and retry unapplied writ
  const lost=await executor('lost');await lost.controller.cycle();lost.advance();
  await lost.controller.setAutomatic(false);const restarted=await lost.create();await restarted.cycle();
  assert.equal(lost.writes.length,1);assert.equal(lost.saved().pending,null);
- assert.equal(lost.saved().conquest?.status,'stopped');assert.equal(restarted.snapshot().automatic,false);
+ assert.equal(lost.saved().missions?.[0]?.status,'failed');assert.equal(restarted.snapshot().automatic,false);
  const retry=await executor('unapplied');await retry.controller.cycle();retry.advance();
  const next=await retry.create();await next.cycle();
  assert.equal(retry.writes.length,2);assert.deepEqual(retry.writes[0],retry.writes[1]);
- assert.equal(retry.saved().pending?.phase,'accepted');assert.equal(retry.saved().conquest?.waves,1);
+ assert.equal(retry.saved().pending?.phase,'accepted');assert.equal(retry.saved().missions?.[0]?.memory.waves,1);
 });
 
 test('conquest expiry pauses execution, and a changed epoch never replays the old action',async()=>{
@@ -155,7 +156,7 @@ test('fresh ownership, home defence and external orders prevent conquest writes'
 
 test('individual conquest rejection remains visible and does not count as an accepted wave',async()=>{
  const x=await executor('reject');await x.controller.cycle();
- assert.equal(x.writes.length,1);assert.equal(x.saved().pending,null);assert.equal(x.saved().conquest?.waves,0);
+ assert.equal(x.writes.length,1);assert.equal(x.saved().pending,null);assert.equal(x.saved().missions?.[0]?.memory.waves,0);
  assert.ok(x.controller.snapshot().decisions.some(d=>d.kind==='rejected'&&d.text.includes('TARGET_PROTECTED')));
 });
 
@@ -164,7 +165,7 @@ test('a failed battle or missing accepted command stops conquest without replace
   const x=await executor();await x.controller.cycle();await x.controller.setAutomatic(false);
   if(report){x.report().attackerUnits!.lost.envoy=1;}else{x.context.state.commands.outgoing=[];}
   const restarted=await x.create();await restarted.cycle();
-  assert.equal(x.saved().conquest?.status,'stopped');assert.equal(x.saved().pending,null);assert.equal(x.writes.length,1);
+  assert.equal(x.saved().missions?.[0]?.status,'failed');assert.equal(x.saved().pending,null);assert.equal(x.writes.length,1);
  }
 });
 
@@ -174,8 +175,9 @@ test('authoritative capture survives a missing report or a lost final send respo
   x.context.state.world.tick=110;x.context.state.world.status='ended';x.context.state.commands.outgoing=[];
   x.context.state.villages.push({...structuredClone(x.v),id:'t'});
   const restarted=await x.create();await restarted.cycle();
-  assert.equal(restarted.snapshot().error,null);assert.equal(x.saved().conquest?.status,'captured');
+  assert.equal(restarted.snapshot().error,null);assert.equal(x.saved().missions?.[0]?.status,'completed');
   assert.equal(x.saved().pending,null);assert.equal(x.writes.length,1);assert.equal(restarted.snapshot().automatic,false);
+  if(mode==='lost')assert.ok(restarted.snapshot().decisions.some(d=>d.kind==='uncertain'&&d.text.includes('final request attribution remains unknown')));
  }
 });
 
@@ -198,10 +200,16 @@ test('incoming attacks do not hold a ready Raider and Envoy expedition at home',
 });
 
 test('incoming attacks do not prevent entering the conquest phase at 150 home Pikemen',async()=>{
- const x=await executor();delete x.saved().conquest;
+ const x=await executor();x.saved().missions=[];
  x.context.state.commands.incoming=[{kind:'attack',to:{id:x.v.id}} as any];
  const c=await x.create();await c.setAutomatic(false);await c.cycle();
- assert.equal(x.saved().conquest?.status,'preparing');assert.equal(x.writes.length,0);
+ assert.equal(x.saved().missions?.[0]?.status,'active');assert.equal(x.writes.length,0);
+});
+
+test('repeated cycles retain one first-conquest mission instance',async()=>{
+ const x=await executor();x.saved().missions=[];
+ const c=await x.create();await c.setAutomatic(false);await c.cycle();await c.cycle();
+ assert.equal(x.saved().missions?.filter(mission=>mission.definition==='firstConquest').length,1);
 });
 
 test('Raider escort is funded in minute batches, letting affordable Smithy work proceed while training',()=>{

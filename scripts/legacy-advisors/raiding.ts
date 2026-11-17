@@ -55,7 +55,7 @@ export function evaluateRaidingSmithy({ state, rules }: AdvisorContext): Proposa
     if (state.world.status !== "running") add("WORLD_NOT_RUNNING");
     if ((state.player.nextActTick ?? state.world.tick) > state.world.tick) add("COUNCIL_COOLDOWN");
     proposals.push({
-      id: `${state.world.epoch}:${v.id}:smithy:2`, advisor: "military", villageId: v.id, villageName: v.name,
+      id: `${state.world.epoch}:${v.id}:smithy:2`, task: "defense.development", advisor: "military", villageId: v.id, villageName: v.name,
       action: { type: "build", village: v.id, building: "smithy" }, buildingName: metadata.name,
       currentLevel: 1, targetLevel: 2, importance: 75, requirements: option.cost,
       reason: `Unlock up to ${count} Raiders after ten owned Pikemen and five Shieldmen with Smithy 2. Fund construction and the remaining complement now, keep ${buffer} population free and ${useTicks} ticks after construction. Recruit separately after fresh evaluation; no attacks, Hall prerequisites or further Smithy levels.`,

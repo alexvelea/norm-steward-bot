@@ -1,5 +1,4 @@
 import { compareProposals } from "../../../src/advisors/types";
-import { ReviewPanel } from "./ReviewPanel";
 import { useEffect, useState } from "react";
 import {
   controlRequest,
@@ -12,6 +11,7 @@ import { navigate, useRoute, worldHref, isMock } from "../lib/router";
 import { formatResources } from "../lib/format";
 import { Link } from "./common";
 import { WorldPage } from "./WorldPage";
+import { BotPage } from "./bot/BotPage";
 
 export function ControlCenter() {
   const route = useRoute();
@@ -132,7 +132,7 @@ function ConnectedCenter({ onLogout }: { onLogout(): Promise<void> }) {
         </Link>
         <nav aria-label="Control center">
           <Link href="/" className={!settings && !map ? "is-active" : ""}>
-            Advisors
+            Bot
           </Link>
           <Link
             href={worldHref(view.settings.worldId)}
@@ -177,7 +177,7 @@ function ConnectedCenter({ onLogout }: { onLogout(): Promise<void> }) {
       ) : settings ? (
         <SettingsPage view={view} onChange={setView} />
       ) : (
-        <AdvisorPage view={view} onChange={setView} />
+        <BotPage view={view} advisors={<AdvisorPage view={view} onChange={setView} />} />
       )}
     </div>
   );
@@ -192,7 +192,7 @@ function AdvisorPage({
   const [error, setError] = useState(""),
     [inspected, setInspected] = useState(false);
   return (
-    <main className="cc-main">
+    <div className="bp-advisors">
       <div className="cc-page-heading">
         <div>
           <p className="eyebrow">Your deterministic council</p>
@@ -284,7 +284,6 @@ function AdvisorPage({
           </Link>
         ))}
       </div>
-      <ReviewPanel />
       <section className="cc-card cc-production">
         <h2>Total production</h2>
         {view.production ? (
@@ -527,7 +526,7 @@ function AdvisorPage({
           </div>
         </aside>
       </div>
-    </main>
+    </div>
   );
 }
 function SettingsPage({

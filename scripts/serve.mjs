@@ -223,11 +223,15 @@ export async function startUiServer() {
     throw error;
   }
   controller.start();
+  let stopping;
   const stop = () => {
-    controller.stop();
-    server.emit("control-shutdown");
-    server.closeAllConnections();
-    server.close(() => lease.close(() => process.exit(0)));
+    if (stopping) return;
+    stopping = (async () => {
+      await controller.stop();
+      server.emit("control-shutdown");
+      server.closeAllConnections();
+      server.close(() => lease.close(() => process.exit(0)));
+    })();
   };
   process.once("SIGTERM", stop);
   process.once("SIGINT", stop);

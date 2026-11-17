@@ -1,6 +1,10 @@
 # Bot refactor: missions, world adapters, durable execution, and planning UI
 
-Status: proposed implementation design. Prepared and revised 2026-11-17 after architecture review.
+Status: backend mission planning architecture, version-2 persistence/migration, execution journal,
+and version-1 planning projection are implemented. Automated scouting and raid bot behavior was
+removed. By owner decision, no gameplay parity harness was added. Parallel mission budgets, multiple
+submissions per cycle, satellite roles, and resource logistics remain unavailable capabilities.
+The design below retains the broader proposal and acceptance criteria for future work.
 
 This document is a handoff for an implementing agent. It describes an architectural refactor,
 not authorization to change strategy thresholds, enable gameplay, start experiments, or deploy.

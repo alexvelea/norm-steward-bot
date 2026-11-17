@@ -8,10 +8,14 @@ import type { Action, BuildQueueItem } from "../src/shared/api.js";
 import { context, completeOpening } from "./control-fixtures.js";
 class Memory implements ControlStorage {
   value: SavedControl | null = null;
+  saves=0;
+  failAt:number|null=null;
   async load() {
     return structuredClone(this.value);
   }
   async save(v: SavedControl) {
+    this.saves++;
+    if(this.failAt===this.saves)throw new Error("Storage write failed.");
     this.value = structuredClone(v);
   }
 }
@@ -121,11 +125,27 @@ test("recommendation mode never writes, even when many tabs refresh", async () =
     x.controller.cycle(),
   ]);
   await x.controller.cycle();
+  assert.ok(x.reads>0);
   assert.equal(x.writes.length, 0);
   assert.equal(x.controller.snapshot().automatic, false);
   assert.ok(x.controller.snapshot().proposals.length);
   await x.controller.setAutomatic(true);
   assert.equal(x.controller.snapshot().automatic, true);
+});
+
+test("a pre-submit journal persistence failure prevents the write",async()=>{
+ const x=await setup();await x.controller.cycle();await x.controller.setAutomatic(true);
+ x.storage.failAt=x.storage.saves+2;await x.controller.cycle();
+ assert.equal(x.writes.length,0);assert.ok(x.controller.snapshot().error?.includes("persistence"));
+ await x.controller.cycle();assert.equal(x.writes.length,0);
+});
+
+test("a post-submit persistence failure faults and halts later writes",async()=>{
+ const x=await setup();await x.controller.cycle();await x.controller.setAutomatic(true);
+ x.storage.failAt=x.storage.saves+3;await x.controller.cycle();
+ assert.equal(x.writes.length,1);assert.equal(x.controller.snapshot().automatic,false);
+ assert.ok(x.controller.snapshot().error?.includes("persistence"));
+ await x.controller.cycle();assert.equal(x.writes.length,1);
 });
 test("one submission survives concurrent evaluation and accepted construction is confirmed separately", async () => {
   const x = await setup();
@@ -329,7 +349,7 @@ test("no submission occurs if the durable request journal cannot be written", as
   await x.controller.setAutomatic(true);
   await x.controller.cycle();
   assert.equal(x.writes.length, 0);
-  assert.match(x.controller.snapshot().error ?? "", /Disk unavailable/);
+  assert.match(x.controller.snapshot().error ?? "", /persistence failed/i);
 });
 test("turning off automatic execution during revalidation prevents the write", async () => {
   const x = await setup();
@@ -831,14 +851,14 @@ async function completedFirstCohortPart() {
 test("confirmed first cohort part retains its exact complement across paused reconciliation and another restart",async()=>{
  const x=await completedFirstCohortPart();
  assert.equal(x.storage.value!.active!.length,0);
- assert.equal(x.storage.value!.defenseComplements!.length,1);
+ assert.equal(x.storage.value!.commitments!.length,1);
  const resumed=await Controller.create(x.storage,settings,x.request,()=>20000);
  await resumed.cycle();assert.equal(x.writes.length,1);
  await resumed.setAutomatic(true);await resumed.cycle();
  const action=x.writes[1][0];assert.equal(action.type,"train");
  if(action.type!=="train")throw new Error("Expected complement");
  assert.equal(action.unit,"shieldman");assert.equal(action.count,2);
- await resumed.cycle();assert.equal(x.storage.value!.defenseComplements!.length,0);
+ await resumed.cycle();assert.equal(x.storage.value!.commitments!.length,0);
  assert.equal(x.writes.flat().filter(a=>a.type==="train").length,2,"no duplicate cohort component while it drains");
 });
 test("remembered complement respects manual recruitment, fresh funding and round-end checks",async()=>{
@@ -857,7 +877,7 @@ test("remembered complement is discarded after epoch changes or Pikeman losses",
  for(const change of ["epoch","loss"]){
   const x=await completedFirstCohortPart();
   if(change==="epoch")x.c.state.world.epoch="next-round";else x.c.state.villages[0].units.home.pikeman=15;
-  await x.paused.cycle();assert.equal(x.storage.value!.defenseComplements!.length,0);
+  await x.paused.cycle();assert.equal(x.storage.value!.commitments!.length,0);
   assert.equal(x.writes.length,1);
  }
 });
@@ -865,7 +885,7 @@ test("remembered complement waits for an unrelated manual Barracks queue",async(
  const x=await completedFirstCohortPart(),v=x.c.state.villages[0];
  v.training.barracks=[{id:"manual-raider",unit:"raider",count:1,remaining:1,costEach:{timber:75,stone:55,iron:40},nextTick:160,endTick:160}];
  await x.paused.cycle();
- assert.equal(x.storage.value!.defenseComplements!.length,1);
+ assert.equal(x.storage.value!.commitments!.length,1);
  assert.ok(x.paused.snapshot().proposals.find(p=>p.defenseBatch)?.blockers.includes("TRAIN_QUEUE_BUSY"));
  v.training.barracks=[];v.units.home.raider=11;await x.paused.cycle();
  const complement=x.paused.snapshot().proposals.find(p=>p.defenseBatch)!;
@@ -884,7 +904,7 @@ test("a lost complement response suppresses replay without retaining a second re
  await resumed.cycle();await resumed.setAutomatic(true);await resumed.cycle();assert.equal(x.writes.length,2);
  const restarted=await Controller.create(x.storage,settings,remote,()=>30000);
  await restarted.cycle();
- assert.equal(x.storage.value!.defenseComplements!.length,0);
+ assert.equal(x.storage.value!.commitments!.length,0);
  assert.equal(x.writes.flat().filter(a=>a.type==="train").length,2);
  assert.ok(restarted.snapshot().decisions.some(d=>d.kind==="uncertain"));
 });
