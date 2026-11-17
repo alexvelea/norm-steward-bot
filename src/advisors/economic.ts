@@ -100,7 +100,15 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
     const flow = militaryEconomy(v), phaseLevel = producerLevel(v);
     const defense = defenseReady(v) ? defenseBudget(v) : null;
     const farmOption = v.options.build.find(o => o.building === "farm");
-    const farmForRecruitment = !!defense && !!farmOption && state.world.endsAtTick - state.world.tick > farmOption.ticks + defense.ticks + 60 && f.freePopulation < Math.ceil(f.requiredFreePopulation) + defense.pop * Math.ceil(61 / defense.ticks);
+    const farmWindow = farmOption ? completionWindow(state, v, farmOption) : null;
+    const bundles = defense ? Math.ceil(61 / defense.ticks) : 0;
+    // A Farm bought for recruitment must leave time for the entire minute-long
+    // cohort, including funding/cooldown waits and already-paid Barracks work.
+    const recruitmentStart = farmWindow ? Math.max(
+      farmWindow.completionTick + (state.world.actIntervalTicks ?? 0),
+      ...v.training.barracks.map(q => q.endTick),
+    ) : Infinity;
+    const farmForRecruitment = !!defense && recruitmentStart + defense.ticks * bundles + 60 <= state.world.endsAtTick && f.freePopulation < Math.ceil(f.requiredFreePopulation) + defense.pop * bundles;
     const needsFarm = f.freePopulation < f.requiredFreePopulation || farmForRecruitment;
     const storageTicks = Math.max(0, Math.min(300, state.world.endsAtTick - state.world.tick));
     const storageForecast = (r: keyof Resources) => v.resourcesMilli[r] + flow.availableMilli[r] * storageTicks;

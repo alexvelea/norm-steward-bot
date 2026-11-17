@@ -67,7 +67,7 @@ experiment worker outside the 15-minute Codex budget. A negative result can comp
 implementation tasks remain subject to exact tested-code evidence, checks and deployment gates.
 Next measure: observe the approved hybrid in the next live world, including production, delivered
 troops, Wall timing, spending and building-queue occupancy. Later test threats and the upstream training-speed changes only
-after live rules actually expose them. Saved Farm deadline work remains a separate unactivated candidate.
+after live rules actually expose them. The verified Farm deadline candidate below is ready for wrapper activation.
 
 ## Sandbox-tested expansion proposal (2026-11-16)
 
@@ -85,35 +85,50 @@ advisor list has not changed. Detailed timing, costs, Hall-speed accounting, lim
 are in [the conquest experiment](experiments/conquest-opening.md). Preserve this evidence when
 designing an integrated phase; do not infer combat safety or optimal thresholds from one peaceful seed.
 
-## Saved recruitment-Farm timing candidate (2026-11-16)
+## Verified recruitment-Farm deadline (2026-11-17)
 
-The pinned `phased-economy-full-round-allocation` work now has a tested end-round
-allocation guard, pending the complete allocation comparison. A Farm bought solely for
+The pinned `saved-farm-deadline` candidate has passed its exact-source worker comparison
+and late-round regression. A Farm bought solely for
 recruitment must leave time for the full minute-long 3Pi1Sh cohort and 60 useful ticks,
 including its live construction funding/cooldown boundary and existing Barracks work.
 The old check allowed only one 3:1 bundle, even when the cohort contains multiple bundles.
 Basic population-buffer expansion remains independent of this recruitment-only gate.
 
-A matched owner-only regression at tick 10692 of 10800 starts with 54 free population
-slots and an already-paid training queue. The full President/executor bought Farm 3 under
-baseline `fa8f754`, spending 76 timber / 68 stone / 51 iron. The candidate bought nothing
-and retained those resources; both finished with 15 Pikemen at home. This establishes
-avoided recruitment-only capacity spending, not combat value. Both preserve a paused
-restart. Reproduce with `STEWARD_BASELINE_COMMIT=fa8f754 node --import tsx
-scripts/experiment-recruitment-farm-window.ts` in a managed review run. Results and receipts
-are under `/var/lib/norm-steward-review/runs/20261116T173021Z/`.
+A fresh matched owner-only regression against deployed hybrid `2ec95b6`, under rules v3,
+starts at tick 10696 of 10800 with 54 free population slots and an already-paid training
+queue. The full President/executor bought Farm 3 in the baseline, spending 76 timber /
+68 stone / 51 iron and occupying construction for 16 ticks. The candidate bought nothing
+and finished with exactly those additional stocks; both delivered 17 Pikemen. Production
+was identical; the baseline instead retained 42 additional population capacity. Both
+preserved a paused restart and both worlds were deleted. This measures avoided unusable
+recruitment capacity, not combat value or a whole-economy gain. Reproduce with
+`STEWARD_BASELINE_COMMIT=2ec95b6 node --import tsx scripts/experiment-recruitment-farm-window.ts`
+in a managed review run. Results, receipts and the assessment are under
+`/var/lib/norm-steward-review/runs/20261116T230021Z/`. Earlier prototype evidence remains
+under `runs/20261116T173021Z`; its interrupted fresh-world prefixes are not completed comparisons.
 
-The attempted 10800-tick fresh-world controllers were stopped within the bounded review
-budget. Their saved JSON explicitly identifies partial prefixes, not full-round evidence;
-all four worlds from this run were deleted. Activation remains disabled and the task stays
-pinned. Continue with `STEWARD_BASELINE_COMMIT=fa8f754 STEWARD_EXPERIMENT_TICKS=3600
-node --import tsx scripts/experiment-phased-round.ts` for a complete shortened private round
-at at most 30-tick cadence, then measure a standard 10800-tick round. The saved runner
-records delivered troop counts, training/construction busy ticks, idle reasons, per-resource
-spending, retained production (stock change plus spending, excluding overflow), final assets
-and the controller's separately labelled gross production estimate. It now stops funding
-waits at the President's actual reservation rather than unrelated cheaper build options.
-Compare final outcomes before enabling the saved candidate; no full-round gain is claimed.
+The completed matched worker job is
+`/var/lib/norm-steward-review/experiments/jobs/20261116T230158Z-c3ddc0/comparison.json`:
+seed 73430, no enemies, 7200 ticks with 600-tick checkpoints in a standard 10800-tick world.
+All 13 checkpoints match. Both finish with 526 Pikemen / 174 Shieldmen, producers 19/18/17,
+Farm 13 and Wall 12; production and exact final stocks match. Each spends 155837 resources
+on non-Wall construction, 9815 on Walls and 73455 on training. Construction occupies 6010
+ticks and is idle for 1190; paid Barracks queues occupy 4722 ticks. All 219 policy actions
+succeed in each world, and both worlds are deleted. Current policy source matches the worker
+fingerprint; worker and fresh live rules are version 3. Required checks pass (200 tests).
+
+The opening result is neutral. Combined with the late-round saving of 195 resources and
+16 otherwise unusable construction ticks, it supports this narrow guard, not a whole-round
+economic or survival gain. Baseline's additional 42 population capacity is the measured
+tradeoff; the candidate's freed construction time stays idle. The preserved implementation
+is ready for wrapper activation; deployment and gameplay pause remain wrapper responsibilities.
+Assessment and reproducible receipt/source audit:
+`/var/lib/norm-steward-review/runs/20261117T000021Z/farm-deadline-assessment.json`.
+
+Next research should explain the 1037 Barracks-idle ticks after training first starts at
+tick 1441, separating population, funding and executor cadence before selecting an intervention.
+Compare any resulting candidate over a matched full round; do not count the opening's
+1441 economy-only ticks as recruitment starvation or infer combat benefit from peaceful evidence.
 
 ## Scouting during paid construction (2026-11-16)
 
