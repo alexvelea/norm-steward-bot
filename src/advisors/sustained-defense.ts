@@ -1,5 +1,5 @@
 import type { Action, Resources, VillageState } from "../shared/api.js";
-import type { AdvisorContext, Proposal } from "./types.js";
+import type { AdvisorContext, CityRoles, Proposal } from "./types.js";
 import { defenseBudget, defenseReady, defenseSustainable } from "./defense-budget.js";
 import { minuteTrainingProposal } from "./military-training.js";
 import { cityRoles } from "../bot/strategy/roles.js";
@@ -29,6 +29,35 @@ function supportInFlight(context: AdvisorContext, capitalId: string, cityId: str
       proposal.action.target === cityId);
 }
 
+export function cityDefenderTarget(capital: VillageState): number {
+  return Math.max(250, Math.floor((capital.units.home.pikeman ?? 0) / 3));
+}
+
+export function pikemenAtCity(context: AdvisorContext, capitalId: string, city: VillageState): number {
+  return (city.units.home.pikeman ?? 0) + stationed(city, "pikeman") +
+    incomingSupport(context, capitalId, city.id, "pikeman");
+}
+
+export function expansionReadiness(context: AdvisorContext, roles: CityRoles): { ready: boolean; blockers: string[] } {
+  const { state } = context;
+  const capital = state.villages.find(village => roles.get(village.id)?.role === "capital") ?? state.villages[0];
+  const blockers: string[] = [];
+  if (!capital) return { ready: false, blockers: ["Capital is unavailable."] };
+  if (capital.buildings.court < 1) blockers.push(`${capital.name} needs Court 1.`);
+  if ((capital.units.home.pikeman ?? 0) < 150) blockers.push(`${capital.name} needs at least 150 home Pikemen.`);
+  if (Object.values(capital.orders).some(order => order.length)) blockers.push(`${capital.name} has active orders.`);
+
+  const target = cityDefenderTarget(capital);
+  for (const city of state.villages.filter(village => roles.get(village.id)?.role === "economic")) {
+    if (city.buildings.hall < 10) blockers.push(`${city.name} needs Great Hall 10.`);
+    if (city.buildings.wall < 10) blockers.push(`${city.name} needs Wall 10.`);
+    if (pikemenAtCity(context, capital.id, city) < 0.8 * target) {
+      blockers.push(`${city.name} needs at least ${Math.ceil(0.8 * target)} Pikemen stationed (80% of target ${target}).`);
+    }
+  }
+  return { ready: blockers.length === 0, blockers };
+}
+
 function supportProposal(
   context: AdvisorContext, capital: VillageState, city: VillageState,
   unit: "pikeman" | "scout", count: number, current: number, target: number,
@@ -54,16 +83,13 @@ export function evaluateSustainedDefense(context: AdvisorContext): Proposal[] {
   const capital = state.villages.find(village => roles.get(village.id)?.role === "capital") ?? state.villages[0];
   if (!capital) return [];
   const cities = state.villages.filter(village => roles.get(village.id)?.role === "economic");
-  const pikeAt = (city: VillageState) =>
-    (city.units.home.pikeman ?? 0) + stationed(city, "pikeman") +
-    incomingSupport(context, capital.id, city.id, "pikeman");
   const defenderRequests = cities.flatMap(city => {
     if (city.buildings.wall < 10) return [];
-    const target = Math.max(250, Math.floor((capital.units.home.pikeman ?? 0) / 3));
-    const atCity = pikeAt(city);
+    const target = cityDefenderTarget(capital);
+    const atCity = pikemenAtCity(context, capital.id, city);
     return atCity < 0.8 * target ? [{ city, target, atCity, amount: target - atCity }] : [];
   });
-  const strongestCity = cities.reduce((maximum, city) => Math.max(maximum, pikeAt(city)), 0);
+  const strongestCity = cities.reduce((maximum, city) => Math.max(maximum, pikemenAtCity(context, capital.id, city)), 0);
   const producers = Math.min(capital.buildings.mine, capital.buildings.quarry, capital.buildings.lumberyard);
   const ownTarget = producers < 12 ? 0 : producers < 20 ? 250 : Math.max(250, 3 * strongestCity);
   const requestTotal = defenderRequests.reduce((sum, request) => sum + request.amount, 0);

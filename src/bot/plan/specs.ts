@@ -185,13 +185,21 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     eligible: ["First city captured."],
   },
   "expansion.readiness": {
-    intent: "Only start the next conquest once existing cities are developed.",
+    intent: "Start the next conquest after the previous one ends, capital readiness is met, and all economic cities reach Great Hall 10; train its Envoy only after Every city defended.",
     eligible: [
       "The previous conquest has ended (captured or stopped).",
       "Every economic city has Great Hall 10.",
       "Capital has a Court and 150 Pikemen at home; no standing orders.",
     ],
-    never: ["Never train an Envoy for the next city before these hold."],
+    never: ["Never train an Envoy for the next city before Every city defended."],
+  },
+  "expansion.cities-defended": {
+    intent: "Wait for every economic city to be defended before training the next Envoy.",
+    eligible: [
+      "Every economic city has Wall 10.",
+      "Every economic city has at least 80% of its Pikemen target stationed.",
+      "With no economic cities, the city-defense condition is vacuously met.",
+    ],
   },
   "expansion.escort": {
     intent: "Before every wave, train up to max(140, simulated escort) Raiders at home; earlier survivors count.",

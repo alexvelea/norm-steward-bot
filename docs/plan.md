@@ -116,16 +116,17 @@ flowchart TD
   n94["Wall 10<br/><small>econ.wall10 · task</small>"]
   n95["Next cities<br/><small>expansion.next · group</small>"]
   n96["Expansion readiness<br/><small>expansion.readiness · policy</small>"]
-  n97["Train next Envoy<br/><small>expansion.envoy · task</small>"]
-  n98["Escort army at home<br/><small>expansion.escort · task</small>"]
-  n99["Dispatch waves<br/><small>expansion.dispatch · task</small>"]
-  n100["Target captured<br/><small>expansion.captured · milestone</small>"]
-  n101["4 cities owned<br/><small>expansion.cities4 · milestone</small>"]
-  n102["Enemy conquest<br/><small>expansion.enemy · group</small>"]
-  n103["Close and big<br/><small>expansion.enemy-target · policy</small>"]
-  n104["Scout the target<br/><small>expansion.enemy-scout · task</small>"]
-  n105["Attack at 2×<br/><small>expansion.decisive · policy</small>"]
-  n106["Dispatch conquest<br/><small>expansion.enemy-dispatch · task</small>"]
+  n97["Every city defended<br/><small>expansion.cities-defended · milestone</small>"]
+  n98["Train next Envoy<br/><small>expansion.envoy · task</small>"]
+  n99["Escort army at home<br/><small>expansion.escort · task</small>"]
+  n100["Dispatch waves<br/><small>expansion.dispatch · task</small>"]
+  n101["Target captured<br/><small>expansion.captured · milestone</small>"]
+  n102["4 cities owned<br/><small>expansion.cities4 · milestone</small>"]
+  n103["Enemy conquest<br/><small>expansion.enemy · group</small>"]
+  n104["Close and big<br/><small>expansion.enemy-target · policy</small>"]
+  n105["Scout the target<br/><small>expansion.enemy-scout · task</small>"]
+  n106["Attack at 2×<br/><small>expansion.decisive · policy</small>"]
+  n107["Dispatch conquest<br/><small>expansion.enemy-dispatch · task</small>"]
   n0 -->|contains| n1
   n0 -->|contains| n22
   n0 -->|contains| n36
@@ -171,17 +172,19 @@ flowchart TD
   n75 -->|contains| n92
   n59 -->|contains| n93
   n95 -->|contains| n96
-  n96 -->|contains| n97
-  n95 -->|contains| n98
+  n95 -->|contains| n97
+  n96 -->|contains| n98
+  n97 -.->|requires| n98
   n95 -->|contains| n99
   n95 -->|contains| n100
+  n95 -->|contains| n101
   n47 -->|contains| n53
-  n47 -->|contains| n101
   n47 -->|contains| n102
-  n102 -->|contains| n103
-  n102 -->|contains| n104
-  n102 -->|contains| n105
-  n102 -->|contains| n106
+  n47 -->|contains| n103
+  n103 -->|contains| n104
+  n103 -->|contains| n105
+  n103 -->|contains| n106
+  n103 -->|contains| n107
   n61 -.->|requires| n62
   n62 -.->|requires| n63
   n63 -.->|requires| n64
@@ -203,10 +206,10 @@ flowchart TD
   n91 ==>|contributesTo| n58
   n58 ==>|contributesTo| n59
   n52 -.->|requires| n95
-  n97 -.->|requires| n99
-  n98 -.->|requires| n99
-  n99 ==>|contributesTo| n100
-  n100 ==>|contributesTo| n59
+  n98 -.->|requires| n100
+  n99 -.->|requires| n100
+  n100 ==>|contributesTo| n101
+  n101 ==>|contributesTo| n59
   n1 -->|contains| n2
   n2 -->|contains| n3
   n2 -->|contains| n4
@@ -256,8 +259,8 @@ flowchart TD
   n47 -->|contains| n51
   n47 -->|contains| n52
   n47 -->|contains| n95
-  n101 -.->|requires| n102
-  n104 -.->|requires| n106
+  n102 -.->|requires| n103
+  n105 -.->|requires| n107
   n44 -->|contains| n45
   n8 -.->|requires| n17
   n12 -.->|requires| n29
@@ -282,10 +285,10 @@ flowchart TD
   n51 -.->|requires| n53
   class n0 objective;
   class n1,n22,n36,n47,n57,n59 mission;
-  class n2,n13,n27,n31,n37,n60,n68,n75,n88,n95,n102 group;
-  class n3,n4,n5,n14,n15,n16,n17,n23,n24,n25,n26,n28,n30,n32,n33,n38,n39,n40,n41,n42,n43,n45,n48,n49,n50,n53,n58,n61,n62,n63,n64,n65,n66,n69,n70,n71,n76,n77,n78,n80,n82,n83,n86,n87,n89,n90,n91,n93,n94,n97,n98,n99,n104,n106 task;
-  class n7,n8,n9,n10,n11,n12,n46,n51,n52,n67,n73,n74,n79,n92,n100,n101 milestone;
-  class n6,n18,n19,n20,n21,n29,n34,n44,n56,n72,n81,n84,n85,n96,n103,n105 policy;
+  class n2,n13,n27,n31,n37,n60,n68,n75,n88,n95,n103 group;
+  class n3,n4,n5,n14,n15,n16,n17,n23,n24,n25,n26,n28,n30,n32,n33,n38,n39,n40,n41,n42,n43,n45,n48,n49,n50,n53,n58,n61,n62,n63,n64,n65,n66,n69,n70,n71,n76,n77,n78,n80,n82,n83,n86,n87,n89,n90,n91,n93,n94,n98,n99,n100,n105,n107 task;
+  class n7,n8,n9,n10,n11,n12,n46,n51,n52,n67,n73,n74,n79,n92,n97,n101,n102 milestone;
+  class n6,n18,n19,n20,n21,n29,n34,n44,n56,n72,n81,n84,n85,n96,n104,n106 policy;
   class n35,n54,n55 capability;
   linkStyle 0 stroke:#2563eb,stroke-width:2px;
   linkStyle 1 stroke:#2563eb,stroke-width:2px;
@@ -334,7 +337,7 @@ flowchart TD
   linkStyle 44 stroke:#2563eb,stroke-width:2px;
   linkStyle 45 stroke:#2563eb,stroke-width:2px;
   linkStyle 46 stroke:#2563eb,stroke-width:2px;
-  linkStyle 47 stroke:#2563eb,stroke-width:2px;
+  linkStyle 47 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 48 stroke:#2563eb,stroke-width:2px;
   linkStyle 49 stroke:#2563eb,stroke-width:2px;
   linkStyle 50 stroke:#2563eb,stroke-width:2px;
@@ -343,8 +346,8 @@ flowchart TD
   linkStyle 53 stroke:#2563eb,stroke-width:2px;
   linkStyle 54 stroke:#2563eb,stroke-width:2px;
   linkStyle 55 stroke:#2563eb,stroke-width:2px;
-  linkStyle 56 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 57 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 56 stroke:#2563eb,stroke-width:2px;
+  linkStyle 57 stroke:#2563eb,stroke-width:2px;
   linkStyle 58 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 59 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 60 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
@@ -359,17 +362,17 @@ flowchart TD
   linkStyle 69 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 70 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 71 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 72 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 73 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 72 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 73 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 74 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 75 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 76 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 77 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 76 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 77 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 78 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 79 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 80 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 81 stroke:#2563eb,stroke-width:2px;
-  linkStyle 82 stroke:#2563eb,stroke-width:2px;
+  linkStyle 79 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 80 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 81 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 82 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 83 stroke:#2563eb,stroke-width:2px;
   linkStyle 84 stroke:#2563eb,stroke-width:2px;
   linkStyle 85 stroke:#2563eb,stroke-width:2px;
@@ -417,11 +420,11 @@ flowchart TD
   linkStyle 127 stroke:#2563eb,stroke-width:2px;
   linkStyle 128 stroke:#2563eb,stroke-width:2px;
   linkStyle 129 stroke:#2563eb,stroke-width:2px;
-  linkStyle 130 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 131 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 132 stroke:#2563eb,stroke-width:2px;
+  linkStyle 130 stroke:#2563eb,stroke-width:2px;
+  linkStyle 131 stroke:#2563eb,stroke-width:2px;
+  linkStyle 132 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 133 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 134 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 134 stroke:#2563eb,stroke-width:2px;
   linkStyle 135 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 136 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 137 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
@@ -438,9 +441,11 @@ flowchart TD
   linkStyle 148 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 149 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 150 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 151 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 151 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 152 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 153 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 153 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 154 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 155 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
 ```
 
 Contains edges are solid blue, requires edges are dashed red, and contributesTo edges are dashed purple.
@@ -543,8 +548,9 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | econ.surplus | task | Send surplus to the capital | Once all producers are 15+, ship stock above the next build's cost (at least 4,000 of each kept) to the capital, bounded by merchants and the capital's free storage. | producers=15, reserve=4000, minimumMerchants=5 | econ.market, econ.producers.15 |
 | econ.wall10 | task | Wall 10 | Built after producers reach 10; the only military building an economic city builds. | level=10 | econ.producers.10 |
 | expansion.next | group | Next cities | After the first capture, keep taking one new city at a time when existing cities are developed enough. | — | conquest.first-achieved |
-| expansion.readiness | policy | Expansion readiness | The next conquest starts only once every economic city has reached Great Hall 10. | economicHall=10, homePikemen=150 | — |
-| expansion.envoy | task | Train next Envoy | Train one Envoy for the next target once the next conquest has started. | — | — |
+| expansion.readiness | policy | Expansion readiness | Start the next mission after capital readiness and Great Hall 10 in every economic city; train its Envoy only after Every city defended. | economicHall=10, homePikemen=150 | — |
+| expansion.cities-defended | milestone | Every city defended | Every economic city has Wall 10 and at least 80% of its Pikemen target stationed. | economicWall=10, defenderShare=0.8 | — |
+| expansion.envoy | task | Train next Envoy | Train one Envoy for the next target once the next conquest has started. | — | expansion.cities-defended |
 | expansion.escort | task | Escort army at home | Before every wave, train up to max(140, simulated escort) Raiders at home; earlier survivors count. | — | — |
 | expansion.dispatch | task | Dispatch waves | Same rules as the first conquest: nearest unowned target, 140 Raiders at home, and recheck before each of at most six waves. | maximumWaves=6 | expansion.envoy, expansion.escort |
 | expansion.captured | milestone | Target captured | The captured city is tagged economic and starts the economic-city flow. | — | — |

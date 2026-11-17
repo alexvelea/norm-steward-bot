@@ -6,6 +6,7 @@ import type {AdvisorContext, Proposal} from './types.js';
 import { proposalTask } from '../bot/plan/graph.js';
 import { cityRoles } from "../bot/strategy/roles.js";
 import { stockMinutes } from "./balance.js";
+import { expansionReadiness } from "./sustained-defense.js";
 import {nextConquestBuilding, fundingUpgrade, conquestLoyalty} from '../review/conquest-plan.js';
 
 export interface ConquestPlan {
@@ -52,6 +53,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
  const {state,rules}=context,plan=c.plan,v=state.villages.find(v=>v.id===plan.villageId);
  if(!v)return proposals;
  const sequence=plan.sequence??1;
+ const roles=context.cityRoles??cityRoles(context,[]);
  const retained=proposals;
  function deduplicateBuilds(candidates: Proposal[]): Proposal[] {
   const result: Proposal[]=[];
@@ -131,7 +133,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
  }
  if(construction)retained.push(construction);
  if(plan.escort&&v.buildings.barracks>=10){const p=train('raider',Math.max(140,plan.escort));if(p)retained.push(p);}
- if(!next){const p=train('envoy',1);if(p)retained.push(p);}
+ if(!next&&(sequence<2||expansionReadiness(context,roles).ready)){const p=train('envoy',1);if(p)retained.push(p);}
  const raiders=v.units.home.raider??0;
  const escortGoal=Math.max(140,plan.escort??Infinity);
  const escortReady=plan.escort!==undefined&&raiders>=escortGoal;

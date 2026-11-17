@@ -27,6 +27,7 @@ import { economicAdvisor, forecastEconomy } from "../advisors/economic.js";
 import { economicCityAdvisor } from "../advisors/economic-city.js";
 import { logisticsAdvisor } from "../advisors/logistics.js";
 import { militaryAdvisor } from "../advisors/military.js";
+import { expansionReadiness } from "../advisors/sustained-defense.js";
 import { prioritizeFarmRunway } from "../advisors/farm-runway.js";
 import {applyConquest, conquestScope, conquestTravel, type ConquestContext} from "../advisors/conquest.js";
 import {safeEnvoyAttack} from "../review/conquest-plan.js";
@@ -466,10 +467,7 @@ export class Controller {
       state.world.status==='running'){
       const roles=cityRoles(context,scopedMissions);
       const capital=state.villages.find(village=>roles.get(village.id)?.role==='capital');
-      const economicCities=state.villages.filter(village=>roles.get(village.id)?.role==='economic');
-      if(capital&&capital.buildings.court>=1&&(capital.units.home.pikeman??0)>=150&&
-        !Object.values(capital.orders).some(order=>order.length)&&
-        economicCities.every(village=>village.buildings.hall>=10)){
+      if(capital&&expansionReadiness(context,roles).ready){
         mission=conquestMission({
           scope,
           villageId:capital.id,

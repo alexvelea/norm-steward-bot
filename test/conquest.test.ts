@@ -304,14 +304,30 @@ test('recurring conquest tops up the surviving escort before dispatch',()=>{
  assert.ok(!nextWave.some(p=>p.action.type==='send'));
 });
 
+test('recurring conquest waits for defended economic cities before training an Envoy',()=>{
+ const {context,v,c}=fixture();c.plan.sequence=2;v.units.home.envoy=0;v.units.away.envoy=0;
+ const economic=structuredClone(v);economic.id='economic';economic.name='Larkdale';
+ economic.buildings.hall=10;economic.buildings.wall=9;economic.units.home.pikeman=200;
+ context.state.villages.push(economic);context.state.world.villages=2;
+ const envoy=()=>applyConquest(context,[],c).some(proposal=>
+  proposal.task==='expansion.envoy'&&proposal.action.type==='train'&&proposal.action.unit==='envoy');
+ assert.equal(envoy(),false,'Wall 9 must block the recurring Envoy');
+ economic.buildings.wall=10;economic.units.home.pikeman=199;
+ assert.equal(envoy(),false,'less than 80% of the Pikemen target must block the recurring Envoy');
+ economic.units.home.pikeman=200;
+ assert.equal(envoy(),true,'Wall 10 and 80% of the target must allow the recurring Envoy');
+});
+
 test('recurring conquest starts only after every capital and economic-city gate is met',async()=>{
- for(const block of ['hall','court','pikemen','orders','active'] as const){
+ for(const block of ['hall','wall','court','pikemen','orders','active'] as const){
   const x=await executor();
   const previous=structuredClone(x.c.plan);previous.status='captured';
   x.saved().missions=[conquestMission(previous)];
   const economic=structuredClone(x.v);economic.id='economic';economic.name='Economic';economic.buildings.hall=10;
+  economic.buildings.wall=10;economic.units.home.pikeman=200;
   x.context.state.villages.push(economic);x.context.state.world.villages=2;
   if(block==='hall')economic.buildings.hall=9;
+  if(block==='wall')economic.buildings.wall=9;
   if(block==='court')x.v.buildings.court=0;
   if(block==='pikemen')x.v.units.home.pikeman=149;
   if(block==='orders')x.v.orders.build=[{building:'wall',toLevel:2}];
@@ -326,6 +342,7 @@ test('a completed first conquest starts a sequenced recurring mission with a new
  const previous=structuredClone(x.c.plan);previous.status='captured';
  x.saved().missions=[conquestMission(previous)];
  const economic=structuredClone(x.v);economic.id='economic';economic.name='Economic';economic.buildings.hall=10;
+ economic.buildings.wall=10;economic.units.home.pikeman=200;
  x.context.state.villages.push(economic);x.context.state.world.villages=2;
  const controller=await x.create();await controller.setAutomatic(false);await controller.cycle();
  const recurring=x.saved().missions?.find(mission=>mission.definition==='conquest');
