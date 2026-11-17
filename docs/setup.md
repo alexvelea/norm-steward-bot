@@ -49,6 +49,15 @@ These checks need no gameplay credentials. The Python review/worker tests are in
 they can also run with `python3 -m unittest discover -s scripts/review -p 'test_*.py'`.
 No GitHub Actions or paid model service is required.
 
+On macOS, ensure `python3` on PATH meets the prerequisite too; Node's review-runner test invokes
+that executable. An older Python can fail on `tarfile.extractall(..., filter='data')`. The rollback
+test also compares resolved temporary paths, so use a canonical temporary directory to avoid the
+`/var` → `/private/var` alias. With Homebrew Python installed, for example:
+
+```bash
+env PATH="/opt/homebrew/bin:$PATH" TMPDIR=/private/tmp npm test
+```
+
 ## 2. Private connection and site access
 
 Put the existing player's key in `/root/key.txt`, mode 0600. Create private runtime directories and
@@ -150,7 +159,28 @@ Pause reviews blocks new experiment starts; an active measurement can finish. St
 service/timer separately for an immediate experiment pause. Full backoff, cleanup and rollback commands
 are in [reviews](reviews.md).
 
-To update: preserve dirty/unpushed work, pull fast-forward, install dependencies only when required,
-run checks/build, then deploy the verified commit. Reinstall/reload systemd units only if their source
-changed. Preserve the settings/journal directory and the current gameplay execution preference.
+To update, first inspect both the source checkout and the separate review worktree. Preserve any
+dirty/unpushed work and coordinate with an active review or experiment before changing shared source
+or dependencies. Do not reset the review worktree to make an update succeed. In a clean source checkout:
+
+```bash
+cd /root/norm-steward-bot
+git pull --ff-only
+# Run npm ci if the dependency installation needs updating.
+npm run typecheck
+npm test
+npm run build:web
+python3 scripts/review.py deploy --commit "$(git rev-parse HEAD)"
+readlink -f /var/lib/norm-steward-deploy/current
+systemctl status norm-steward-control --no-pager
+```
+
+Build and deploy the same commit without intervening edits. The deployment command restarts the
+executor, verifies connection and the persisted execution preference, and rolls back if health fails.
+Pull/build/restart alone does not switch an existing immutable release. Documentation-only updates
+can be committed and pushed without activating a new runtime release.
+
+Reinstall/reload systemd units only if their source changed. Preserve the settings/journal directory
+and the current gameplay execution preference. Preserve any existing review pause too; an update is
+not a request to resume either loop. See [operations](operations.md) for the audited machine inventory.
 The runtime state inventory and restart semantics are in [architecture](architecture.md).

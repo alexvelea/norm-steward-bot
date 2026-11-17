@@ -10,6 +10,7 @@ The local Node process serves the personal UI, coordinates advisors and proxies 
 
 For the complete machine setup, see [setup](docs/setup.md). For an external engineering review,
 start with [the architect handoff](docs/ARCHITECT_REVIEW.md) and [architecture/state map](docs/architecture.md).
+For the verified host inventory and status checks, see [operations](docs/operations.md).
 Review instructions are versioned in [the agent prompt](scripts/review/prompt.md).
 
 ## Personal control center
@@ -74,9 +75,11 @@ sudo systemctl reload caddy
 ```
 
 Caddy supplies HTTPS at https://alex.norn-steward.velea.cc and forwards to the loopback control
-process. It serves the active immutable release's `web/dist`; copying files to the old static directory
-is no longer the deployment path. On edits rebuild UI and restart the control service for server
-changes (`systemctl restart norm-steward-control`). A restart resumes the economic policy and reconciles any tracked construction.
+process. The Node service serves the active immutable release's `web/dist`; copying files to the old
+static directory is no longer the deployment path. Pulling or rebuilding the source checkout does not
+update that release, and restarting alone runs the same release again. After checks and the UI build
+pass for the intended commit, follow the [update procedure](docs/setup.md#5-operations-and-recovery)
+to activate it. A restart preserves the saved execution preference and reconciles tracked operations.
 Use `systemctl status norm-steward-control` and `journalctl -u norm-steward-control` to inspect it.
 Adapt paths and hostname for another machine; merge Caddy blocks if it hosts other sites.
 
@@ -174,5 +177,5 @@ sudo systemctl restart norm-steward-control
 ```
 
 Do not rerun initialization as a routine deployment step when a token already exists. Restarting
-resumes economic automation. For non-default directories, set
+preserves the saved gameplay execution preference. For non-default directories, set
 STEWARD_CONTROL_DIR and optionally STEWARD_ACCESS_TOKEN_HASH_FILE consistently for init and service.

@@ -31,6 +31,21 @@ norm-steward-review.timer`; stop the review service too if needed. Do not stop t
 unless intending to stop ordinary bot actions. Gameplay's automatic preference is now durable;
 service restarts and Settings edits preserve an operator pause.
 
+### Interpreting review status
+
+Check the timer, latest service journal and pause file together. `state.json` retains the latest
+substantive run: early returns for `paused`, `backoff` or `overlap-skipped` do not update it. A saved
+`timeout` can therefore coexist with a later successful oneshot invocation that skipped work. Exit
+status zero means the wrapper handled the invocation, not that a review completed or shipped code.
+Some timestamp fields can also remain from earlier runs; compare `startedAt`, the run directory and
+the journal rather than treating every field as one coherent latest-run record.
+
+`review.py status` overlays the current pause-file value as `paused`. Its absence now does not
+contradict a journal entry that found it present earlier. A backoff is separate from an operator
+pause, and an enabled timer does not imply a Codex process is running. Inactive oneshot review and
+experiment services are normal between timer activations. Inspect the experiment queue to distinguish
+idle work from a failed worker. See the [dated operations snapshot](operations.md) for an example.
+
 ## Bounds and continuity
 
 Private mode-0700 state directory `/var/lib/norm-steward-review` contains:
