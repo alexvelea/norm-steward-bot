@@ -1,13 +1,19 @@
 // Holding: one village's resources against storage, production, population, buildings by level, the
 // build queue as a timeline, and each training queue. Resources tick up live between state messages
 // from the village's own production figures, capped at storage, as the server will.
-import type { BuildQueueItem, Resource, TrainBatch, TrainingBuilding, VillageState } from "../../contract";
-import { BUILDINGS, BUILDING_IDS, RESOURCES, UNITS } from "../../contract";
+import { useState } from "react";
+import { blockerMessage, buildingNeeds, unitNeeds } from "./requirements";
+import type { Action, UnitId, BuildQueueItem, Resource, TrainingBuilding, VillageState } from "../../contract";
+import { BUILDINGS, BUILDING_IDS, RESOURCES, UNITS, UNIT_IDS } from "../../contract";
 import { formatCompact, formatInt, formatResources, formatTicksAsTime } from "../../lib/format";
 import { isFlowing, paceOf, useLiveTick } from "../../world/clock";
 import type { Clock } from "../../world/types";
-import { Countdown, Empty, Meter, Section } from "../common";
+import { Empty, Meter, Section } from "../common";
 import { selectClock, selectState, useWorld } from "../worldContext";
+import { useManualActions } from "./useManualActions";
+import { unitInventory, validTrainCount } from "./holdings";
+import { QueueRow, TrainingQueueRow } from "./QueueRow";
+import { UnitIcon } from "./UnitIcon";
 import { VillagePicker } from "./VillagePicker";
 
 const TRAINING_BUILDINGS: TrainingBuilding[] = ["barracks", "stable", "workshop", "court"];
@@ -17,14 +23,26 @@ export function HoldingTab({ villageId, onVillage }: { villageId: string; onVill
   const state = useWorld(selectState);
   const clock = useWorld(selectClock);
   const tick = useLiveTick(clock);
+  const { busy, message, failed, retry, setRetry, submit, act } = useManualActions();
   const village = state?.villages.find((v) => v.id === villageId);
   if (!state || !village) return <Empty>No village to show.</Empty>;
+  const cooldown = state.player.nextActTick !== null && state.player.nextActTick > tick;
+  const blocked = busy || !!retry || cooldown || clock.status === "ended";
+  const command = (action: Action) => { if (!blocked) void act(action); };
   const elapsed = Math.max(0, tick - state.world.tick);
 
   return (
-    <div className="tab-page">
+    <div className="tab-page holding-page">
       <VillagePicker state={state} value={villageId} onChange={onVillage} />
       <VillageHeader village={village} />
+      {cooldown && <p className="warn-line">Next Council turn: tick {state.player.nextActTick}.</p>}
+      {clock.status === "ended" && <p className="warn-line">This round has ended.</p>}
+      {message && <p className={failed ? "error-line" : "command-success"} role="status">{message}</p>}
+      {retry && <div className="command-retry">
+        <button className="btn btn-small" disabled={busy} onClick={() => void submit(retry, true)}>Retry same order</button>
+        <button className="btn btn-small" disabled={busy} onClick={() => setRetry(null)}>Dismiss uncertain result</button>
+      </div>}
+      <fieldset className="command-fieldset" disabled={blocked} aria-busy={busy}>
       <Section title="Stores" aside={<span className="muted small">cellar hides {formatInt(village.hidden)}</span>}>
         {RESOURCES.map((r) => (
           <ResourceRow key={r} resource={r} village={village} elapsed={elapsed} speed={paceOf(clock)} />
@@ -44,9 +62,11 @@ export function HoldingTab({ villageId, onVillage }: { villageId: string; onVill
           </span>
         </div>
       </Section>
-      <BuildQueue village={village} tick={tick} clock={clock} />
-      <Buildings village={village} />
-      <Training village={village} tick={tick} clock={clock} />
+      <Buildings village={village} command={command} />
+      <Units key={village.id} village={village} command={command} />
+      <BuildQueue village={village} tick={tick} clock={clock} command={command} />
+      <Training village={village} tick={tick} clock={clock} command={command} />
+      </fieldset>
     </div>
   );
 }
@@ -95,7 +115,9 @@ function ResourceRow({ resource, village, elapsed, speed }: { resource: Resource
   );
 }
 
-function Buildings({ village }: { village: VillageState }) {
+type Commands = { command(action: Action): void };
+
+function Buildings({ village, command }: { village: VillageState } & Commands) {
   const queued = new Map<string, number>();
   for (const item of village.buildQueue) queued.set(item.building, (queued.get(item.building) ?? 0) + 1);
   const options = new Map(village.options.build.map((o) => [o.building, o]));
@@ -107,24 +129,26 @@ function Buildings({ village }: { village: VillageState }) {
           const level = village.buildings[id];
           const option = options.get(id);
           const atMax = level >= rule.maxLevel;
+          const needs = buildingNeeds(id, village.buildings);
           const hint = atMax
             ? `${rule.name}: at its highest level`
             : option
-              ? `${rule.name} ${option.level}: ${formatResources(option.cost)} · ${option.ok ? "can be queued now" : option.blockers.join(", ")}`
+              ? `${rule.name} ${option.level}: ${formatResources(option.cost)} · ${option.ticks} ticks · ${option.ok ? "can be queued now" : blockerMessage(option.blockers, needs)}`
               : rule.name;
           return (
-            <div key={id} className={`building${level === 0 ? " is-unbuilt" : ""}${atMax ? " is-max" : ""}`} title={hint}>
-              <span className="building-name">{rule.name}</span>
-              <span className="building-level">
-                {level}
-                <small>/{rule.maxLevel}</small>
-                {queued.has(id) && <span className="building-queued">+{queued.get(id)}</span>}
+            <button type="button" disabled={!option?.ok || atMax} onClick={() => command({ type: "build", village: village.id, building: id })} key={id} className={`building${level === 0 ? " is-unbuilt" : ""}${atMax ? " is-max" : ""}`} title={hint}>
+              <span className="building-heading">
+                <span className="building-name">{rule.name}</span>
+                <span className="building-level">
+                  {level}<small>/{rule.maxLevel}</small>
+                  {queued.has(id) && <span className="building-queued">+{queued.get(id)}</span>}
+                </span>
               </span>
               <div className="building-bar">
                 <div style={{ transform: `scaleX(${level / rule.maxLevel})` }} />
               </div>
               {option?.ok && !atMax && <span className="building-ready" aria-label="can be queued now" />}
-            </div>
+            </button>
           );
         })}
       </div>
@@ -132,7 +156,41 @@ function Buildings({ village }: { village: VillageState }) {
   );
 }
 
-function BuildQueue({ village, tick, clock }: { village: VillageState; tick: number; clock: Clock }) {
+function Units({ village, command }: { village: VillageState } & Commands) {
+  const [counts, setCounts] = useState<Partial<Record<UnitId, number>>>({});
+  const [selected, setSelected] = useState<UnitId | null>(null);
+  const option = village.options.train.find((o) => o.unit === selected);
+  const count = selected ? counts[selected] ?? 1 : 1;
+  return (
+    <Section title="Units" aside={<span className="muted small">home/total · +training</span>}>
+      <div className="holding-units">
+        {UNIT_IDS.map((unit) => {
+          const inventory = unitInventory(village, unit);
+          const training = village.options.train.find((o) => o.unit === unit);
+          const needs = unitNeeds(unit, village.buildings);
+          const hint = training ? `${formatResources(training.cost)} · ${training.ticksEach} ticks each · max ${training.maxCount}${training.ok ? "" : ` · ${blockerMessage(training.blockers, needs)}`}` : "Training unavailable";
+          return <button type="button" key={unit} disabled={!training?.ok} className={`holding-unit${selected === unit ? " is-selected" : ""}`} title={hint} aria-pressed={selected === unit} onClick={() => setSelected(selected === unit ? null : unit)}>
+            <span className="holding-unit-line">
+              <UnitIcon unit={unit} /><strong>{UNITS[unit].name}</strong>
+              <span className="mono">{formatCompact(inventory.home)}/{formatCompact(inventory.total)}{inventory.training > 0 && <span className="gold"> +{formatCompact(inventory.training)}</span>}</span>
+            </span>
+          </button>;
+        })}
+      </div>
+      {selected && <form className="holding-train-selection" onSubmit={(e) => {
+        e.preventDefault();
+        if (option?.ok && validTrainCount(count, option.maxCount)) command({ type: "train", village: village.id, unit: selected, count });
+      }}>
+        <span><strong>{UNITS[selected].name}</strong><small>{option ? `${formatResources(option.cost)} · ${option.ticksEach} ticks each · max ${option.maxCount}` : "Training unavailable"}</small>
+        </span>
+        <input type="number" aria-label={`${UNITS[selected].name} count`} min={1} max={option?.maxCount ?? 0} step={1} required disabled={!option?.ok} value={count} onChange={(e) => setCounts({ ...counts, [selected]: e.target.valueAsNumber })} />
+        <button className="btn btn-small" disabled={!option?.ok || !validTrainCount(count, option.maxCount)}>Train</button>
+      </form>}
+    </Section>
+  );
+}
+
+function BuildQueue({ village, tick, clock, command }: { village: VillageState; tick: number; clock: Clock } & Commands) {
   const queue = village.buildQueue;
   const paused = !isFlowing(clock);
   if (queue.length === 0) {
@@ -160,7 +218,7 @@ function BuildQueue({ village, tick, clock }: { village: VillageState; tick: num
       </div>
       <ol className="queue">
         {queue.map((item, i) => (
-          <QueueRow key={item.id} item={item} start={startOf(queue, i)} tick={tick} speed={paceOf(clock)} paused={paused} active={i === 0} />
+          <BuildRow key={item.id} item={item} start={startOf(queue, i)} tick={tick} speed={paceOf(clock)} paused={paused} active={i === 0} cancel={() => command({ type: "cancel_build", village: village.id, item: item.id })} />
         ))}
       </ol>
     </Section>
@@ -174,20 +232,14 @@ function startOf(queue: BuildQueueItem[], index: number): number {
   return index > 0 ? queue[index - 1]!.endTick : item.endTick;
 }
 
-function QueueRow({ item, start, tick, speed, paused, active }: { item: BuildQueueItem; start: number; tick: number; speed: number; paused: boolean; active: boolean }) {
+function BuildRow({ item, start, tick, speed, paused, active, cancel }: { item: BuildQueueItem; start: number; tick: number; speed: number; paused: boolean; active: boolean; cancel(): void }) {
   const progress = item.endTick > start ? Math.min(1, Math.max(0, (tick - start) / (item.endTick - start))) : 0;
-  return (
-    <li className={`queue-row${active ? " is-active" : ""}`}>
-      <span className="queue-name">
-        {BUILDINGS[item.building].name} <span className="gold">{item.level}</span>
-      </span>
-      <Meter value={active ? progress : 0} max={1} tone="gold" />
-      <Countdown until={item.endTick} tick={tick} speed={speed} paused={paused} />
-    </li>
-  );
+  return <QueueRow name={<>{BUILDINGS[item.building].name} <span className="gold">{item.level}</span></>}
+    progress={active ? progress : 0} endTick={item.endTick} tick={tick} speed={speed} paused={paused}
+    active={active} cancelLabel={`Cancel ${BUILDINGS[item.building].name} level ${item.level}`} cancel={cancel} />;
 }
 
-function Training({ village, tick, clock }: { village: VillageState; tick: number; clock: Clock }) {
+function Training({ village, tick, clock, command }: { village: VillageState; tick: number; clock: Clock } & Commands) {
   const busy = TRAINING_BUILDINGS.filter((b) => village.training[b].length > 0);
   return (
     <Section title="Training">
@@ -199,31 +251,11 @@ function Training({ village, tick, clock }: { village: VillageState; tick: numbe
           </div>
           <ol className="queue">
             {village.training[building].map((batch) => (
-              <BatchRow key={batch.id} batch={batch} tick={tick} speed={paceOf(clock)} paused={!isFlowing(clock)} />
+              <TrainingQueueRow key={batch.id} batch={batch} tick={tick} speed={paceOf(clock)} paused={!isFlowing(clock)} cancel={() => command({ type: "cancel_train", village: village.id, batch: batch.id })} />
             ))}
           </ol>
         </div>
       ))}
     </Section>
-  );
-}
-
-function BatchRow({ batch, tick, speed, paused }: { batch: TrainBatch; tick: number; speed: number; paused: boolean }) {
-  const done = batch.count - batch.remaining;
-  return (
-    <li className={`queue-row${batch.nextTick !== null ? " is-active" : ""}`}>
-      <span className="queue-name">
-        {UNITS[batch.unit].name} <span className="muted mono">{done}/{batch.count}</span>
-      </span>
-      <Meter value={done} max={batch.count} tone="steel" />
-      <span className="queue-times">
-        {batch.nextTick !== null && (
-          <span className="muted small">
-            next <Countdown until={batch.nextTick} tick={tick} speed={speed} paused={paused} /> ·{" "}
-          </span>
-        )}
-        <Countdown until={batch.endTick} tick={tick} speed={speed} paused={paused} />
-      </span>
-    </li>
   );
 }

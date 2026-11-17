@@ -121,7 +121,7 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
   },
   "econ.market-growth": {
     intent: "Merchant capacity follows shipping demand.",
-    eligible: ["Market 1 once producers reach level 5.", "Further levels only once this city fulfils overflow requests (later)."],
+    eligible: ["Market 1 once producers reach level 5.", "Further levels when the surplus for the capital needs more whole merchants than the Market has in total (score 55).", "Game requirements: Great Hall 3 and Storehouse 2; level L has round(0.4·L² + 0.6·L) merchants carrying 1,000 each."],
   },
   "logistics.market-growth": {
     intent: "Raise the capital's Market when merchants are the bottleneck for fulfilling requests.",
@@ -151,8 +151,14 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     never: ["Never build Barracks, Smithy or Stable.", "Never train troops.", "Walls up to level 10 are the only military-building exception."],
   },
   "econ.market": {
-    intent: "Prepare to fulfil the capital's overflow requests later.",
+    intent: "Merchants for sending surplus to the capital.",
     eligible: ["All three producers at level 5."],
+  },
+  "econ.surplus": {
+    intent: "A developed city funds the capital instead of piling up stock.",
+    eligible: ["All three producers at level 15 or higher and a Market.", "Per resource, surplus = stock − max(4,000, cost of the city's highest-scored next build), capped by the capital's free storage after shipments in flight.", "Ship when the surplus fills min(5, all) merchants; one trade carries all three resources, largest surplus first."],
+    priority: ["Score 50: below the city's own builds, so it never spends what the next build needs."],
+    never: ["Never ship below the 4,000 reserve, so the city does not start requesting resources back."],
   },
   "econ.requests": {
     intent: "The economic city publishes what it needs; the capital fulfils it. The game only allows pushing, so requests live only inside the bot.",
@@ -215,9 +221,14 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     intent: "Organize the capital's garrison requirements and growth.",
     priority: ["Score: to be decided when codified."],
   },
+  "defense.barracks1": {
+    intent: "Build the capital's first Barracks only after all three resource producers reach level 12.",
+    eligible: ["The mine, quarry, and lumberyard are each at level 12 or higher."],
+    priority: ["Score: to be decided when codified."],
+  },
   "military.pikemen-baseline": {
-    intent: "The capital keeps 250 Pikemen at home and trains 250 for each economic city's defender request. Pikemen only; no Shieldmen.",
-    eligible: ["Keep 250 Pikemen at home per city owned.", "Train 250 Pikemen for each economic city's defender request."],
+    intent: "After all three capital producers reach level 12, keep 250 Pikemen at home; economic-city defender requests remain additive. Pikemen only; no Shieldmen.",
+    eligible: ["The capital home target is 0 while the lowest producer is below level 12, then 250 until producer level 20.", "At producer level 20, target at least 250 or three times the strongest economic city's Pikemen.", "Economic-city defender requests remain additive regardless of the capital baseline gate."],
     priority: ["Score: to be decided when codified."],
     never: ["Never use Shieldmen for this baseline."],
   },

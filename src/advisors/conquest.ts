@@ -5,6 +5,7 @@ import type {Action,BuildingId, MapResponse, Report, Resources, SimulateBattleRe
 import type {AdvisorContext, Proposal} from './types.js';
 import { proposalTask } from '../bot/plan/graph.js';
 import { cityRoles } from "../bot/strategy/roles.js";
+import { stockMinutes } from "./balance.js";
 import {nextConquestBuilding, fundingUpgrade, conquestLoyalty} from '../review/conquest-plan.js';
 
 export interface ConquestPlan {
@@ -26,6 +27,7 @@ export interface ConquestContext {
  assessment?: {tick: number; raiders: number; battle: SimulateBattleResponse};
 }
 const resources = ['timber','stone','iron'] as const;
+const producerResources = {lumberyard:'timber',quarry:'stone',mine:'iron'} as const;
 export function conquestScope(server: string, account: string, context: AdvisorContext): string {
  return JSON.stringify([server,account,context.state.world.id,context.state.world.epoch]);
 }
@@ -112,7 +114,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
    blockers:[...new Set(b)],status:b.length?'waiting':'ready',affordableAtTick:funded};
  }
  const producers=['lumberyard','quarry','mine'] as const;
- const deficient=producers.filter(b=>v.buildings[b]<15).sort((a,b)=>v.buildings[a]-v.buildings[b]||a.localeCompare(b));
+ const deficient=producers.filter(b=>v.buildings[b]<15).sort((a,b)=>stockMinutes(v,producerResources[a])-stockMinutes(v,producerResources[b])||v.buildings[a]-v.buildings[b]||a.localeCompare(b));
  if(deficient.length){const p=build(deficient[0]);if(p)retained.push(p);return deduplicateBuilds(retained);}
  let next=nextConquestBuilding(v.buildings,rules);
  let construction=next?build(next):null;

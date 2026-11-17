@@ -321,6 +321,10 @@ export class MockWorld {
       this.enqueueBuild(owned, i === 0 ? "wall" : "farm");
       this.enqueueBuild(owned, "storehouse");
       if (owned.buildings.barracks > 0) this.enqueueTrain(owned, "pikeman", 20 + i * 5);
+      if (owned.buildings.stable > 0) {
+        this.enqueueTrain(owned, "scout", 6);
+        this.enqueueTrain(owned, "lancer", 2);
+      }
     });
   }
 

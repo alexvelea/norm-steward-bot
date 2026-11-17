@@ -1,85 +1,48 @@
-import { useEffect, useRef, useState } from "react";
-import type { Action, UnitCounts, UnitId, Resource } from "../../contract";
-import { BUILDINGS, LIMITS, RESOURCES, UNITS, UNIT_IDS } from "../../contract";
-import { formatResources } from "../../lib/format";
-import { ApiFailure, describeFailure } from "../../lib/http";
+import { useEffect, useState } from "react";
+import type { Action, UnitCounts, UnitId } from "../../contract";
+import { BUILDINGS, UNITS, UNIT_IDS } from "../../contract";
+import { useManualActions } from "./useManualActions";
 import { Empty, Section } from "../common";
-import { selectClock, selectMap, selectState, useWorld, useWorldContext } from "../worldContext";
+import { selectClock, selectMap, selectPlayerId, selectState, useWorld, useWorldContext } from "../worldContext";
+import { SendResources } from "./SendResources";
 import { VillagePicker } from "./VillagePicker";
 
 export function CommandTab({ villageId, onVillage }: { villageId: string; onVillage(id: string): void }) {
   const state = useWorld(selectState);
   const clock = useWorld(selectClock);
   const worldMap = useWorld(selectMap);
-  const { client, selectedId } = useWorldContext();
+  const playerId = useWorld(selectPlayerId);
+  const { selectedId } = useWorldContext();
   const village = state?.villages.find((v) => v.id === villageId);
-  const [busy, setBusy] = useState(false);
-  const locked = useRef(false);
-  const [message, setMessage] = useState("");
-  const [failed, setFailed] = useState(false);
-  const [retry, setRetry] = useState<Action[] | null>(null);
-  const [unit, setUnit] = useState<UnitId>("pikeman");
-  const [count, setCount] = useState(1);
+  const { busy, message, failed, retry, setRetry, submit } = useManualActions();
   const [target, setTarget] = useState("");
   const [kind, setKind] = useState<"attack" | "support">("attack");
   const [troops, setTroops] = useState<UnitCounts>({});
-  const [cargo, setCargo] = useState<Partial<Record<Resource, number>>>({});
-  const [name, setName] = useState("");
   useEffect(() => {
     if (selectedId && selectedId !== villageId) setTarget(selectedId);
   }, [selectedId, villageId]);
   useEffect(() => {
     setTroops({});
-    setCargo({});
-    setName("");
   }, [villageId]);
   if (!state || !village) return <Empty>No village to command.</Empty>;
-  const training = village.options.train.find((o) => o.unit === unit);
   const cooldown = state.player.nextActTick !== null && state.player.nextActTick > clock.tick;
   const unavailable = busy || !!retry || clock.status === "ended" || cooldown;
   const targets = [...worldMap.villages.values()]
     .filter((v) => v.id !== villageId)
     .sort((a, b) => Math.hypot(a.x - village.x, a.y - village.y) - Math.hypot(b.x - village.x, b.y - village.y));
 
-  async function submit(actions: Action[], isRetry = false) {
-    if (locked.current) return;
-    locked.current = true;
-    setBusy(true);
-    setMessage("");
-    setFailed(false);
-    const request = isRetry ? actions : actions.map((a) => ({ ...a, clientId: `ui-${crypto.randomUUID()}` }));
-    try {
-      const response = await client.act(request);
-      const errors = response.results.filter((r) => !r.ok);
-      setRetry(null);
-      setFailed(errors.length > 0);
-      setMessage(
-        response.results
-          .map((r) => (r.ok ? `${r.type}: accepted at tick ${response.tick}.` : `${r.type}: ${r.error.code} — ${r.error.message}`))
-          .join(" "),
-      );
-    } catch (error) {
-      const uncertain = error instanceof ApiFailure && (error.status === 0 || error.status >= 500);
-      setRetry(uncertain ? request : null);
-      setFailed(true);
-      setMessage(
-        describeFailure(error) + (uncertain ? " The outcome is unknown. Retry uses the same command IDs to avoid duplicates." : ""),
-      );
-    } finally {
-      locked.current = false;
-      setBusy(false);
-    }
-  }
+  const ownIds = new Set(state.villages.map((v) => v.id));
+  const allied = (v: typeof targets[number]) => ownIds.has(v.id) || (!!playerId && v.ownerId === playerId);
   const command = (a: Action) => void submit([a]);
   const targetField = (
     <label className="field">
       <span>Target village · or click it on the map</span>
       <select value={target} onChange={(e) => setTarget(e.target.value)} required>
         <option value="">Choose a target</option>
-        {targets.map((v) => (
-          <option value={v.id} key={v.id}>
-            {v.name} ({v.x}|{v.y}) · {v.ownerName ?? "unowned"}
-          </option>
+        {[{ label: "Allied", villages: targets.filter(allied) }, { label: "Enemy & hamlets", villages: targets.filter((v) => !allied(v)) }].map((group) => (
+          <optgroup label={group.label} key={group.label}>
+            {group.villages.map((v) => <option value={v.id} key={v.id}>{v.name} ({v.x}|{v.y}) · {Math.hypot(v.x - village.x, v.y - village.y).toFixed(1)} fields · {v.ownerName ?? "unowned"}</option>)}
+          </optgroup>
         ))}
       </select>
     </label>
@@ -88,13 +51,6 @@ export function CommandTab({ villageId, onVillage }: { villageId: string; onVill
   return (
     <div className="tab-page command-page">
       <VillagePicker state={state} value={villageId} onChange={onVillage} />
-      <div className="command-intro">
-        <p className="eyebrow">Hybrid command</p>
-        <h2>{village.name}</h2>
-        <p className="muted small">
-          Give orders alongside your steward. Bots and standing orders keep running and share your resources, queues and Council turn.
-        </p>
-      </div>
       {cooldown && <p className="warn-line">Next Council turn: tick {state.player.nextActTick}.</p>}
       {clock.status === "ended" && <p className="warn-line">This round has ended.</p>}
       {message && (
@@ -113,71 +69,6 @@ export function CommandTab({ villageId, onVillage }: { villageId: string; onVill
         </div>
       )}
       <fieldset disabled={unavailable} className="command-fieldset" aria-busy={busy}>
-        <Section title="Build & upgrade" aside={<span className="muted small">{village.buildQueue.length} queued</span>}>
-          <div className="command-builds">
-            {village.options.build.map((o) => (
-              <div className="command-build" key={o.building}>
-                <div>
-                  <strong>
-                    {BUILDINGS[o.building].name} <span className="gold">→ {o.level}</span>
-                  </strong>
-                  <small>
-                    {formatResources(o.cost)} · {o.ticks} ticks
-                  </small>
-                  {!o.ok && <small className="muted">{o.blockers.map((b) => b.toLowerCase().replaceAll("_", " ")).join(", ")}</small>}
-                </div>
-                <button
-                  className="btn btn-small"
-                  disabled={!o.ok}
-                  onClick={() => command({ type: "build", village: villageId, building: o.building })}
-                >
-                  Queue
-                </button>
-              </div>
-            ))}
-          </div>
-        </Section>
-        <Section title="Train troops">
-          <form
-            className="command-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              command({ type: "train", village: villageId, unit, count });
-            }}
-          >
-            <label className="field">
-              <span>Unit</span>
-              <select value={unit} onChange={(e) => setUnit(e.target.value as UnitId)}>
-                {UNIT_IDS.map((id) => (
-                  <option key={id} value={id}>
-                    {UNITS[id].name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {training && (
-              <p className="muted small">
-                Each: {formatResources(training.cost)} · {training.ticksEach} ticks. Available to train: {training.maxCount}.
-                {!training.ok && ` ${training.blockers.join(", ")}`}
-              </p>
-            )}
-            <label className="field">
-              <span>Number</span>
-              <input
-                type="number"
-                min={1}
-                max={training?.maxCount || 1}
-                step={1}
-                required
-                value={count}
-                onChange={(e) => setCount(e.target.valueAsNumber)}
-              />
-            </label>
-            <button className="btn" disabled={!training?.ok || !Number.isSafeInteger(count) || count < 1 || count > training.maxCount}>
-              Queue training
-            </button>
-          </form>
-        </Section>
         <Section title="March troops">
           <form
             className="command-form"
@@ -234,44 +125,7 @@ export function CommandTab({ villageId, onVillage }: { villageId: string; onVill
             </button>
           </form>
         </Section>
-        <Section title="Send resources" aside={<span className="muted small">{village.merchants.available} merchants available</span>}>
-          <form
-            className="command-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              command({ type: "trade", village: villageId, target, resources: cargo });
-            }}
-          >
-            {targetField}
-            <div className="command-unit-grid">
-              {RESOURCES.map((r) => (
-                <label className="field" key={r}>
-                  <span>{r}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={village.resources[r]}
-                    step={1}
-                    required
-                    value={cargo[r] ?? 0}
-                    onChange={(e) => setCargo({ ...cargo, [r]: e.target.valueAsNumber })}
-                  />
-                </label>
-              ))}
-            </div>
-            <button
-              className="btn"
-              disabled={
-                !target ||
-                village.merchants.available === 0 ||
-                !Object.values(cargo).some((n) => n > 0) ||
-                Object.entries(cargo).some(([r, n]) => !Number.isSafeInteger(n) || n < 0 || n > village.resources[r as Resource])
-              }
-            >
-              Send resources
-            </button>
-          </form>
-        </Section>
+        <SendResources key={village.id} village={village} villages={state.villages} disabled={unavailable} command={command} />
         <Section title="Manage orders">
           <p className="muted small">Cancelling work in progress refunds only part of its cost. Standing orders may queue replacements.</p>
           {village.buildQueue.map((q) => (
@@ -341,29 +195,6 @@ export function CommandTab({ villageId, onVillage }: { villageId: string; onVill
           {!village.buildQueue.length && !Object.values(village.training).flat().length && (
             <Empty>No construction or training queued.</Empty>
           )}
-        </Section>
-        <Section title="Rename village">
-          <form
-            className="command-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              command({ type: "rename", village: villageId, name: name.trim() });
-            }}
-          >
-            <label className="field">
-              <span>New village name</span>
-              <input
-                value={name}
-                maxLength={LIMITS.villageNameMax}
-                required
-                onChange={(e) => setName(e.target.value)}
-                placeholder={village.name}
-              />
-            </label>
-            <button className="btn" disabled={!name.trim() || (village.renameReadyTick !== null && village.renameReadyTick > clock.tick)}>
-              Rename
-            </button>
-          </form>
         </Section>
       </fieldset>
     </div>

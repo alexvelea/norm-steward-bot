@@ -10,6 +10,7 @@ import { setApiKey, useApiKey } from "../lib/keyStore";
 import { navigate, useRoute, worldHref, isMock } from "../lib/router";
 import { formatResources } from "../lib/format";
 import { Link } from "./common";
+import { MainNav } from "./MainNav";
 import { WorldPage } from "./WorldPage";
 import { BotPage } from "./bot/BotPage";
 import { humanize, setQuery, useQuery } from "./bot/query";
@@ -134,36 +135,8 @@ function ConnectedCenter({ onLogout }: { onLogout(): Promise<void> }) {
       </div>
     );
   return (
-    <div className="cc-shell">
-      <header className="cc-nav">
-        <Link href="/" className="cc-brand">
-          Steward <span>Control</span>
-        </Link>
-        <nav aria-label="Control center">
-          <Link href="/" className={!settings && !map ? "is-active" : ""}>
-            Bot
-          </Link>
-          <Link
-            href={worldHref(view.settings.worldId)}
-            className={map ? "is-active" : ""}
-          >
-            Map & commands
-          </Link>
-          <Link href="/settings" className={settings ? "is-active" : ""}>
-            Settings
-          </Link>
-        </nav>
-        <div className="cc-identity">
-          <strong>{view.account?.name || "Account unavailable"}</strong>
-          <span>
-            {view.world?.name || view.settings.worldId} · {view.villages.length}{" "}
-            {view.villages.length === 1 ? "village" : "villages"}
-          </span>
-        </div>
-        <button className="btn btn-small" onClick={() => void onLogout()}>
-          Lock
-        </button>
-      </header>
+    <div className={`cc-shell${map ? " cc-world-shell" : ""}`}>
+      {!map && <MainNav worldId={view.settings.worldId} page={settings ? "settings" : "bot"} onLogout={onLogout} />}
       {error && (
         <div className="cc-service-error" role="alert">
           {error}{" "}
@@ -182,6 +155,7 @@ function ConnectedCenter({ onLogout }: { onLogout(): Promise<void> }) {
         <WorldPage
           key={`${route.worldId}:${view.settings.serverUrl}:${view.account?.id}`}
           worldId={route.worldId}
+          onLogout={onLogout}
         />
       ) : settings ? (
         <SettingsPage view={view} onChange={setView} />

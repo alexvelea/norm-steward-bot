@@ -7,8 +7,13 @@ import { developedContext as context } from "./control-fixtures.js";
 
 function ready() {
   const c = context();
-  c.state.villages[0].buildings.hall = 5;
-  c.state.villages[0].hidden = 1000;
+  const village = c.state.villages[0];
+  village.buildings.hall = 5;
+  village.hidden = 1000;
+  for (const producer of ["mine", "quarry", "lumberyard"] as const) {
+    village.buildings[producer] = 12;
+    village.options.build.find(option => option.building === producer)!.level = 13;
+  }
   return c;
 }
 test("first Barracks uses live costs and outranks discretionary economy through the President", () => {
@@ -22,6 +27,14 @@ test("first Barracks uses live costs and outranks discretionary economy through 
   assert.equal(selectProposal([...evaluateEconomy(c), p]).selected?.advisor, "military");
   v.population.used = v.population.max;
   assert.equal(selectProposal([...evaluateEconomy(c), ...evaluateMilitary(c)]).selected?.action.building, "farm");
+});
+test("first Barracks waits until all capital producers reach level 12", () => {
+  const c = ready(), v = c.state.villages[0];
+  for (const producer of ["mine", "quarry", "lumberyard"] as const) v.buildings[producer] = 11;
+  assert.equal(evaluateMilitary(c).some(proposal => proposal.task === "defense.barracks1"), false);
+  for (const producer of ["mine", "quarry", "lumberyard"] as const) v.buildings[producer] = 12;
+  const proposal = evaluateMilitary(c).find(value => value.task === "defense.barracks1");
+  assert.equal(proposal?.targetLevel, 1);
 });
 test("protection and storage emergencies retain priority", () => {
   const c = ready(), v = c.state.villages[0];

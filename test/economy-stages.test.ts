@@ -7,7 +7,7 @@ import {militaryAdvisor} from "../src/advisors/military.js";
 function ready() {
   const context = developedContext();
   const village = context.state.villages[0]!;
-  Object.assign(village.buildings, {lumberyard: 10, quarry: 10, mine: 10, barracks: 3, smithy: 1});
+  Object.assign(village.buildings, {lumberyard: 12, quarry: 12, mine: 12, barracks: 3, smithy: 1});
   village.units.home = {};
   village.units.away = {};
   village.population = {max: 1000, used: 200};
@@ -21,7 +21,7 @@ function ready() {
   return context;
 }
 
-test("a zero-Pikeman capital starts a bounded Pikeman-only batch toward its 250 target", () => {
+test("after producers 12, a zero-Pikeman capital starts a bounded batch toward its 250 target", () => {
   const context = ready();
   const proposal = evaluateSustainedDefense(context).find(value =>
     value.action.type === "train",
@@ -34,4 +34,19 @@ test("a zero-Pikeman capital starts a bounded Pikeman-only batch toward its 250 
   assert.ok(militaryAdvisor.evaluate(context).every(value =>
     value.action.type !== "train" || !["shieldman", "lancer"].includes(value.action.unit),
   ));
+});
+
+test("the capital's own Pikemen baseline waits for all producers to reach level 12", () => {
+  const context = ready();
+  const capital = context.state.villages[0]!;
+  Object.assign(capital.buildings, {lumberyard: 11, quarry: 11, mine: 11});
+  assert.equal(evaluateSustainedDefense(context).some(value =>
+    value.task === "military.pikemen-baseline",
+  ), false);
+
+  Object.assign(capital.buildings, {lumberyard: 12, quarry: 12, mine: 12});
+  const proposal = evaluateSustainedDefense(context).find(value =>
+    value.task === "military.pikemen-baseline",
+  );
+  assert.equal(proposal?.targetLevel, 250);
 });

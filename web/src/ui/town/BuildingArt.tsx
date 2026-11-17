@@ -11,6 +11,7 @@ export function BuildingArt({ id }: { id: BuildingId }) {
   return (
     <svg viewBox="0 0 96 80" fill="none" aria-hidden="true">
       <ellipse cx="48" cy="70" rx="37" ry="9" fill="#000" opacity=".22" />
+      <path d="m10 68 35-13 42 13-39 10Z" fill="#b4aa79" opacity=".22" />
       {id === "mine" || id === "quarry" ? (
         <>
           <path d="M9 65 19 36 37 18 55 28 70 17 87 58 80 70Z" fill={id === "mine" ? "#6f7974" : "#a3a395"} />
@@ -97,7 +98,11 @@ export function BuildingArt({ id }: { id: BuildingId }) {
                   <path d="M57 60v14m28-22v14" stroke={dark} strokeWidth="3" />
                 </>
               ) : null}
-              {id === "stable" ? <path d="M59 66V52h15v16m-9-16v-6l8 2v6" stroke={dark} strokeWidth="4" /> : null}
+              {id === "stable" ? <>
+                <path d="M59 66V52h15v16m-9-16v-6l8 2v6" stroke={dark} strokeWidth="4" />
+                <path d="M7 63v12m12-16v14m-14-4 20-5" stroke="#ba9d6b" strokeWidth="2" />
+                <path d="M29 46q-6 6 0 10t5-10" stroke={gold} strokeWidth="2" />
+              </> : null}
               {id === "barracks" ? (
                 <>
                   <path d="M14 36V14m0 0 14 5-14 4" stroke={gold} strokeWidth="2" />

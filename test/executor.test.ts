@@ -746,6 +746,10 @@ test("Military Advisor uses the durable shared executor and confirms its first B
   const x = await setup(),
     v = x.c.state.villages[0];
   completeOpening(x.c);
+  for (const producer of ["mine", "quarry", "lumberyard"] as const) {
+    v.buildings[producer] = 12;
+    v.options.build.find(option => option.building === producer)!.level = 13;
+  }
   v.buildings.hall = 5;
   v.hidden = 1000;
   await x.controller.cycle();
@@ -776,6 +780,10 @@ test("fresh military revalidation catches a lost prerequisite before spending", 
   const x = await setup(),
     v = x.c.state.villages[0];
   completeOpening(x.c);
+  for (const producer of ["mine", "quarry", "lumberyard"] as const) {
+    v.buildings[producer] = 12;
+    v.options.build.find(option => option.building === producer)!.level = 13;
+  }
   v.buildings.hall = 5;
   v.hidden = 1000;
   let reads = 0;
@@ -847,6 +855,10 @@ test("fresh revalidation stops a producer whose payback crosses round end while 
 function allowRecruitment(x: Awaited<ReturnType<typeof setup>>) {
   const v = x.c.state.villages[0];
   completeOpening(x.c);
+  for (const producer of ["mine", "quarry", "lumberyard"] as const) {
+    v.buildings[producer] = 12;
+    v.options.build.find(option => option.building === producer)!.level = 13;
+  }
   v.buildings.hall = 5;
   v.buildings.smithy = 1;
   v.buildings.barracks = 3;

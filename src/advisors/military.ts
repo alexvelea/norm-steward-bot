@@ -53,7 +53,7 @@ export function evaluateMilitary(context: AdvisorContext): Proposal<Extract<Acti
   const proposals: Proposal<Extract<Action, {type: "build"}>>[] = [];
   for (const v of state.villages) {
     if (v.id !== capitalId) continue;
-    if (Math.min(v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard)<10) continue;
+    if (Math.min(v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard)<12) continue;
     // Never buy further levels or duplicate an existing military training path.
     const facilities = ["barracks", "stable", "workshop", "court"] as const;
     if (facilities.some((b) => v.buildings[b] > 0 || v.buildQueue.some((q) => q.building === b))) continue;
@@ -95,7 +95,7 @@ export function evaluateMilitary(context: AdvisorContext): Proposal<Extract<Acti
       action: { type: "build", village: v.id, building: "barracks" },
       buildingName: metadata.name, currentLevel: 0, targetLevel: 1,
       importance: 79,
-      reason: `Enable the first foot-soldier training path with Barracks 1; reserve ${useTicks} ticks after construction for use. Recruitment is a subsequent step; this construction alone adds no troops.${needed ? "" : " Skip unavailable or unusable infrastructure so economic investment can continue."}`,
+      reason: `After all three resource producers reach level 12, enable the first foot-soldier training path with Barracks 1; reserve ${useTicks} ticks after construction for use. Recruitment is a subsequent step; this construction alone adds no troops.${needed ? "" : " Skip unavailable or unusable infrastructure so economic investment can continue."}`,
       requirements: option.cost, blockers,
       status: !needed ? "not-needed" : blockers.length ? "waiting" : "ready",
       affordableAtTick: option.affordableAtTick,

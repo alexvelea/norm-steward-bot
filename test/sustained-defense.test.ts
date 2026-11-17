@@ -161,3 +161,14 @@ test("economic-city Scout requests are sent before the capital's own reserve is 
     assert.deepEqual(send.action.units, {scout: 20});
   }
 });
+
+test("Pikemen requests are sent before the capital's 3x scaling reserve is full", () => {
+  const context = ready();
+  const {capital, city} = addEconomicCity(context);
+  capital.buildings.lumberyard = capital.buildings.quarry = capital.buildings.mine = 20;
+  city.buildings.wall = 10;
+  capital.units.home.pikeman = 1800;
+  const send = evaluateSustainedDefense(context).find(value => value.task === "econ.request-defenders");
+  assert.equal(send?.action.type, "send");
+  if (send?.action.type === "send") assert.deepEqual(send.action.units, {pikeman: 600 - (city.units.home.pikeman ?? 0)});
+});

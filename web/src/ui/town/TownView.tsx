@@ -1,32 +1,39 @@
 import { useEffect, useRef, useState } from "react";
-import type { Action, BuildingId, RulesTables, RulesResponse, VillageState } from "../../contract";
-import { BUILDINGS, BUILDING_IDS, RESOURCES } from "../../contract";
-import { apiGet, ApiFailure, describeFailure } from "../../lib/http";
+import type { Action, TrainingBuilding, UnitId, BuildingId, RulesTables, RulesResponse, VillageState } from "../../contract";
+import { BUILDINGS, BUILDING_IDS, RESOURCES, UNITS } from "../../contract";
+import { apiGet, describeFailure } from "../../lib/http";
 import { useApiKey } from "../../lib/keyStore";
-import { formatInt, formatTicksAsTime } from "../../lib/format";
+import { isMock } from "../../lib/router";
+import { formatInt, formatResources, formatTicksAsTime } from "../../lib/format";
 import { isFlowing, paceOf, useLiveTick } from "../../world/clock";
 import { Countdown, Meter } from "../common";
 import { selectClock, selectState, useWorld, useWorldContext } from "../worldContext";
+import { useManualActions } from "../panel/useManualActions";
+import { validTrainCount } from "../panel/holdings";
+import { SendResources } from "../panel/SendResources";
+import { blockerMessage, buildingNeeds, unitNeeds } from "../panel/requirements";
+import { trainedUnits, trainingBuilding } from "./training";
+import { TownTrainingQueue } from "./TownTrainingQueue";
 import { BuildingArt } from "./BuildingArt";
 import { buildingBenefit, buildingImprovement, buildingUnlocks, buildProgress } from "./buildings";
 
 // Positions are presentation only; the village's actual world coordinates remain on the world map.
 const PLOTS: Record<BuildingId, [number, number]> = {
-  lumberyard: [13, 18],
-  farm: [14, 76],
-  quarry: [84, 18],
-  mine: [87, 44],
-  hall: [49, 39],
-  storehouse: [31, 22],
-  cellar: [31, 70],
-  barracks: [12, 47],
-  smithy: [68, 25],
-  stable: [70, 70],
-  workshop: [86, 76],
-  market: [50, 72],
-  wall: [50, 91],
-  watchtower: [50, 10],
-  court: [30, 47],
+  lumberyard: [15, 23],
+  farm: [15, 43],
+  quarry: [35, 23],
+  mine: [35, 43],
+  hall: [49, 57],
+  storehouse: [14, 67],
+  cellar: [33, 67],
+  barracks: [65, 23],
+  smithy: [65, 43],
+  stable: [85, 23],
+  workshop: [85, 43],
+  market: [24, 83],
+  wall: [65, 90],
+  watchtower: [84, 87],
+  court: [75, 65],
 };
 
 export function TownView({ onClose }: { onClose(): void }) {
@@ -51,7 +58,7 @@ export function TownView({ onClose }: { onClose(): void }) {
   }, [onClose]);
   if (!state || !village) return null;
   return (
-    <div ref={dialog} className="town-window" role="dialog" aria-label="Town view" tabIndex={-1}>
+    <div ref={dialog} className="town-window" role="region" aria-label="Town view" tabIndex={-1}>
       <TownBody key={`${state.world.id}:${state.world.epoch}:${village.id}`} village={village} onClose={onClose} />
     </div>
   );
@@ -61,16 +68,12 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
   const state = useWorld(selectState)!;
   const clock = useWorld(selectClock);
   const tick = useLiveTick(clock);
-  const { client, select } = useWorldContext();
+  const { select } = useWorldContext();
   const key = useApiKey();
   const [building, setBuilding] = useState<BuildingId>(village.buildQueue[0]?.building ?? "hall");
   const [tables, setTables] = useState<RulesTables | null>(null);
   const [rulesError, setRulesError] = useState("");
-  const [message, setMessage] = useState("");
-  const [failed, setFailed] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [retry, setRetry] = useState<Action | null>(null);
-  const lock = useRef(false);
+  const { busy, message, failed, retry, setRetry, submit, act } = useManualActions();
   const details = useRef<HTMLElement>(null);
   const grounds = useRef<HTMLDivElement>(null);
   const levels = useRef<HTMLDivElement>(null);
@@ -80,7 +83,10 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
   };
   useEffect(() => {
     const abort = new AbortController();
-    apiGet<RulesResponse>(`/worlds/${encodeURIComponent(state.world.id)}/rules`, key, abort.signal)
+    const rules = isMock()
+      ? import("../../../../src/rules/tables").then(({ TABLES }) => ({ tables: TABLES }))
+      : apiGet<RulesResponse>(`/worlds/${encodeURIComponent(state.world.id)}/rules`, key, abort.signal);
+    rules
       .then((r) => {
         if (!abort.signal.aborted) setTables(r.tables);
       })
@@ -104,37 +110,7 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
   const blocked = busy || !!retry || clock.status === "ended" || turnBlocked;
   const unlocks = buildingUnlocks(building, next - 1, next);
   const active = village.buildQueue[0];
-
-  async function act(action: Action, reuse = false) {
-    if (lock.current) return;
-    lock.current = true;
-    setBusy(true);
-    setMessage("");
-    setFailed(false);
-    const request = reuse ? action : { ...action, clientId: `ui-${crypto.randomUUID()}` };
-    try {
-      const response = await client.act([request]);
-      const result = response.results[0];
-      setRetry(null);
-      if (!result?.ok) {
-        setFailed(true);
-        setMessage(result && !result.ok ? `${result.error.code}: ${result.error.message}` : "No action result returned.");
-      } else
-        setMessage(
-          request.type === "build"
-            ? `${BUILDINGS[request.building].name} upgrade queued.`
-            : "Construction cancelled. Later queued levels of the same building may also be removed.",
-        );
-    } catch (e) {
-      const uncertain = e instanceof ApiFailure && (e.status === 0 || e.status >= 500);
-      setRetry(uncertain ? request : null);
-      setFailed(true);
-      setMessage(describeFailure(e) + (uncertain ? " Outcome unknown. Retry safely with the same command ID." : ""));
-    } finally {
-      lock.current = false;
-      setBusy(false);
-    }
-  }
+  const recruitment = trainingBuilding(building);
 
   return (
     <>
@@ -180,11 +156,12 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
       <div className="town-content">
         <main className="town-overview">
           <div className="town-scene" ref={grounds}>
+            <div className="town-map">
             <div className="town-scene-caption">
               <span className="eyebrow">Village grounds</span>
               <span>Choose a building to inspect & upgrade</span>
             </div>
-            <svg className="town-land" viewBox="0 0 800 520" preserveAspectRatio="none" aria-hidden="true">
+            <svg className="town-land" viewBox="0 0 800 520" aria-hidden="true">
               <defs>
                 <radialGradient id="town-meadow">
                   <stop stopColor="#7b8460" />
@@ -195,11 +172,14 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
                 </pattern>
               </defs>
               <path d="M0 0H800V520H0Z" fill="url(#town-meadow)" />
+              <rect x="30" y="60" width="310" height="205" rx="35" fill="#a3a65a" opacity=".15" stroke="#b6bc78" strokeDasharray="4 7" />
+              <rect x="30" y="290" width="280" height="190" rx="35" fill="#c2a161" opacity=".16" stroke="#d0b17a" strokeDasharray="4 7" />
+              <rect x="445" y="60" width="320" height="325" rx="35" fill="#7f8b8d" opacity=".2" stroke="#bbc2aa" strokeDasharray="4 7" />
               <path d="M-20 375Q90 302 166 371T355 395T540 443T820 402" stroke="#415f5c" strokeWidth="33" fill="none" opacity=".7" />
-              <path d="m72 330 130-17 42 125-140 19Z" fill="#a99b57" opacity=".3" />
+              <path d="m40 180 220-10 15 65-230 12Z" fill="#a99b57" opacity=".3" />
               <path d="m72 330 130-17 42 125-140 19Z" fill="url(#town-fields)" />
               <path
-                d="M397 37V466M93 242Q400 180 710 220M111 100 644 384M689 82 251 372M239 112 246 373M565 106 557 384"
+                d="M390 180V470M120 280H690M190 115V410M600 115V420M190 280 390 330 600 280"
                 stroke="#a39b7b"
                 strokeWidth="14"
                 fill="none"
@@ -207,7 +187,7 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
                 strokeLinecap="round"
               />
               <path
-                d="M397 37V466M93 242Q400 180 710 220M111 100 644 384M689 82 251 372M239 112 246 373M565 106 557 384"
+                d="M390 180V470M120 280H690M190 115V410M600 115V420M190 280 390 330 600 280"
                 stroke="#c9bb91"
                 strokeWidth="2"
                 strokeDasharray="2 7"
@@ -229,6 +209,9 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
                 );
               })}
             </svg>
+            <span className="town-district district-fields">Fields</span>
+            <span className="town-district district-stores">Stores</span>
+            <span className="town-district district-military">Military</span>
             {BUILDING_IDS.map((id) => {
               const items = village.buildQueue.filter((q) => q.building === id);
               const current = items.find((q) => q.startTick !== null);
@@ -256,25 +239,8 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
                 </button>
               );
             })}
+            </div>
           </div>
-          <nav className="town-building-bar" aria-label="Village buildings">
-            {BUILDING_IDS.map((id) => (
-              <button
-                key={id}
-                className={building === id ? "is-selected" : ""}
-                onClick={() => chooseBuilding(id)}
-                aria-pressed={building === id}
-                title={`${BUILDINGS[id].name}: ${BUILDINGS[id].description}${tables && village.buildings[id] < BUILDINGS[id].maxLevel ? ` · Next level: ${buildingImprovement(id, village.buildings[id], village.buildings[id] + 1, tables)}` : ""}`}
-              >
-                <BuildingArt id={id} />
-                <span>{BUILDINGS[id].name}</span>
-                <b>
-                  {village.buildings[id]}
-                  <small>/{BUILDINGS[id].maxLevel}</small>
-                </b>
-              </button>
-            ))}
-          </nav>
           <section className="town-queue" aria-label="Construction queue">
             <header>
               <h3>Construction</h3>
@@ -308,6 +274,10 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
             ) : (
               <p className="muted small">Your builders are idle. Select a building to queue an upgrade.</p>
             )}
+          </section>
+          <section className="town-all-training" aria-label="Village training queue">
+            <h3>Training queue</h3>
+            <TownTrainingQueue batches={Object.values(village.training).flat()} villageId={village.id} blocked={blocked} act={act} tick={tick} speed={paceOf(clock)} paused={!isFlowing(clock)} />
           </section>
         </main>
         <aside className="town-details" aria-label="Building details" ref={details}>
@@ -346,57 +316,25 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
               )}
             </div>
           )}
-          {tables && !atMax && (
-            <div className="town-upgrade-gain">
-              <span>
-                This upgrade · level {next - 1} → {next}
-              </span>
-              <strong>{buildingImprovement(building, next - 1, next, tables)}</strong>
-              {building === "hall" && (
-                <small>Time saved relative to the previous hall level. Individual build times are rounded to whole ticks.</small>
-              )}
-            </div>
-          )}
           {!atMax && option && (
-            <section className="town-upgrade">
-              <header>
-                <h4>
-                  {level === 0 && queued.length === 0 ? "Construct" : "Upgrade to"} level {next}
-                </h4>
-                <span>
-                  {formatTicksAsTime(option.ticks, paceOf(clock))}
-                  {clock.lockstep ? "" : " build time"}
-                </span>
-              </header>
-              <div className="town-costs">
-                {RESOURCES.map((r) => (
-                  <div key={r} className={village.resources[r] < option.cost[r] ? "is-short" : ""}>
-                    <span className={`res res-${r}`}>{r}</span>
-                    <strong>{formatInt(option.cost[r])}</strong>
-                    <small>
-                      {village.resources[r] < option.cost[r]
-                        ? `${formatInt(option.cost[r] - village.resources[r])} short`
-                        : `${formatInt(village.resources[r])} available`}
-                    </small>
-                  </div>
-                ))}
+            <section className="town-upgrade town-upgrade-compact">
+              <div className="town-upgrade-summary">
+                <strong>→ Level {next}</strong>
+                <span className="muted small">{formatTicksAsTime(option.ticks, paceOf(clock))} · +{option.pop} pop</span>
+                <button className="btn btn-gold btn-small" disabled={blocked || !option.ok} onClick={() => void act({ type: "build", village: village.id, building })}>
+                  {level === 0 ? "Construct" : "Upgrade"}
+                </button>
               </div>
-              <p className="muted small">
-                +{option.pop} population used{tables ? ` · +${tables.buildings[building][next - 1]?.points ?? 0} points` : ""}
-              </p>
-              <button
-                className="btn btn-gold town-upgrade-button"
-                disabled={blocked || !option.ok}
-                onClick={() => void act({ type: "build", village: village.id, building })}
-              >
-                {busy ? "Sending order…" : `Queue ${level === 0 && queued.length === 0 ? "construction" : "upgrade"} · level ${next}`}
-              </button>
-              {!option.ok && (
-                <p className="town-blockers">
-                  {option.blockers.map((b) => b.toLowerCase().replaceAll("_", " ")).join(" · ")}
-                  {option.affordableAtTick !== null ? ` · affordable at tick ${option.affordableAtTick}` : ""}
-                </p>
-              )}
+              <div className="town-costs-inline">
+                {RESOURCES.map((r) => {
+                  const short = Math.max(0, option.cost[r] - village.resources[r]);
+                  return <span key={r} className={short ? "ember" : `res res-${r}`} title={short ? `${formatInt(short)} short` : `${formatInt(village.resources[r])} available`}>
+                    {formatInt(option.cost[r])} {r}{short > 0 && <b> (−{formatInt(short)})</b>}
+                  </span>;
+                })}
+              </div>
+              {tables && <p className="town-gain-inline">{buildingImprovement(building, next - 1, next, tables)}</p>}
+              {!option.ok && <p className="town-blockers">{blockerMessage(option.blockers, buildingNeeds(building, village.buildings))}</p>}
             </section>
           )}
           {atMax && <p className="town-max">{level >= rule.maxLevel ? "Maximum level reached." : "Maximum level already queued."}</p>}
@@ -409,7 +347,7 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
           )}
           {retry && (
             <div className="command-retry">
-              <button className="btn btn-small" disabled={busy} onClick={() => void act(retry, true)}>
+              <button className="btn btn-small" disabled={busy} onClick={() => void submit(retry, true)}>
                 Retry same order
               </button>
               <button className="btn btn-small" disabled={busy} onClick={() => setRetry(null)}>
@@ -417,6 +355,19 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
               </button>
             </div>
           )}
+          {recruitment && <TownTraining key={recruitment} village={village} building={recruitment} blocked={blocked} act={act} tick={tick} speed={paceOf(clock)} paused={!isFlowing(clock)} />}
+          {building === "market" && <div className="town-market">
+            <SendResources village={village} villages={state.villages} disabled={blocked} command={(action) => void act(action)} />
+            <section className="town-detail-section">
+              <h4>Outgoing merchants</h4>
+              {!state.trades.outgoing.some((trade) => trade.from.id === village.id) && <p className="muted small">No outgoing trades.</p>}
+              {state.trades.outgoing.filter((trade) => trade.from.id === village.id).map((trade) => <div className="town-trade" key={trade.id}>
+                <strong>{trade.returning ? `Returning from ${trade.to.name}` : `To ${trade.to.name}`}</strong>
+                <Countdown until={trade.arrivalTick} tick={tick} speed={paceOf(clock)} paused={!isFlowing(clock)} />
+                <small className="muted">{trade.merchants} merchants{!trade.returning && ` · ${formatResources(trade.resources)}`}</small>
+              </div>)}
+            </section>
+          </div>}
           {queued.length > 0 && (
             <section className="town-detail-section">
               <h4>Queued for this building</h4>
@@ -442,7 +393,7 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
               </p>
             </section>
           )}
-          {Object.keys(rule.requires).length > 0 && (
+          {level === 0 && Object.keys(rule.requires).length > 0 && (
             <section className="town-detail-section">
               <h4>Requirements</h4>
               <div className="town-requirements">
@@ -565,5 +516,38 @@ function TownBody({ village, onClose }: { village: VillageState; onClose(): void
         </aside>
       </div>
     </>
+  );
+}
+
+function TownTraining({ village, building, blocked, act, tick, speed, paused }: {
+  village: VillageState; building: TrainingBuilding; blocked: boolean; act(action: Action): Promise<void>;
+  tick: number; speed: number; paused: boolean;
+}) {
+  const [counts, setCounts] = useState<Partial<Record<UnitId, number>>>({});
+  const queue = village.training[building];
+  return (
+    <section className="town-detail-section town-training">
+      <h4>Train</h4>
+      {trainedUnits(building).map((unit) => {
+        const option = village.options.train.find((o) => o.unit === unit);
+        const count = counts[unit] ?? 1;
+        return (
+          <form key={unit} className="town-train-row" onSubmit={(e) => {
+            e.preventDefault();
+            if (!blocked && option?.ok && validTrainCount(count, option.maxCount)) void act({ type: "train", village: village.id, unit, count });
+          }}>
+            <div className="town-train-name"><strong>{UNITS[unit].name}</strong><span className="muted small">{formatInt(village.units.home[unit] ?? 0)} home</span></div>
+            <div className="town-train-controls">
+              <input type="number" aria-label={`${UNITS[unit].name} count`} min={1} max={option?.maxCount ?? 0} step={1} required disabled={blocked || !option?.ok} value={count} onChange={(e) => setCounts({ ...counts, [unit]: e.target.valueAsNumber })} />
+              <button className="btn btn-small" disabled={blocked || !option?.ok || !validTrainCount(count, option.maxCount)}>Train</button>
+            </div>
+            {option && <small className="town-train-cost">{formatResources(option.cost)} · {option.ticksEach} ticks each · max {option.maxCount}</small>}
+            {!option?.ok && <small className="town-blockers">{option ? blockerMessage(option.blockers, unitNeeds(unit, village.buildings)) : unitNeeds(unit, village.buildings) || "Training unavailable"}</small>}
+          </form>
+        );
+      })}
+      <h4 className="town-training-heading">Training queue</h4>
+      <TownTrainingQueue batches={queue} villageId={village.id} blocked={blocked} act={act} tick={tick} speed={speed} paused={paused} />
+    </section>
   );
 }

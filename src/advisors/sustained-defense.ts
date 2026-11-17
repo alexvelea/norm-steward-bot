@@ -65,7 +65,7 @@ export function evaluateSustainedDefense(context: AdvisorContext): Proposal[] {
   });
   const strongestCity = cities.reduce((maximum, city) => Math.max(maximum, pikeAt(city)), 0);
   const producers = Math.min(capital.buildings.mine, capital.buildings.quarry, capital.buildings.lumberyard);
-  const ownTarget = producers < 20 ? 250 : Math.max(250, 3 * strongestCity);
+  const ownTarget = producers < 12 ? 0 : producers < 20 ? 250 : Math.max(250, 3 * strongestCity);
   const requestTotal = defenderRequests.reduce((sum, request) => sum + request.amount, 0);
   const pikeTarget = ownTarget + requestTotal;
   const proposals: Proposal[] = [];
@@ -95,7 +95,7 @@ export function evaluateSustainedDefense(context: AdvisorContext): Proposal[] {
   for (const request of defenderRequests) {
     if (supportInFlight(context, capital.id, request.city.id)) continue;
     const needed = request.amount;
-    if (needed <= 0 || (capital.units.home.pikeman ?? 0) < ownTarget + needed) continue;
+    if (needed <= 0 || (capital.units.home.pikeman ?? 0) < 250 + needed) continue;
     proposals.push(supportProposal(context, capital, request.city, "pikeman", needed,
       request.atCity, request.target, "econ.request-defenders", 80));
   }

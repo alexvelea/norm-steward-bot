@@ -1,15 +1,17 @@
 // A world: the map fills the screen; the bar, alerts, sandbox controls and the side panel float over it.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApiKey } from "../lib/keyStore";
 import { formatInt, formatTicksAsTime } from "../lib/format";
-import { colorsForPlayer, GOLD } from "../lib/palette";
+import { colorsForPlayer } from "../lib/palette";
 import { homeHref } from "../lib/router";
 import { MapController, MapView } from "../map/MapView";
 import { backend } from "../world/backend";
 import { isFlowing, paceOf, useLiveTick } from "../world/clock";
 import type { WorldClient } from "../world/types";
 import { Countdown, Link } from "./common";
+import { linkedTab, rememberedTab, rememberTab, TABS, type TabId } from "./panel/navigation";
 import { Panel } from "./panel/Panel";
+import { MainNav } from "./MainNav";
 import { TownView } from "./town/TownView";
 import { SandboxControls } from "./SandboxControls";
 import {
@@ -27,7 +29,7 @@ import {
   type WorldContextValue,
 } from "./worldContext";
 
-export function WorldPage({ worldId }: { worldId: string }) {
+export function WorldPage({ worldId, onLogout }: { worldId: string; onLogout?(): Promise<void> }) {
   const key = useApiKey();
   const [townOpen, setTownOpen] = useState(() => location.hash === "#town");
   const [client, setClient] = useState<WorldClient | null>(null);
@@ -64,13 +66,43 @@ export function WorldPage({ worldId }: { worldId: string }) {
   if (!context) return <div className="world" />;
   return (
     <WorldContext.Provider value={context}>
-      <WorldBody />
+      <WorldBody onLogout={onLogout} />
     </WorldContext.Provider>
   );
 }
 
-function WorldBody() {
+function WorldBody({ onLogout }: { onLogout?(): Promise<void> }) {
+  const top = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = top.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => {
+      element.parentElement?.style.setProperty("--world-top-height", `${element.offsetHeight}px`);
+      element.parentElement?.style.setProperty("--world-bar-height", `${element.firstElementChild?.getBoundingClientRect().height ?? 0}px`);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const { client, map, select, townOpen, setTownOpen } = useWorldContext();
+  const [tab, setTab] = useState<TabId>(rememberedTab);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const choose = useCallback((next: TabId) => {
+    setTab(next);
+    rememberTab(next);
+    setPanelOpen(true);
+    history.replaceState(null, "", location.pathname + location.search + "#" + next);
+  }, []);
+  useEffect(() => {
+    const followHash = () => {
+      if (location.hash === "#town") setTownOpen(true);
+      else {
+        const linked = linkedTab(location.hash.slice(1));
+        if (linked) choose(linked);
+      }
+    };
+    window.addEventListener("hashchange", followHash);
+    return () => window.removeEventListener("hashchange", followHash);
+  }, [choose, setTownOpen]);
   const state = useWorld(selectState);
   const showTown = townOpen && !!state?.villages.length;
   const closeTown = useCallback(() => setTownOpen(false), [setTownOpen]);
@@ -104,8 +136,8 @@ function WorldBody() {
   return (
     <div className={`world${showTown ? " town-is-open" : ""}`}>
       <MapView store={client.store} controller={map} onSelect={onSelect} />
-      <div className="world-top">
-        <WorldBar />
+      <div className="world-top" ref={top}>
+        <WorldBar tab={tab} choose={choose} onLogout={onLogout} />
         <IncomingAlert />
       </div>
       <Notice />
@@ -114,14 +146,14 @@ function WorldBody() {
         <ZoomControls />
       </div>
       <SelectedCard />
-      <Panel />
+      <Panel tab={tab} choose={choose} open={panelOpen} setOpen={setPanelOpen} />
       {showTown && <TownView onClose={closeTown} />}
     </div>
   );
 }
 
-function WorldBar() {
-  const { setTownOpen } = useWorldContext();
+function WorldBar({ tab, choose, onLogout }: { tab: TabId; choose(tab: TabId): void; onLogout?(): Promise<void> }) {
+  const { townOpen, setTownOpen } = useWorldContext();
   const summary = useWorld(selectSummary);
   const clock = useWorld(selectClock);
   const connection = useWorld(selectConnection);
@@ -129,20 +161,12 @@ function WorldBar() {
   const tick = useLiveTick(clock);
   if (!summary) {
     return (
-      <div className="world-bar">
-        <Link href={homeHref()} className="back" title="Advisor control center">
-          ←
-        </Link>
-        <span className="muted">Opening the world…</span>
-      </div>
+      <MainNav worldId={new URLSearchParams(location.search).get("w") ?? ""} page="world" onLogout={onLogout}><span className="muted">Opening the world…</span></MainNav>
     );
   }
   const left = summary.endsAtTick - tick;
   return (
-    <div className="world-bar">
-      <Link href={homeHref()} className="back" title="Advisor control center">
-        ←
-      </Link>
+    <MainNav worldId={summary.id} page="world" onLogout={onLogout}>
       <div className="world-bar-title">
         <h1>{summary.name}</h1>
         <span className="world-bar-sub">
@@ -161,18 +185,19 @@ function WorldBar() {
         {clock.lockstep ? <span>lockstep</span> : <span>{clock.speed}×</span>}
         <small>{clock.lockstep ? "clock" : "speed"}</small>
       </div>
-      {state && (
-        <div className="world-bar-you">
-          <span className="swatch" style={{ background: GOLD }} />
-          <span>{state.player.name}</span>
-          <span className="muted">
-            #{state.player.rank} · {formatInt(state.player.score)}
-          </span>
-        </div>
-      )}
-      {!!state?.villages.length && <button className="btn btn-small" aria-haspopup="dialog" onClick={() => setTownOpen(true)}>Town view</button>}
       <span className={`conn conn-${connection}`} title={connection === "live" ? "Live" : connection} />
-    </div>
+      <nav className="world-nav" aria-label="World views">
+        {!!state?.villages.length && <button className={`tab gold${townOpen ? " is-active" : ""}`} aria-pressed={townOpen} onClick={() => {
+          setTownOpen(!townOpen);
+          history.replaceState(null, "", location.pathname + location.search + "#" + (townOpen ? tab : "town"));
+        }}>Town</button>}
+        {TABS.filter((t) => state || t.id === "standings").map((t) => <button key={t.id} className={`tab${tab === t.id ? " is-active" : ""}`} aria-pressed={tab === t.id} onClick={() => choose(t.id)}>
+          {t.label}
+          {t.id === "reports" && !!state?.unreadReports && <span className="badge">{state.unreadReports}</span>}
+          {t.id === "army" && !!state?.commands.incoming.some((c) => c.kind === "attack") && <span className="badge badge-ember">{state.commands.incoming.filter((c) => c.kind === "attack").length}</span>}
+        </button>)}
+      </nav>
+    </MainNav>
   );
 }
 

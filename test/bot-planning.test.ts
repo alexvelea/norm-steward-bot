@@ -103,7 +103,7 @@ function mission(
 
 test("a: explicit level thresholds are goals and observed levels satisfy tasks", () => {
   const c = context();
-  setProducers(c, 10);
+  setProducers(c, 12);
   c.state.villages[0]!.buildings.barracks = 1;
   const barracks = node(project(c), "defense.barracks1");
   assert.equal(barracks.progress.goal, 1);
@@ -153,7 +153,7 @@ test("c: requires edges gate candidate-free nodes; candidate blockers take prece
   assert.equal(blocked.status, "waiting");
   assert.deepEqual(blocked.primaryBlocker, {
     reasonCode: "REQUIRES_PREREQUISITE",
-    nodeKey: "economy.producers.10",
+    nodeKey: "economy.producers.12",
   });
 
   const waitingCandidate = candidate("defense.barracks1", {
@@ -165,7 +165,7 @@ test("c: requires edges gate candidate-free nodes; candidate blockers take prece
   assert.deepEqual(candidateState.primaryBlocker, { reasonCode: "COUNCIL_COOLDOWN" });
 });
 
-test("d: an unmet milestone reports progress only after its prerequisites are satisfied", () => {
+test("d: producer milestones report their own progress without redundant ordering", () => {
   const readyPrerequisite = context();
   setProducers(readyPrerequisite, 5);
   const progress = node(project(readyPrerequisite), "economy.producers.8");
@@ -175,13 +175,13 @@ test("d: an unmet milestone reports progress only after its prerequisites are sa
     nodeKey: "economy.producers.8",
   });
 
-  const unmetPrerequisite = context();
-  setProducers(unmetPrerequisite, 4);
-  const prerequisite = node(project(unmetPrerequisite), "economy.producers.8");
-  assert.equal(prerequisite.status, "waiting");
-  assert.deepEqual(prerequisite.primaryBlocker, {
-    reasonCode: "REQUIRES_PREREQUISITE",
-    nodeKey: "economy.producers.5",
+  const belowPreviousThreshold = context();
+  setProducers(belowPreviousThreshold, 4);
+  const belowGoal = node(project(belowPreviousThreshold), "economy.producers.8");
+  assert.equal(belowGoal.status, "waiting");
+  assert.deepEqual(belowGoal.primaryBlocker, {
+    reasonCode: "PROGRESS_BELOW_GOAL",
+    nodeKey: "economy.producers.8",
   });
 });
 
@@ -908,4 +908,47 @@ test("economic-city Wall task builds its missing Barracks prerequisite first", (
   if (proposal.action.type !== "build") throw new Error("Expected a building proposal.");
   assert.equal(proposal.action.building, "wall");
   assert.equal(proposal.targetLevel, 2);
+});
+
+test("economic city ships surplus to the capital from producers 15 and grows its Market", () => {
+  const c = context();
+  const capital = c.state.villages[0]!;
+  capital.storage = 400000;
+  const economic = structuredClone(capital);
+  economic.id = "v2";
+  Object.assign(economic.buildings, {
+    cellar: 10, hall: 13, storehouse: 3, lumberyard: 14, quarry: 15, mine: 15, wall: 10, market: 3,
+  });
+  economic.resources = {timber: 30000, stone: 9500, iron: 4500};
+  economic.resourcesMilli = {timber: 30000000, stone: 9500000, iron: 4500000};
+  economic.productionPerTickMilli = {timber: 100000, stone: 100000, iron: 100000};
+  economic.storage = 100000;
+  economic.hidden = 100000;
+  economic.merchants = {total: 5, available: 5};
+  for (const option of economic.options.build) {
+    option.cost = {timber: 6000, stone: 1000, iron: 1000};
+    option.blockers = [];
+  }
+  c.state.villages.push(economic);
+  (c as AdvisorContext).cityRoles = new Map([
+    ["v1", {role: "capital", reason: "fixture"}],
+    ["v2", {role: "economic", reason: "fixture"}],
+  ]);
+  const surplus = () => evaluateEconomicCities(c).filter(value => value.task === "econ.surplus");
+
+  assert.equal(surplus().length, 0, "no shipping below producers 15");
+  economic.buildings.lumberyard = 15;
+  const [trade] = surplus();
+  assert.ok(trade && trade.action.type === "trade");
+  assert.equal(trade.action.village, "v2");
+  assert.equal(trade.action.target, "v1");
+  // Keeps max(4,000, next build cost): 24,000 timber, 5,500 stone and 500 iron spare; 5 merchants carry 5,000.
+  assert.deepEqual(trade.action.resources, {timber: 5000, stone: 0, iron: 0});
+  assert.equal(trade.status, "ready");
+  const market = evaluateEconomicCities(c).find(value =>
+    value.task === "econ.market" && value.action.type === "build");
+  assert.equal(market?.importance, 55);
+
+  capital.storage = capital.resources.timber + 2000;
+  assert.equal(surplus().length, 0, "capital has no room for a full shipment");
 });

@@ -85,6 +85,17 @@ test('transition funds producer 15 before the Court path and saves through the P
  assert.equal(proposals[0].action.type,'build');if(proposals[0].action.type==='build')assert.equal(proposals[0].action.building,'mine');
  assert.ok(!proposals.some(p=>p.action.type==='train'));
 });
+test('conquest develops the producer with the least stock first',()=>{
+ const {context,v,c}=fixture();
+ for(const building of ['lumberyard','quarry','mine'] as const){
+  v.buildings[building]=14;
+  v.options.build.find(o=>o.building===building)!.level=15;
+ }
+ v.resources={timber:680,stone:19,iron:5556};
+ const proposal=applyConquest(context,[],c).find(p=>p.advisor==='conquest');
+ assert.equal(proposal?.action.type,'build');
+ if(proposal?.action.type==='build')assert.equal(proposal.action.building,'quarry');
+});
 test('transition keeps normal proposals while conquest is preparing',()=>{
  const {context,c}=fixture();
  const routine={id:'new',task:'military.pikemen-baseline',villageId:'v1',action:{type:'train',village:'v1',unit:'pikeman',count:9}} as Proposal;
