@@ -99,6 +99,20 @@ async function setup() {
         results: [{ ok: true, type: "trade", clientId: action.clientId, data: { trade } }],
       } as T;
     }
+    if (action.type === "recall") {
+      const city = c.state.villages.find(value => value.id === action.village)!;
+      const command = {
+        id: "recall-accepted", kind: "support", from: {id: action.village},
+        to: {id: action.home}, units: action.units, returning: true,
+        sentTick: c.state.world.tick, arrivalTick: c.state.world.tick + 10,
+      };
+      city.supportHere = [];
+      c.state.commands.outgoing.push(command as any);
+      return {
+        tick: c.state.world.tick,
+        results: [{ok: true, type: "recall", data: {command}}],
+      } as T;
+    }
     if (action.type !== "build") throw new Error("Unexpected action");
     const level = v.buildings[action.building] + 1;
     const item: BuildQueueItem = {
@@ -142,6 +156,74 @@ async function setup() {
     },
   };
 }
+test("accepted support confirms against the capital-origin count sent, not the destination target", async () => {
+  const x = await setup();
+  await x.controller.cycle();
+  const capital = x.c.state.villages[0]!;
+  const city = structuredClone(capital);
+  city.id = "v2";
+  city.name = "Harbor";
+  city.units.home.pikeman = 199;
+  city.supportHere = [{
+    home: {
+      id: capital.id, name: capital.name, x: capital.x, y: capital.y,
+      ownerId: x.c.state.player.id, ownerName: x.c.state.player.name,
+    },
+    at: {
+      id: city.id, name: city.name, x: city.x, y: city.y,
+      ownerId: x.c.state.player.id, ownerName: x.c.state.player.name,
+    },
+    units: {pikeman: 51},
+  }];
+  x.c.state.villages.push(city);
+  x.c.state.world.villages = 2;
+
+  const action: Extract<Action, {type: "send"}> = {
+    type: "send",
+    village: capital.id,
+    target: city.id,
+    kind: "support",
+    units: {pikeman: 51},
+    clientId: "accepted-support",
+  };
+  const proposal: Proposal = {
+    id: "support-request",
+    task: "econ.request-defenders",
+    advisor: "military",
+    villageId: city.id,
+    villageName: city.name,
+    action,
+    buildingName: "Pikeman support",
+    currentLevel: 199,
+    targetLevel: 250,
+    importance: 80,
+    reason: "Top up the city.",
+    requirements: {timber: 0, stone: 0, iron: 0},
+    blockers: [],
+    status: "ready",
+    affordableAtTick: null,
+  };
+  const operation: Pending = {
+    proposal,
+    action,
+    accountId: "a1",
+    worldId: x.c.state.world.id,
+    epoch: x.c.state.world.epoch,
+    serverUrl: settings.serverUrl,
+    createdTick: x.c.state.world.tick,
+    expiresTick: x.c.state.world.tick + 10000,
+    phase: "accepted",
+    itemId: "support-command",
+  };
+  x.storage.value = {...x.storage.value!, pending: null, active: [operation]};
+
+  const resumed = await Controller.create(x.storage, settings, x.request, () => 20000, {execute: false});
+  await resumed.cycle();
+  assert.ok(resumed.snapshot().decisions.some(decision =>
+    decision.kind === "confirmed" && decision.text === "Support arrived and is present in fresh state.",
+  ));
+});
+
 test("recommendation mode never writes, even when many tabs refresh", async () => {
   const x = await setup();
   await Promise.all([
@@ -780,7 +862,6 @@ function allowRecruitment(x: Awaited<ReturnType<typeof setup>>) {
       blockers: [],
       affordableAtTick: null,
     },
-    {unit:"shieldman",cost:{timber:35,stone:30,iron:65},pop:1,ticksEach:11,maxCount:20,ok:true,blockers:[],affordableAtTick:null},
   ];
 }
 test("training is journalled, accepted once and confirmed after the batch finishes", async () => {
@@ -804,7 +885,7 @@ test("training is journalled, accepted once and confirmed after the batch finish
   assert.equal(x.writes.length, 1);
   const v = x.c.state.villages[0];
   v.training.barracks = [];
-  v.units.away.pikeman = 6;
+  v.units.away.pikeman = (x.writes[0]![0] as Extract<Action, {type: "train"}>).count;
   await x.controller.setAutomatic(false);
   await x.controller.cycle();
   assert.equal(x.controller.snapshot().pending, null);
@@ -1010,112 +1091,37 @@ test("version changes invalidate rule cache and metadata refreshes at its bounde
 test("accepted construction and training run concurrently, survive paused restart and confirm independently", async()=>{
  const x=await setup();allowRecruitment(x);
  await x.controller.cycle();await x.controller.setAutomatic(true);await x.controller.cycle();
- assert.equal(x.writes[0][0].type,"train");
- await x.controller.cycle();assert.equal(x.writes[1][0].type,"train");
- await x.controller.cycle();assert.equal(x.writes[2][0].type,"build");
- await x.controller.cycle();assert.equal(x.writes.length,3);
- assert.equal(x.storage.value!.active!.length,3);
+ await x.controller.cycle();await x.controller.cycle();
+ assert.ok(x.writes.flat().some(action=>action.type==="train"));
+ assert.ok(x.writes.flat().some(action=>action.type==="build"));
+ assert.equal(x.storage.value!.active!.length,2);
  await x.controller.setAutomatic(false);
  const restarted=await Controller.create(x.storage,settings,x.request,()=>10000);
- await restarted.cycle();assert.equal(restarted.snapshot().automatic,false);assert.equal(restarted.snapshot().active!.length,3);
+ await restarted.cycle();assert.equal(restarted.snapshot().automatic,false);assert.equal(restarted.snapshot().active!.length,2);
  const build=x.storage.value!.active!.find(p=>p.action.type==="build")!;
  if(build.action.type==="build")x.c.state.villages[0].buildings[build.action.building]=build.proposal.targetLevel;
- x.c.state.villages[0].buildQueue=[];x.c.state.villages[0].training.barracks=[];x.c.state.villages[0].units.away.pikeman=6;x.c.state.villages[0].units.away.shieldman=2;
+ x.c.state.villages[0].buildQueue=[];x.c.state.villages[0].training.barracks=[];
+ x.c.state.villages[0].units.away.pikeman=x.writes.flat().filter((a):a is Extract<Action,{type:"train"}>=>a.type==="train"&&a.unit==="pikeman").reduce((sum,a)=>sum+a.count,0);
  await restarted.cycle();assert.equal(restarted.snapshot().active!.length,0);assert.equal(restarted.snapshot().pending,null);
- assert.equal(x.writes.length,3);
- assert.equal(restarted.snapshot().decisions.filter(d=>d.kind==="confirmed").length,3);
+ assert.equal(x.writes.length,2);
+ assert.equal(restarted.snapshot().decisions.filter(d=>d.kind==="confirmed").length,2);
 });
 
-test("lost construction response does not replay or erase simultaneous accepted training",async()=>{
- const x=await setup();allowRecruitment(x);
- await x.controller.cycle();await x.controller.setAutomatic(true);await x.controller.cycle();await x.controller.cycle();
- let lost=false;
- const request:Remote=async<T>(s:Settings,path:string,body?:unknown)=>{
-  const response=await x.request<T>(s,path,body);
-  if(path.endsWith('/actions')&&!lost){lost=true;throw new RemoteError(0,5000,"lost successful build response");}
-  return response;
- };
- const restarted=await Controller.create(x.storage,settings,request,()=>10000);
- await restarted.cycle();assert.equal(x.writes.length,3);assert.equal(x.storage.value!.active!.length,2);
- await restarted.setAutomatic(false);
- const paused=await Controller.create(x.storage,settings,x.request,()=>20000);await paused.cycle();
- assert.equal(x.writes.length,3);assert.equal(paused.snapshot().active!.length,2);
- assert.ok(paused.snapshot().active!.every(p=>p.action.type==="train"));
-});
-
-async function completedFirstCohortPart() {
- const x=await setup();allowRecruitment(x);
- const v=x.c.state.villages[0];
- Object.assign(v.buildings,{barracks:10,smithy:5,stable:3});
- v.units.home={pikeman:10,shieldman:5,raider:10};v.storage=100000;
- v.productionPerTickMilli={timber:10000,stone:10000,iron:10000};
- v.options.train.push({unit:"shieldman",cost:{timber:35,stone:30,iron:65},ticksEach:11,pop:1,maxCount:20,ok:true,blockers:[],affordableAtTick:null});
- await x.controller.cycle();await x.controller.setAutomatic(true);await x.controller.cycle();
- assert.equal(x.writes[0][0].type,"train");
- assert.equal((x.writes[0][0] as Extract<Action,{type:"train"}>).count,6);
- await x.controller.setAutomatic(false);
- v.training.barracks=[];v.units.home.pikeman=16;x.c.state.world.tick+=49;
- const paused=await Controller.create(x.storage,settings,x.request,()=>10000);
- await paused.cycle();assert.equal(paused.snapshot().automatic,false);assert.equal(x.writes.length,1);
- return {...x,paused};
-}
-test("confirmed first cohort part retains its exact complement across paused reconciliation and another restart",async()=>{
- const x=await completedFirstCohortPart();
- assert.equal(x.storage.value!.active!.length,0);
- assert.equal(x.storage.value!.commitments!.length,1);
- const resumed=await Controller.create(x.storage,settings,x.request,()=>20000);
- await resumed.cycle();assert.equal(x.writes.length,1);
- await resumed.setAutomatic(true);await resumed.cycle();
- const action=x.writes[1][0];assert.equal(action.type,"train");
- if(action.type!=="train")throw new Error("Expected complement");
- assert.equal(action.unit,"shieldman");assert.equal(action.count,2);
- await resumed.cycle();assert.equal(x.storage.value!.commitments!.length,0);
- assert.equal(x.writes.flat().filter(a=>a.type==="train").length,2,"no duplicate cohort component while it drains");
-});
-test("remembered complement respects manual recruitment, fresh funding and round-end checks",async()=>{
- const x=await completedFirstCohortPart(),v=x.c.state.villages[0];
- v.orders.train=[{unit:"shieldman",keep:30}];await x.paused.cycle();
- assert.ok(x.paused.snapshot().proposals.find(p=>p.defenseBatch)?.blockers.includes("EXTERNAL_ORDERS"));
- v.orders.train=[];v.resourcesMilli.iron=0;await x.paused.cycle();
- const unfunded=x.paused.snapshot().proposals.find(p=>p.defenseBatch)!;
- assert.deepEqual(unfunded.blockers,["INSUFFICIENT_RESOURCES"]);assert.equal(unfunded.status,"waiting");
- assert.equal(x.paused.snapshot().selection.reservations[0]?.proposalId,unfunded.id);
- v.resourcesMilli.iron=1000000;x.c.state.world.endsAtTick=x.c.state.world.tick+81;await x.paused.cycle();
- assert.ok(x.paused.snapshot().proposals.find(p=>p.defenseBatch)?.blockers.includes("ROUND_END_TOO_SOON"));
- assert.equal(x.writes.length,1);
-});
-test("remembered complement is discarded after epoch changes or Pikeman losses",async()=>{
- for(const change of ["epoch","loss"]){
-  const x=await completedFirstCohortPart();
-  if(change==="epoch")x.c.state.world.epoch="next-round";else x.c.state.villages[0].units.home.pikeman=15;
-  await x.paused.cycle();assert.equal(x.storage.value!.commitments!.length,0);
-  assert.equal(x.writes.length,1);
- }
-});
-test("remembered complement waits for an unrelated manual Barracks queue",async()=>{
- const x=await completedFirstCohortPart(),v=x.c.state.villages[0];
- v.training.barracks=[{id:"manual-raider",unit:"raider",count:1,remaining:1,costEach:{timber:75,stone:55,iron:40},nextTick:160,endTick:160}];
- await x.paused.cycle();
- assert.equal(x.storage.value!.commitments!.length,1);
- assert.ok(x.paused.snapshot().proposals.find(p=>p.defenseBatch)?.blockers.includes("TRAIN_QUEUE_BUSY"));
- v.training.barracks=[];v.units.home.raider=11;await x.paused.cycle();
- const complement=x.paused.snapshot().proposals.find(p=>p.defenseBatch)!;
- assert.equal(complement.action.type,"train");
- if(complement.action.type==="train")assert.equal(complement.action.unit,"shieldman");
- assert.equal(complement.importance,100);assert.equal(x.writes.length,1);
-});
-test("a lost complement response suppresses replay without retaining a second recruitment plan",async()=>{
- const x=await completedFirstCohortPart();let lost=false;
- const remote:Remote=async<T>(s:Settings,path:string,body?:unknown)=>{
-  const result=await x.request<T>(s,path,body);
-  if(path.endsWith('/actions')&&!lost){lost=true;throw new RemoteError(0,5000,"lost complement response");}
-  return result;
- };
- const resumed=await Controller.create(x.storage,settings,remote,()=>20000);
- await resumed.cycle();await resumed.setAutomatic(true);await resumed.cycle();assert.equal(x.writes.length,2);
- const restarted=await Controller.create(x.storage,settings,remote,()=>30000);
- await restarted.cycle();
- assert.equal(x.storage.value!.commitments!.length,0);
- assert.equal(x.writes.flat().filter(a=>a.type==="train").length,2);
- assert.ok(restarted.snapshot().decisions.some(d=>d.kind==="uncertain"));
+test("recall is journalled and accepted with a per-action result", async () => {
+  const x = await setup();
+  const capital = x.c.state.villages[0]!;
+  const city = structuredClone(capital);
+  city.id = "v2"; city.name = "Captured";
+  city.supportHere = [{
+    home: {id: capital.id, name: capital.name}, units: {raider: 12},
+  }] as typeof city.supportHere;
+  x.c.state.villages.push(city);
+  x.c.state.world.villages = 2;
+  await x.controller.cycle();
+  await x.controller.setAutomatic(true);
+  await x.controller.cycle();
+  await x.controller.cycle();
+  const action = x.writes.flat().find(value => value.type === "recall");
+  assert.deepEqual(action, {type:"recall",village:"v2",home:capital.id,units:{raider:12},clientId:action?.clientId});
+  assert.ok(x.storage.value?.active?.some(value => value.action.type === "recall"));
 });

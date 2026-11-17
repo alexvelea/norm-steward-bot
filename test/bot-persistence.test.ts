@@ -20,7 +20,9 @@ test("version-2 persistence accepts recurring conquest mission instances without
   strategy:{schema:1,missions:[{definition:"conquest",sequence:2}],commitments:[]},
  };
  assert.equal(isControlStoreV2(store),true);
- assert.equal(decodeControlStore(store).missions?.[0]?.definition,"conquest");
+ const decoded=decodeControlStore(store);
+ assert.equal(decoded.missions?.[0]?.definition,"conquest");
+ assert.equal("commitments" in decoded,false);
 });
 
 test("legacy state migrates durable work and writes a private backup before v2",async()=>{
@@ -31,11 +33,10 @@ test("legacy state migrates durable work and writes a private backup before v2",
   assert.ok(saved);assert.equal(saved.automatic,false);
   assert.equal(saved.pending?.proposal.id,"pending-build");assert.equal(saved.pending?.proposal.task,"economy.storehouse");
   assert.equal(saved.active?.length,1);assert.equal(saved.active?.[0]?.proposal.id,"active-train");
-  assert.equal(saved.active?.[0]?.proposal.task,"defense.cohort");
+  assert.equal(saved.active?.[0]?.proposal.task,"military.pikemen-baseline");
   assert.equal(saved.missions?.length,1);assert.equal(saved.missions?.[0]?.status,"active");
   assert.equal(saved.missions?.[0]?.definition,"firstConquest");
-  assert.equal(saved.commitments?.length,1);assert.equal(saved.commitments?.[0]?.kind,"defenceCohort");
-  assert.equal(saved.commitments?.[0]?.targets.shieldmen,3);
+  assert.equal("commitments" in saved,false);
   assert.equal(saved.production?.toTick,12);
   assert.equal(saved.decisions[0]?.kind,"cancelled");
   assert.ok(saved.decisions[0]?.text.includes("will not be replayed"));
@@ -46,6 +47,7 @@ test("legacy state migrates durable work and writes a private backup before v2",
   const current=JSON.parse(await readFile(resolve(directory,"control.json"),"utf8"));
   assert.equal(current.storeVersion,2);assert.equal(current.execution.automatic,false);
   assert.equal(current.strategy.missions.length,1);
+  assert.equal("commitments" in current.strategy,false);
  }finally{await rm(directory,{recursive:true,force:true});}
 });
 

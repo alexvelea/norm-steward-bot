@@ -13,11 +13,10 @@ function fixture(){
  const c=developedContext(),v=c.state.villages[0];
  v.buildings.barracks=3;v.buildings.smithy=1;v.hidden=1000;
  v.population={used:125,max:200};v.resources={timber:1000,stone:1000,iron:1000};
- v.options.train=[{unit:'pikeman',cost:{timber:45,stone:35,iron:15},pop:1,ticksEach:6,maxCount:100,ok:true,blockers:[],affordableAtTick:null},
- {unit:'shieldman',cost:{timber:35,stone:30,iron:65},pop:1,ticksEach:9,maxCount:100,ok:true,blockers:[],affordableAtTick:null}];
+ v.options.train=[{unit:'pikeman',cost:{timber:45,stone:35,iron:15},pop:1,ticksEach:6,maxCount:100,ok:true,blockers:[],affordableAtTick:null}];
  v.options.build.find(o=>o.building==='farm')!.ticks=50;
  for(const o of v.options.build.filter(o=>['lumberyard','quarry','mine'].includes(o.building)))o.ticks=200;
- v.training.barracks=[{id:'paid',unit:'shieldman',count:3,remaining:3,costEach:{timber:35,stone:30,iron:65},nextTick:109,endTick:127}];
+ v.training.barracks=[{id:'paid',unit:'pikeman',count:3,remaining:3,costEach:{timber:45,stone:35,iron:15},nextTick:109,endTick:127}];
  return c;
 }
 test('Farm precedes a long build when paid training masks a future population gap',()=>{
@@ -36,10 +35,10 @@ test('sufficient runway and unsustainable income retain the ordinary allocation'
   prioritizeFarmRunway(c,proposals);assert.deepEqual(proposals,before);
  }
 });
-test('runway does not bypass the whole-cohort deadline or external orders',()=>{
+test('runway does not bypass the whole-batch deadline or external orders',()=>{
  for(const kind of ['deadline','orders','busy','blocked'] as const){
   const c=fixture(),v=c.state.villages[0];
-  if(kind==='deadline')c.state.world.endsAtTick=250; // Farm 50 + cohort 81 + useful life 60 cannot fit.
+  if(kind==='deadline')c.state.world.endsAtTick=250; // Farm 50 + Pikeman batch 66 + useful life 60 cannot fit.
   if(kind==='orders')v.orders.build=[{building:'quarry',toLevel:12}];
   if(kind==='busy')v.buildQueue=[{id:'paid-build',building:'mine',level:11,cost:{timber:0,stone:0,iron:0},startTick:90,endTick:200}];
   const proposals=evaluateEconomy(c);

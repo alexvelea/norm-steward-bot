@@ -14,21 +14,24 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     priority: [
       "Below the next milestone (5, 8, 10): 85 before level 5, else 75, minus 1 per producer with lower coverage ranked ahead.",
       "At or above the milestone: 60 minus 10 per rank.",
-      "82 minus rank when the 3Pi1Sh cohort needs more of this resource than 80% of production.",
+      "82 minus rank when Pikeman training needs more of this resource than 80% of production.",
     ],
   },
   "economy.balance": {
     intent: "Keep the three resources balanced so one shortage does not stall every build.",
     eligible: [
-      "For each resource: stock minutes = stock / production per minute.",
-      "A resource lags when its stock minutes are 5 or more below the average of the other two.",
+      "For each resource: stock minutes = stock / the average production per minute of the three resources.",
+      "A resource lags when its stock minutes are 5 or more below both of the other two.",
     ],
     priority: ["The lagging resource's producer scores 90, plus 1 per further 5 minutes of lag, up to 99 (the higher of this and its normal score)."],
   },
   "economy.farm": {
-    intent: "Keep enough free population for queued work and the defence cohort.",
-    eligible: ["Free population below max(50, 20% of the limit), or a cohort would not fit after the Farm completes."],
-    priority: ["100 when no population is free.", "95 when below the buffer.", "20 otherwise (not executed)."],
+    intent: "Keep free population for queued work and Pikeman training; before a long build, offer the Farm first if the batches trained meanwhile wouldn't fit.",
+    eligible: [
+      "Free population below max(50, 20% of the limit), or a Pikeman batch would not fit after the Farm completes.",
+      "Before a long build: if the Pikeman batches trained while that build and then the Farm complete would leave fewer free slots than the buffer (max(50, 20% of the limit)), offer the Farm first.",
+    ],
+    priority: ["100 when no population is free.", "95 when below the buffer.", "95 when the runway rule applies (the Farm goes before the long build).", "20 otherwise (not executed)."],
   },
   "economy.storehouse": {
     intent: "Avoid wasting income on full storage.",
@@ -46,13 +49,8 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
       "Producers at level 8 or more; Hall below 5 is a fixed milestone.",
       "Beyond that, the simulated build plan finishes sooner with the Hall first.",
     ],
-    priority: ["86 for the Hall 5 milestone.", "70 to 79 by the share of build time saved.", "At most 69 while the defence cohort is active.", "30 when it does not pay back."],
+    priority: ["86 for the Hall 5 milestone.", "70 to 79 by the share of build time saved.", "At most 69 while Pikeman or Raider training is active.", "30 when it does not pay back."],
     never: ["Never deferred because an attack is incoming."],
-  },
-  "defense.cohort": {
-    intent: "Keep training 3 Pikemen and 1 Shieldman per batch once defence is ready.",
-    priority: ["100 while a paid cohort is in progress.", "70 to start a new one."],
-    never: ["Never replace troops lost in battle."],
   },
   "first-conquest": {
     intent: "Meet every building requirement for conquest in the capital.",
@@ -139,8 +137,9 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     eligible: ["Every build-order step has reached its level."],
   },
   "econ.producers": {
-    intent: "After the build order, grow all three producers using the capital's payback rule.",
-    eligible: ["Setup done."],
+    intent: "Producers up to 10; above that is Producers 11–25, after Wall 10.",
+    eligible: ["Grow all three producers to level 10 in Producers.", "After Wall 10, grow them up to level 25 in Producers 11–25."],
+    priority: ["Score: to be decided when codified."],
   },
   "econ.farm": { intent: "Only unblock population.", eligible: ["Free population is too low for the next step."] },
   "econ.storehouse": {
@@ -148,8 +147,8 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     eligible: ["The next step's cost or the request's top-up level does not fit in storage."],
   },
   "econ.no-military": {
-    intent: "Spend economic cities' resources only on the economy.",
-    never: ["Never build Barracks, Smithy, Stable or Walls.", "Never train troops."],
+    intent: "Never builds Barracks, Smithy or Stable and never trains troops; the Wall up to 10 is the exception. Defenders and Scouts are stationed by the capital.",
+    never: ["Never build Barracks, Smithy or Stable.", "Never train troops.", "Walls up to level 10 are the only military-building exception."],
   },
   "econ.market": {
     intent: "Prepare to fulfil the capital's overflow requests later.",
@@ -189,15 +188,160 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     never: ["Never train an Envoy for the next city before these hold."],
   },
   "expansion.escort": {
-    intent: "The simulated escort must be at home; before the first wave, train only the missing Raiders (survivors from earlier conquests count).",
-    never: ["Never send troops the defence cohort counts as home defence."],
+    intent: "Before every wave, train up to max(140, simulated escort) Raiders at home; earlier survivors count.",
+    eligible: ["Train the missing Raiders when home count is below max(140, simulated escort)."],
+    never: ["Never send Pikemen that are part of the home-defence target.", "Never dispatch below the home Raider target."],
   },
   "expansion.dispatch": {
-    intent: "Same dispatch rules as the first conquest.",
+    intent: "Same dispatch rules as the first conquest, with at least 140 Raiders at home.",
+    eligible: ["At least 140 Raiders and one Envoy at home."],
     priority: ["94."],
     never: ["Never more than six waves per target.", "Never target an owned village."],
   },
   "expansion.captured": {
     intent: "Fresh ownership of the target completes the instance; the city is tagged economic.",
+  },
+  "economy.producers.20": {
+    intent: "All three resource producers reach level 20.",
+    eligible: ["All three resource producers reach level 20."],
+    priority: ["Score: to be decided when codified."],
+  },
+  "economy.hall-push": {
+    intent: "After producers 20 the capital keeps the Great Hall growing alongside military growth.",
+    eligible: ["All three resource producers reach level 20."],
+    priority: ["Score: to be decided when codified."],
+  },
+  "military.garrison": {
+    intent: "Organize the capital's garrison requirements and growth.",
+    priority: ["Score: to be decided when codified."],
+  },
+  "military.pikemen-baseline": {
+    intent: "The capital keeps 250 Pikemen at home and trains 250 for each economic city's defender request. Pikemen only; no Shieldmen.",
+    eligible: ["Keep 250 Pikemen at home per city owned.", "Train 250 Pikemen for each economic city's defender request."],
+    priority: ["Score: to be decided when codified."],
+    never: ["Never use Shieldmen for this baseline."],
+  },
+  "military.defence-scale": {
+    intent: "Once the capital's producers reach 20, the capital's home Pikemen grow to 3× the strongest other city's; economic cities follow via their ÷3 defender target.",
+    eligible: ["The capital's producers reach level 20.", "Compare home Pikemen with the strongest other city's defence."],
+    priority: ["Set the home Pikemen target to 3× the strongest other city's defence; economic-city targets use one third of the capital target.", "Score: to be decided when codified."],
+  },
+  "military.barracks-growth": {
+    intent: "Raise Barracks when the Pikemen target or the 140 Raiders can't be trained fast enough; both train there. No level cap.",
+    eligible: ["The Pikemen target or the 140 Raiders cannot be trained fast enough."],
+    priority: ["Score: to be decided when codified."],
+    never: ["Never impose a Barracks level cap."],
+  },
+  "military.army": {
+    intent: "The capital's Raider force and its size.",
+    priority: ["Score: to be decided when codified."],
+  },
+  "military.raiders": {
+    intent: "Keep 140 Raiders trained at home; losses are retrained. An attack (hamlet or enemy) needs all 140 at home.",
+    eligible: ["Raiders at home below 140 → train the missing ones.", "No conquest wave is sent until 140 Raiders are home."],
+    priority: ["Score: to be decided when codified."],
+    never: ["Never wait for Raiders that are not being trained."],
+  },
+  "military.scouts": {
+    intent: "The capital keeps 20 Scouts at home per city it owns, and stations 20 in each economic city on request. The Stable is only for Scouts (Stable 1).",
+    eligible: ["Keep 20 Scouts at home per city owned.", "Station 20 Scouts in each economic city on request.", "Build Stable 1 only for Scouts."],
+    priority: ["Score: to be decided when codified."],
+    never: ["Never use the Stable for non-Scout units or build beyond Stable 1."],
+  },
+  "military.wall-cap": {
+    intent: "Capital Walls stop at level 10.",
+    eligible: ["Build Capital Walls only up to level 10."],
+    priority: ["Score: to be decided when codified."],
+    never: ["Never build Walls above level 10."],
+  },
+  "military.workshop": {
+    intent: "Skipped: we win on numbers, not Rams or Trebuchets.",
+    priority: ["Score: to be decided when codified."],
+    never: ["Skip Rams and Trebuchets; win on numbers."],
+  },
+  "expansion.cities4": {
+    intent: "Own four cities before opening the enemy-conquest plan.",
+    eligible: ["Own at least 4 cities."],
+    priority: ["Score: to be decided when codified."],
+  },
+  "expansion.enemy": {
+    intent: "Scout and simulate attacks on enemy player villages before dispatching conquest.",
+    priority: ["Score: to be decided when codified."],
+  },
+  "expansion.enemy-target": {
+    intent: "Target enemy player villages, ranked by size (points) over distance.",
+    eligible: ["Target enemy player villages.", "Rank candidates by points over distance."],
+    priority: ["Score: to be decided when codified."],
+  },
+  "expansion.enemy-scout": {
+    intent: "Send Scouts before any attack; use the report's intel for the battle simulation.",
+    eligible: ["Send Scouts before an attack.", "Use report intel for the battle simulation."],
+    priority: ["Score: to be decided when codified."],
+  },
+  "expansion.decisive": {
+    intent: "Attack only with 140 Raiders at home, when our attack is at least 2× their defence and an Envoy is simulated to survive. Winner losses are (loser ÷ winner)^1.5, so a 2× edge costs about 35% of the army.",
+    eligible: ["140 Raiders are at home.", "Our attack is at least 2× their defence.", "An Envoy is simulated to survive."],
+    priority: ["Score: to be decided when codified."],
+  },
+  "expansion.enemy-dispatch": {
+    intent: "Dispatch the enemy conquest after scouting and a decisive battle simulation, with 140 Raiders at home.",
+    eligible: ["140 Raiders are at home.", "The target has been scouted and its report informs the simulation.", "The attack is at least 2× the enemy defence and an Envoy is simulated to survive."],
+    priority: ["Score: to be decided when codified."],
+  },
+  "expansion.recall": {
+    intent: "After a capture, the conquering attack's survivors stay in the captured city as support; send every stationed Raider back home to the capital. Pikemen are left in place.",
+    eligible: ["After every capture.", "Return all stationed Raiders to the capital.", "Leave Pikemen in the captured city."],
+    priority: ["Score: to be decided when codified."],
+  },
+  "econ.producers.10": {
+    intent: "All three producers reach level 10.",
+    eligible: ["All three producers reach level 10."],
+    priority: ["Score: to be decided when codified."],
+  },
+  "econ.producers-late": {
+    intent: "Raise producers from level 11 through 25 after Wall 10.",
+    eligible: ["Wall 10 is complete."],
+    priority: ["Score: to be decided when codified."],
+  },
+  "econ.lumberyard25": {
+    intent: "Grow timber production from 11 to 25 once Wall 10 is built.",
+    eligible: ["Wall 10 built; level below 25."],
+    priority: ["Same scoring and resource-balance boost as the level-10 task."],
+  },
+  "econ.quarry25": {
+    intent: "Grow stone production from 11 to 25 once Wall 10 is built.",
+    eligible: ["Wall 10 built; level below 25."],
+    priority: ["Same scoring and resource-balance boost as the level-10 task."],
+  },
+  "econ.mine25": {
+    intent: "Grow iron production from 11 to 25 once Wall 10 is built.",
+    eligible: ["Wall 10 built; level below 25."],
+    priority: ["Same scoring and resource-balance boost as the level-10 task."],
+  },
+  "econ.producers.25": {
+    intent: "All three producers reach level 25.",
+    eligible: ["All three producers reach level 25."],
+    priority: ["Score: to be decided when codified."],
+  },
+  "econ.wall10": {
+    intent: "Built after producers reach 10; the only military building an economic city builds.",
+    eligible: [
+      "All three producers reach level 10.",
+      "Barracks 1 is built first, because Wall requires it.",
+      "Build the economic-city Wall up to level 10.",
+    ],
+    priority: ["Score: to be decided when codified."],
+  },
+  "econ.request-defenders": {
+    intent: "Unlocked by Wall 10. Target Pikemen stationed = max(250, capital home Pikemen ÷ 3). Request a top-up to the target only when stationed Pikemen fall below 80% of it (for example, capital 600 → target 200, top-up when ≤160 (below 200×0.8)). Fulfilled by the capital.",
+    eligible: ["Wall 10 is complete.", "Target stationed Pikemen = max(250, capital home Pikemen ÷ 3).", "Request a top-up only below 80% of target; for a target of 200, the threshold is 160."],
+    priority: ["Score: to be decided when codified."],
+    never: ["Never train defenders in the economic city; the capital fulfils the request."],
+  },
+  "econ.request-scouts": {
+    intent: "Keep 20 Scouts stationed; support Scouts defend against enemy scouting.",
+    eligible: ["Keep 20 Scouts stationed.", "Support Scouts defend against enemy scouting."],
+    priority: ["Score: to be decided when codified."],
+    never: ["Never train Scouts in the economic city; the capital fulfils requests."],
   },
 };

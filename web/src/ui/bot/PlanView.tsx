@@ -25,6 +25,23 @@ const unlocks = (key: string) =>
 const contributes = (key: string) =>
   PLAN.edges.filter((e) => e.kind === "contributesTo" && e.from === key).map((e) => e.to);
 
+function nodeProgress(
+  node: PlanNode,
+  state: PlanningNodeState | undefined,
+  states: Map<string, PlanningNodeState>,
+) {
+  const buildingTask = node.kind === "task" && node.predicateKey?.startsWith("building.");
+  const goal = state?.progress.goal ?? (buildingTask ? node.thresholds?.level ?? null : null);
+  let observed = state?.progress.observed ?? null;
+  if (observed === null && buildingTask) {
+    observed = [...states.values()].find(
+      (value) =>
+        value.progress.observed !== null && byKey.get(value.key)?.predicateKey === node.predicateKey,
+    )?.progress.observed ?? null;
+  }
+  return { observed, goal };
+}
+
 const STATUS_LABEL: Record<TaskState, string> = {
   ready: "Ready",
   waiting: "Waiting",
@@ -167,6 +184,7 @@ function TreeRow({
   const node = byKey.get(nodeKey)!;
   const state = states.get(nodeKey);
   const kids = children.get(nodeKey) ?? [];
+  const progress = nodeProgress(node, state, states);
   const open = !collapsed.has(nodeKey);
   const unmet = prerequisites(nodeKey).filter((key) => states.get(key)?.status !== "satisfied");
   const offRole = state?.applies === false;
@@ -196,9 +214,9 @@ function TreeRow({
         <button className="bp-row-main" onClick={() => onSelect(nodeKey)}>
           <span className={`bp-kind kind-${node.kind}`}>{node.kind}</span>
           <span className="bp-title">{node.title}</span>
-          {state?.progress.goal !== null && state?.progress.goal !== undefined && (
+          {progress.goal !== null && (
             <span className="bp-progress-text">
-              {state.progress.observed ?? "?"}/{state.progress.goal}
+              {progress.observed ?? "?"}/{progress.goal}
             </span>
           )}
           {unmet.length > 0 && (
@@ -212,6 +230,16 @@ function TreeRow({
           {activeOffRole && <span className="bp-warn">acts here today; not in this role's plan</span>}
           {state && <StatusPill state={state} />}
         </button>
+        {node.replacedBy && (
+          <button
+            type="button"
+            className="bp-status status-planned bp-replaced-by"
+            aria-label={`Replaced by ${byKey.get(node.replacedBy)?.title ?? node.replacedBy}`}
+            onClick={() => onSelect(node.replacedBy!)}
+          >
+            Replaced by {byKey.get(node.replacedBy)?.title ?? node.replacedBy}
+          </button>
+        )}
       </div>
       {kids.length > 0 && open && (
         <ul role="group">
@@ -291,7 +319,7 @@ function Inspector({
   const pre = prerequisites(nodeKey),
     next = unlocks(nodeKey),
     toward = contributes(nodeKey);
-  const progress = state?.progress;
+  const progress = nodeProgress(node, state, states);
   return (
     <aside className="bp-inspector cc-card" aria-label="Selected plan node">
       <nav className="bp-crumbs small" aria-label="Plan path">
@@ -348,7 +376,7 @@ function Inspector({
             <dd>{humanize(node.advisor)}</dd>
           </>
         )}
-        {progress && progress.goal !== null && (
+        {progress.goal !== null && (
           <>
             <dt>Progress</dt>
             <dd>
@@ -430,18 +458,6 @@ function Inspector({
                 </>
               )}
             </dl>
-          </section>
-        ))}
-      {(planning.commitments ?? [])
-        .filter((c) => c.nodeKey === nodeKey && c.villageId === villageId)
-        .map((c) => (
-          <section key={c.id}>
-            <h3>Commitment</h3>
-            <p className="small">
-              {humanize(c.kind)} since tick {c.createdTick}: {c.targets.pikemen} Pikemen and{" "}
-              {c.targets.shieldmen} Shieldmen remaining (baseline {c.baselines.pikemen} /{" "}
-              {c.baselines.shieldmen}). Losses are not replaced.
-            </p>
           </section>
         ))}
       {(pre.length > 0 || next.length > 0 || toward.length > 0) && (

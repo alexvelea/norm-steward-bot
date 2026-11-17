@@ -87,6 +87,52 @@ function unblocker(
   return null;
 }
 
+function missingPrerequisiteProposal(
+  context: AdvisorContext,
+  village: VillageState,
+  task: TaskKey,
+  building: BuildingId,
+  importance: number,
+  reason: string,
+  unlockBuilding: BuildingId,
+  visited: ReadonlySet<BuildingId>,
+): Proposal<Extract<Action, { type: "build" }>> | null {
+  const option = village.options.build.find(value => value.building === building);
+  if (!option) return null;
+  const metadata = context.rules.rules.BUILDINGS as Record<
+    BuildingId,
+    { name: string; requires: Partial<Record<BuildingId, number>> }
+  >;
+  if (option.blockers.includes("REQUIREMENTS_NOT_MET") && !visited.has(building)) {
+    const missing = Object.entries(metadata[building].requires)
+      .find(([prerequisite, level]) => village.buildings[prerequisite as BuildingId] < level!);
+    if (missing) {
+      const prerequisite = missing[0] as BuildingId;
+      const nextVisited = new Set(visited);
+      nextVisited.add(building);
+      const proposal = missingPrerequisiteProposal(
+        context,
+        village,
+        task,
+        prerequisite,
+        importance,
+        reason,
+        unlockBuilding,
+        nextVisited,
+      );
+      if (proposal) return proposal;
+    }
+  }
+  return buildProposal(
+    context,
+    village,
+    task,
+    building,
+    importance,
+    `${reason} Build ${metadata[building].name} ${option.level} to unlock ${metadata[unlockBuilding].name}.`,
+  );
+}
+
 function buildOrUnblock(
   context: AdvisorContext,
   village: VillageState,
@@ -97,6 +143,27 @@ function buildOrUnblock(
 ): Proposal<Extract<Action, { type: "build" }>> | null {
   const option=village.options.build.find(value=>value.building===building);
   if(!option)return null;
+  if (option.blockers.includes("REQUIREMENTS_NOT_MET")) {
+    const metadata = context.rules.rules.BUILDINGS as Record<
+      BuildingId,
+      { requires: Partial<Record<BuildingId, number>> }
+    >;
+    const missing = Object.entries(metadata[building].requires)
+      .find(([prerequisite, level]) => village.buildings[prerequisite as BuildingId] < level!);
+    if (missing) {
+      const proposal = missingPrerequisiteProposal(
+        context,
+        village,
+        task,
+        missing[0] as BuildingId,
+        importance,
+        reason,
+        building,
+        new Set([building]),
+      );
+      if (proposal) return proposal;
+    }
+  }
   return unblocker(context,village,option) ??
     buildProposal(context,village,task,building,importance,reason);
 }
@@ -150,21 +217,29 @@ function afterSetup(
     if (proposal.villageId !== village.id || proposal.action.type !== "build" ||
         !producers.includes(proposal.action.building as typeof producers[number])) continue;
     const option=village.options.build.find(value=>value.building===proposal.action.building);
-    const capacity=option?unblocker(context,village,option):null;
-    if(capacity){proposals.push(capacity);continue;}
+    const ceiling=village.buildings.wall>=10?25:10;
+    if(!option||option.level>ceiling)continue;
     const resource =
       producerResources[
         proposal.action.building as keyof typeof producerResources
       ];
     const lag = balance[resource];
     const score = lag === undefined ? null : balanceScore(lag);
-    proposals.push({
-      ...proposal,
-      task: `econ.${proposal.action.building}` as TaskKey,
-      advisor: "economic-city",
-      importance:
-        score !== null ? score : Math.min(65, proposal.importance),
-    });
+    const task = `econ.${proposal.action.building}${option.level>10?"25":""}` as TaskKey;
+    const buildingProposal = buildOrUnblock(
+      context,
+      village,
+      task,
+      proposal.action.building,
+      score !== null ? score : Math.min(65, proposal.importance),
+      proposal.reason,
+    );
+    if (buildingProposal) proposals.push(buildingProposal);
+  }
+  if(village.buildings.wall<10&&Math.min(...producers.map(building=>village.buildings[building]))>=10){
+    const proposal=buildOrUnblock(context,village,"econ.wall10","wall",75,
+      "Build the economic city's only military building: Wall 10, after all producers reach level 10.");
+    if(proposal)proposals.push(proposal);
   }
   if (Math.min(...producers.map(building => village.buildings[building])) >= 5 &&
       village.buildings.market === 0) {

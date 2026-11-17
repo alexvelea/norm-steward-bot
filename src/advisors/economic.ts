@@ -89,7 +89,8 @@ export const economicAdvisor: Advisor = {
   id: "economic",
   evaluate: evaluateEconomy,
 };
-export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extract<Action, {type: "build"}>>[] {
+export function evaluateEconomy(context: AdvisorContext): Proposal<Extract<Action, {type: "build"}>>[] {
+  const { state, rules } = context;
   const metadata = rules.rules.BUILDINGS as Record<
     BuildingId,
     { name: string; maxLevel: number }
@@ -98,6 +99,9 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
     throw new Error("Live rules do not match this world's rules version.");
   const proposals: Proposal<Extract<Action, {type: "build"}>>[] = [];
   for (const v of state.villages) {
+    const producerCeiling = context.cityRoles?.get(v.id)?.role === "economic"
+      ? v.buildings.wall >= 10 ? 25 : 10
+      : PRODUCER_CEILING;
     const f = forecastEconomy(v);
     const flow = militaryEconomy(v), phaseLevel = producerLevel(v);
     const defense = defenseReady(v) ? defenseBudget(v) : null;
@@ -105,7 +109,7 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
     const farmWindow = farmOption ? completionWindow(state, v, farmOption) : null;
     const bundles = defense ? Math.ceil(61 / defense.ticks) : 0;
     // A Farm bought for recruitment must leave time for the entire minute-long
-    // cohort, including funding/cooldown waits and already-paid Barracks work.
+    // Pikeman batch, including funding/cooldown waits and already-paid Barracks work.
     const recruitmentStart = farmWindow ? Math.max(
       farmWindow.completionTick + (state.world.actIntervalTicks ?? 0),
       ...v.training.barracks.map(q => q.endTick),
@@ -148,12 +152,12 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
         importance = v.buildings[building] < milestone ? (phaseLevel < 5 ? 85 : 75) - rank : 60 - rank * 10;
         if (defense && v.productionPerTickMilli[r] / 1000 * 0.8 < defense.perTick[r]) importance = 82 - rank;
         reason = (v.buildings[building] < 5 ? "Production-first opening: bring each producer to level 5 before protection, Hall investment or starter military; necessary Farm/Storehouse capacity still takes priority. " : "") + `After reserving full-time military burn, in 3 minutes: ${round(f.threeMinutes[r])} ${r} (stock ${round(f.stock[r])} + production). The next lumberyard/quarry/mine upgrades together require ${f.producerDemand[r]} ${r}; projected coverage is ${round(f.coverage[r])}× that basket. Lower coverage takes priority (production rank ${rank + 1}).`;
-        if (defense && importance >= 80 && v.buildings[building] >= 5) reason += ` Recruitment resource shortage: 3Pi1Sh needs ${round(defense.perTick[r]*60)} ${r}/minute; current production is ${round(v.productionPerTickMilli[r]*60/1000)}. Income must cover full-time training while leaving at least 20% for construction; strengthen this income first.`;
-        if (v.buildings[building] >= PRODUCER_CEILING) { needed = false; reason += ` Producer policy ceiling ${PRODUCER_CEILING} reached; spend on useful military capability instead of further compounding.`; }
+        if (defense && importance >= 80 && v.buildings[building] >= 5) reason += ` Recruitment resource shortage: Pikemen need ${round(defense.perTick[r]*60)} ${r}/minute; current production is ${round(v.productionPerTickMilli[r]*60/1000)}. Income must cover full-time training while leaving at least 20% for construction; strengthen this income first.`;
+        if (v.buildings[building] >= producerCeiling) { needed = false; reason += ` Producer policy ceiling ${producerCeiling} reached; spend on useful capacity and logistics instead of further compounding.`; }
       } else if (building === "farm") {
         needed = needsFarm;
         importance = needed ? (f.freePopulation <= 0 ? 100 : 95) : 20;
-        reason = `${f.freePopulation} population slots free; target max(50, 20% of ${v.population.max}) = ${round(f.requiredFreePopulation)}. ${needed ? "Below the required buffer; expand capacity." : "Buffer is sufficient; do not upgrade."} Queued buildings and recruitment are already included in population used.${farmForRecruitment ? " Also leave room for the next minute-long 3Pi1Sh cohort so recruitment cannot stall exactly at the buffer." : ""}`;
+        reason = `${f.freePopulation} population slots free; target max(50, 20% of ${v.population.max}) = ${round(f.requiredFreePopulation)}. ${needed ? "Below the required buffer; expand capacity." : "Buffer is sufficient; do not upgrade."} Queued buildings and recruitment are already included in population used.${farmForRecruitment ? " Also leave room for the next minute-long Pikeman batch so recruitment cannot stall exactly at the buffer." : ""}`;
       } else if (building === "storehouse") {
         needed = needsStorage;
         const peak = Math.max(...resources.map((r) => storageForecast(r) / 1000));

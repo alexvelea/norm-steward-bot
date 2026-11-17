@@ -8,8 +8,7 @@ import { militaryAdvisor } from "../src/advisors/military.js";
 import { allocateWithPresident } from "../src/bot/allocation/president.js";
 import type { PlanningMemory } from "../src/bot/plan/evaluate.js";
 import { effectiveRoles, evaluatePlanning } from "../src/bot/plan/evaluate.js";
-import { PLAN, type TaskKey } from "../src/bot/plan/graph.js";
-import type { StrategicCommitment } from "../src/bot/strategy/commitments.js";
+import { isTaskKey, PLAN, type TaskKey } from "../src/bot/plan/graph.js";
 import type { MissionInstance } from "../src/bot/strategy/missions/conquest.js";
 import { cityRoles, filterProposalsByRole } from "../src/bot/strategy/roles.js";
 import type { AdvisorContext, Proposal } from "../src/advisors/types.js";
@@ -27,7 +26,7 @@ function project(
 ): PlanningProjection {
   return evaluatePlanning({
     context: c,
-    memory: { missions: [], commitments: [], scope: "fixture", ...options.memory },
+    memory: { missions: [], scope: "fixture", ...options.memory },
     candidates: options.candidates ?? [],
     journal: options.journal ?? [],
     evaluatedAt: "2026-11-14T00:00:00.000Z",
@@ -112,6 +111,14 @@ test("a: explicit level thresholds are goals and observed levels satisfy tasks",
   assert.equal(barracks.status, "satisfied");
 });
 
+test("producer task copies report current levels against their separate targets", () => {
+  const c = context();
+  setProducers(c, 7);
+  const projection = project(c);
+  assert.deepEqual(node(projection, "econ.lumberyard").progress, { observed: 7, goal: 10 });
+  assert.deepEqual(node(projection, "econ.lumberyard25").progress, { observed: 7, goal: 25 });
+});
+
 test("b: tasks without level thresholds are continuous and idle without a candidate or operation", () => {
   const c = context();
   c.state.villages[0]!.buildings.farm = 100;
@@ -123,8 +130,16 @@ test("b: tasks without level thresholds are continuous and idle without a candid
 
   const ready = node(project(c, {
     candidates: [
-      candidate("economy.farm", { id: "farm-top", targetLevel: 4 }),
-      candidate("economy.farm", { id: "farm-next", targetLevel: 8 }),
+      candidate("economy.farm", {
+        id: "farm-top",
+        targetLevel: 4,
+        action: {type: "build", village: "v1", building: "farm"},
+      }),
+      candidate("economy.farm", {
+        id: "farm-next",
+        targetLevel: 8,
+        action: {type: "build", village: "v1", building: "farm"},
+      }),
     ],
   }), "economy.farm");
   assert.equal(ready.progress.goal, 4);
@@ -171,8 +186,14 @@ test("d: an unmet milestone reports progress only after its prerequisites are sa
 });
 
 test("e: rollups honor status precedence, descendant blockers, and goals", () => {
+  const nearlyDeveloped = context();
+  setProducers(nearlyDeveloped, 15);
+  const level20 = node(project(nearlyDeveloped), "economy.producers.20");
+  assert.equal(level20.status, "waiting");
+  assert.deepEqual(level20.progress, { observed: 15, goal: 20 });
+
   const developed = context();
-  setProducers(developed, 15);
+  setProducers(developed, 20);
   assert.equal(node(project(developed), "economy.producers").status, "satisfied");
 
   const c = context();
@@ -303,7 +324,7 @@ test("role filtering keeps capital policy at the capital and economic-city work 
     effectiveRoles(proposal.task)!.includes(roles.get(proposal.villageId)!.role)
   ));
   const projection = project(c, { memory: { missions: [mission()] } });
-  assert.equal(node(projection, "defense.walls", "v2").applies, false);
+  assert.equal(node(projection, "military.wall-cap", "v2").applies, false);
   assert.equal(node(projection, "economy.hall", "v2").applies, false);
   assert.equal(node(projection, "expansion.next", "v2").applies, false);
   assert.notEqual(node(projection, "econ.cellar3", "v2").applies, false);
@@ -350,7 +371,7 @@ test("economic-city setup builds its next step, Farm or Storehouse unblocker, th
   economic.production = { timber: 100, stone: 100, iron: 100 };
   economic.resources = { timber: 500, stone: 5000, iron: 5000 };
   const producerWork = evaluateEconomicCities(c).filter(proposal =>
-    ["econ.lumberyard", "econ.quarry", "econ.mine"].includes(proposal.task)
+    proposal.task === "econ.lumberyard" || proposal.task === "econ.quarry" || proposal.task === "econ.mine"
   );
   assert.ok(producerWork.length > 0);
   assert.ok(producerWork.every(proposal => proposal.advisor === "economic-city"));
@@ -711,7 +732,7 @@ test("h: planning revision increments on every evaluation", () => {
   assert.equal(second, first + 1);
 });
 
-test("mission and cohort commitment memory are included in the projection", () => {
+test("mission memory is projected independently of retired cohort commitments", () => {
   const c = context();
   const conquest = {
     ...mission(),
@@ -722,24 +743,8 @@ test("mission and cohort commitment memory are included in the projection", () =
       lastBattle: { outcome: "won" } as NonNullable<MissionInstance["memory"]["lastBattle"]>,
     },
   };
-  const proposal = candidate("defense.cohort");
-  const commitment: StrategicCommitment = {
-    id: "commitment-1",
-    scope: "fixture",
-    villageId: "v1",
-    kind: "defenceCohort",
-    targets: { pikemen: 3, shieldmen: 1 },
-    baselines: { pikemen: 12, shieldmen: 4 },
-    ownerTask: "defense.cohort",
-    createdTick: 25,
-    proposal,
-    serverUrl: "https://game.invalid",
-    worldId: "test",
-    epoch: "r1",
-    accountId: "p1",
-  };
   const projection = project(c, {
-    memory: { missions: [conquest], commitments: [commitment] },
+    memory: { missions: [conquest] },
   });
   assert.deepEqual(projection.missions, [{
     id: "mission-1",
@@ -751,15 +756,6 @@ test("mission and cohort commitment memory are included in the projection", () =
     targetId: "target-1",
     startedTick: 40,
     memory: { escort: 12, waves: 2, capturedTick: 39, lastBattleOutcome: "won" },
-  }]);
-  assert.deepEqual(projection.commitments, [{
-    id: "commitment-1",
-    kind: "defenceCohort",
-    nodeKey: "defense.cohort",
-    villageId: "v1",
-    targets: { pikemen: 3, shieldmen: 1 },
-    baselines: { pikemen: 12, shieldmen: 4 },
-    createdTick: 25,
   }]);
 });
 
@@ -807,8 +803,7 @@ test("broad advisor and conquest proposals all map to task nodes in PLAN", () =>
     ...applyConquest(developed, [], { plan: conquestPlan }),
   ];
   assert.ok(proposals.length > 0);
-  const taskKeys = new Set(PLAN.nodes.filter(value => value.kind === "task").map(value => value.key));
-  assert.ok(proposals.every(proposal => taskKeys.has(proposal.task)));
+  assert.ok(proposals.every(proposal => isTaskKey(proposal.task)));
 });
 
 test("exclusive conquest spending records the constraint without blocking another village", () => {
@@ -823,4 +818,94 @@ test("exclusive conquest spending records the constraint without blocking anothe
   assert.equal(allocation.selection.selected?.villageId, "v2");
   assert.equal(allocation.excluded.find(value => value.candidateId === "origin")?.reasonCode, "CONQUEST_EXCLUSIVE_SPENDING");
   assert.equal(allocation.reservations[0]?.kind, "exclusiveSpending");
+});
+
+test("economic-city producers stop at 10 before Wall 10 and use level-25 tasks afterward", () => {
+  const c = context();
+  const economic = structuredClone(c.state.villages[0]!);
+  economic.id = "v2";
+  Object.assign(economic.buildings, {
+    cellar: 10, hall: 13, storehouse: 3, lumberyard: 10, quarry: 10, mine: 10, wall: 0,
+  });
+  economic.resourcesMilli = {timber: 100000000, stone: 100000000, iron: 100000000};
+  economic.productionPerTickMilli = {timber: 100000, stone: 100000, iron: 100000};
+  economic.resources = {timber: 50000, stone: 50000, iron: 50000};
+  economic.storage = 100000;
+  for (const building of ["lumberyard", "quarry", "mine", "wall"] as const) {
+    const option = economic.options.build.find(value => value.building === building)!;
+    option.level = 11;
+    option.cost = {timber: 100, stone: 100, iron: 100};
+    option.ok = true;
+    option.blockers = [];
+  }
+  c.state.villages.push(economic);
+  (c as AdvisorContext).cityRoles = new Map([
+    ["v1", {role: "capital", reason: "fixture"}],
+    ["v2", {role: "economic", reason: "fixture"}],
+  ]);
+
+  let proposals = evaluateEconomicCities(c).filter(value => value.villageId === "v2");
+  assert.ok(proposals.some(value => value.task === "econ.wall10"));
+  assert.ok(!proposals.some(value =>
+    value.task === "econ.lumberyard" || value.task === "econ.quarry" || value.task === "econ.mine",
+  ));
+
+  economic.buildings.wall = 10;
+  proposals = evaluateEconomicCities(c).filter(value => value.villageId === "v2");
+  assert.ok(["econ.lumberyard25", "econ.quarry25", "econ.mine25"].every(task =>
+    proposals.some(value => value.task === task),
+  ));
+});
+
+test("economic-city Wall task builds its missing Barracks prerequisite first", () => {
+  const c = context();
+  const economic = structuredClone(c.state.villages[0]!);
+  economic.id = "v2";
+  Object.assign(economic.buildings, {
+    cellar: 10, hall: 13, storehouse: 3, lumberyard: 10, quarry: 10, mine: 10,
+    barracks: 0, wall: 1, market: 1,
+  });
+  economic.resourcesMilli = {timber: 100000000, stone: 100000000, iron: 100000000};
+  economic.resources = {timber: 50000, stone: 50000, iron: 50000};
+  economic.productionPerTickMilli = {timber: 100000, stone: 100000, iron: 100000};
+  economic.storage = 100000;
+  economic.hidden = 100000;
+  for (const building of ["lumberyard", "quarry", "mine"] as const) {
+    const option = economic.options.build.find(value => value.building === building)!;
+    option.level = 11;
+    option.cost = {timber: 100, stone: 100, iron: 100};
+    option.ok = true;
+    option.blockers = [];
+  }
+  const wall = economic.options.build.find(value => value.building === "wall")!;
+  wall.level = 2;
+  wall.cost = {timber: 100, stone: 100, iron: 100};
+  wall.ok = true;
+  wall.blockers = ["REQUIREMENTS_NOT_MET"];
+  const barracks = economic.options.build.find(value => value.building === "barracks")!;
+  barracks.level = 1;
+  barracks.cost = {timber: 100, stone: 100, iron: 100};
+  barracks.ok = true;
+  barracks.blockers = [];
+  c.state.villages.push(economic);
+  (c as AdvisorContext).cityRoles = new Map([
+    ["v1", {role: "capital", reason: "fixture"}],
+    ["v2", {role: "economic", reason: "fixture"}],
+  ]);
+
+  let proposal = evaluateEconomicCities(c).find(value => value.task === "econ.wall10" && value.villageId === "v2")!;
+  assert.equal(proposal.action.type, "build");
+  if (proposal.action.type !== "build") throw new Error("Expected a building proposal.");
+  assert.equal(proposal.action.building, "barracks");
+  assert.equal(proposal.targetLevel, 1);
+  assert.equal(proposal.importance, 75);
+  assert.match(proposal.reason, /to unlock Wall/);
+
+  economic.buildings.barracks = 1;
+  wall.blockers = [];
+  proposal = evaluateEconomicCities(c).find(value => value.task === "econ.wall10" && value.villageId === "v2")!;
+  assert.equal(proposal.action.type, "build");
+  if (proposal.action.type !== "build") throw new Error("Expected a building proposal.");
+  assert.equal(proposal.action.building, "wall");
+  assert.equal(proposal.targetLevel, 2);
 });

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {applyConquest, conquestCaptureTick, conquestScope, type ConquestContext} from '../src/advisors/conquest.js';
+import {applyConquest, conquestCaptureTick, conquestScope, evaluateRecall, type ConquestContext} from '../src/advisors/conquest.js';
 import {selectProposal} from '../src/advisors/president.js';
 import {allocateWithPresident} from '../src/bot/allocation/president.js';
 import {economicAdvisor} from '../src/advisors/economic.js';
@@ -17,7 +17,7 @@ function fixture(){
  Object.assign(v.buildings,{lumberyard:15,quarry:15,mine:15,hall:13,barracks:10,smithy:10,market:5,storehouse:5,court:1});
  v.population={max:10000,used:500};v.storage=100000;
  v.resources={timber:50000,stone:50000,iron:50000};v.resourcesMilli={timber:50000000,stone:50000000,iron:50000000};
- v.units.home={pikeman:153,shieldman:51,raider:140,envoy:1};
+ v.units.home={pikeman:153,raider:140,envoy:1};
  v.options.train=['raider','envoy'].map(unit=>({unit:unit as 'raider'|'envoy',cost:{timber:55,stone:35,iron:45},ticksEach:4,pop:1,maxCount:1000,ok:true,blockers:[],affordableAtTick:null}));
  const c:ConquestContext={plan:{scope:conquestScope('https://sandbox.invalid','p1',context),villageId:v.id,startedTick:100,status:'preparing',waves:0,targetId:'t',escort:140},
   map:{tick:100,snapshotTick:100,size:100,players:[],villages:[{id:'t',x:2,y:1,name:'Target',ownerId:null,ownerName:null,points:0}]},
@@ -34,8 +34,12 @@ test('conquest retains paid defence, requires fresh neutral ownership and a surv
  c.assessment!.battle.attackerSurvivors.envoy=1;v.units.home.pikeman=149;
  assert.equal(selectProposal(applyConquest(context,[],c)).selected,null);
 });
-test('conquest reuses surviving escort without buying replacements after the first wave',()=>{
- const {context,v,c}=fixture();c.plan.waves=1;v.units.home.raider=114;c.assessment!.raiders=114;
+test('conquest dispatches with 140 home Raiders during Pikeman training',()=>{
+ const {context,v,c}=fixture();c.plan.waves=1;v.units.home.raider=140;c.assessment!.raiders=140;
+ v.training.barracks=[{
+  id:'queued-pikemen',unit:'pikeman',count:2,remaining:2,
+  costEach:{timber:45,stone:35,iron:15},nextTick:101,endTick:109,
+ }];
  const proposals=applyConquest(context,[],c);
  assert.ok(!proposals.some(p=>p.action.type==='train'));
  assert.equal(selectProposal(proposals).selected?.action.type,'send');
@@ -81,14 +85,32 @@ test('transition funds producer 15 before the Court path and saves through the P
  assert.equal(proposals[0].action.type,'build');if(proposals[0].action.type==='build')assert.equal(proposals[0].action.building,'mine');
  assert.ok(!proposals.some(p=>p.action.type==='train'));
 });
-test('transition keeps normal proposals alongside an already-paid cohort complement',()=>{
+test('transition keeps normal proposals while conquest is preparing',()=>{
  const {context,c}=fixture();
- const paid={id:'paid',task:'defense.cohort',villageId:'v1',action:{type:'train',village:'v1',unit:'shieldman',count:3},defenseBatch:{pikemen:9,shieldmen:3}} as Proposal;
- const routine={...paid,id:'new',action:{type:'train',village:'v1',unit:'pikeman',count:9}} as Proposal;
- context.activeProposals=[paid];
- const result=applyConquest(context,[paid,routine],c);
- assert.ok(result.includes(paid));assert.ok(result.includes(routine));
+ const routine={id:'new',task:'military.pikemen-baseline',villageId:'v1',action:{type:'train',village:'v1',unit:'pikeman',count:9}} as Proposal;
+ const result=applyConquest(context,[routine],c);
+ assert.ok(result.includes(routine));
  c.plan.status='captured';assert.deepEqual(applyConquest(context,[routine],c),[routine]);
+});
+test('conquest dispatch requires all 140 Raiders at home, not away',()=>{
+ const {context,v,c}=fixture();
+ v.units.home.raider=139;v.units.away.raider=1;
+ assert.ok(!applyConquest(context,[],c).some(proposal=>proposal.action.type==='send'));
+});
+test('recall returns the capital-origin Raider stack after a city becomes economic',()=>{
+ const context:AdvisorContext=developedContext(),capital=context.state.villages[0]!;
+ const city=structuredClone(capital);city.id='captured';city.name='Captured';city.supportHere=[{
+  home:{id:capital.id,name:capital.name},units:{raider:83,pikeman:250},
+ }] as typeof city.supportHere;
+ context.state.villages.push(city);
+ context.cityRoles=new Map([
+  [capital.id,{role:'capital',reason:'fixture'}],
+  [city.id,{role:'economic',reason:'captured'}],
+ ]);
+ const recall=evaluateRecall(context)[0];
+ assert.equal(recall?.task,'expansion.recall');
+ assert.deepEqual(recall?.action,{type:'recall',village:city.id,home:capital.id,units:{raider:83}});
+ assert.equal(recall?.importance,93);
 });
 test('first conquest Raider and Envoy proposals keep their existing importance',()=>{
  const {context,v,c}=fixture();v.units.home.raider=0;v.units.home.envoy=0;
@@ -230,7 +252,7 @@ test('incoming attacks do not hold a ready Raider and Envoy expedition at home',
  await x.controller.cycle();
  assert.equal(x.writes.length,1);assert.equal(x.writes[0].type,'send');
  if(x.writes[0].type==='send')assert.deepEqual(x.writes[0].units,{raider:140,envoy:1});
- assert.equal(x.v.units.home.pikeman,153);assert.equal(x.v.units.home.shieldman,51);
+ assert.equal(x.v.units.home.pikeman,153);
 });
 
 test('incoming attacks do not prevent entering the conquest phase at 150 home Pikemen',async()=>{
@@ -266,7 +288,9 @@ test('recurring conquest tops up the surviving escort before dispatch',()=>{
  assert.equal(dispatch?.task,'expansion.dispatch');assert.equal(dispatch?.importance,94);
  assert.ok(!proposals.some(p=>p.action.type==='train'&&p.action.unit==='raider'));
  c.plan.waves=1;v.units.home.raider=110;c.assessment.raiders=110;
- assert.ok(!applyConquest(context,[],c).some(p=>p.action.type==='train'&&p.action.unit==='raider'));
+ const nextWave=applyConquest(context,[],c);
+ assert.ok(nextWave.some(p=>p.action.type==='train'&&p.action.unit==='raider'));
+ assert.ok(!nextWave.some(p=>p.action.type==='send'));
 });
 
 test('recurring conquest starts only after every capital and economic-city gate is met',async()=>{

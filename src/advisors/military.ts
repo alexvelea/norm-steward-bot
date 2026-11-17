@@ -1,14 +1,45 @@
-import { evaluateMilitaryDevelopment, evaluateWalls, evaluateCavalry } from "./military-development.js";
+import { evaluateBarracksGrowth, evaluateMilitaryDevelopment, evaluateWalls } from "./military-development.js";
 import { evaluateSustainedDefense } from "./sustained-defense.js";
-import { evaluateDefensiveSmithy } from "./smithy.js";
+import { minuteTrainingProposal } from "./military-training.js";
 import { completionWindow } from "./completion.js";
 import type { Action, BuildingId, Resources } from "../shared/api.js";
 import type { Advisor, AdvisorContext, Proposal } from "./types.js";
 import { proposalTask } from "../bot/plan/graph.js";
+import { cityRoles } from "../bot/strategy/roles.js";
+import { evaluateRecall } from "./conquest.js";
 
 /** Bounded military proposals share the President and its durable executor. */
-export const militaryAdvisor: Advisor = { id: "military", evaluate: (context) => [...evaluateMilitary(context), ...evaluateSustainedDefense(context), ...evaluateMilitaryDevelopment(context), ...evaluateWalls(context), ...evaluateCavalry(context)] };
-export function evaluateMilitary({ state, rules }: AdvisorContext): Proposal<Extract<Action, {type: "build"}>>[] {
+export const militaryAdvisor: Advisor = { id: "military", evaluate: context => {
+  const roles = context.cityRoles ?? cityRoles(context, []);
+  const capital = context.state.villages.find(village => roles.get(village.id)?.role === "capital");
+  if (!capital) return [];
+  return [
+    ...evaluateMilitary(context), ...evaluateSustainedDefense(context), ...evaluateRaiders(context),
+    ...evaluateMilitaryDevelopment(context), ...evaluateBarracksGrowth(context), ...evaluateWalls(context),
+    ...evaluateRecall(context),
+  ].filter(proposal => proposal.villageId === capital.id ||
+    proposal.task === "econ.request-defenders" || proposal.task === "econ.request-scouts" ||
+    proposal.task === "expansion.recall");
+} };
+
+export function evaluateRaiders(context: AdvisorContext): Proposal<Extract<Action, {type:"train"}>>[] {
+  const roles = context.cityRoles ?? cityRoles(context, []);
+  const capital = context.state.villages.find(village => roles.get(village.id)?.role === "capital") ?? context.state.villages[0];
+  if (!capital || capital.buildings.barracks < 10 || capital.buildings.smithy < 2) return [];
+  const queued = capital.training.barracks.filter(batch => batch.unit === "raider").reduce((sum,batch) => sum + batch.remaining, 0);
+  const current = (capital.units.home.raider ?? 0) + (capital.units.away.raider ?? 0) + queued;
+  const deficit = 140 - current;
+  if (deficit <= 0) return [];
+  const proposal = minuteTrainingProposal(context, capital, "raider", deficit, "military.raiders", 72,
+    `Train toward 140 owned Raiders, counting home, away, and queued troops; losses are retrained.`,
+    `${context.state.world.epoch}:${capital.id}:raiders:140`, current, 140);
+  return proposal ? [proposal] : [];
+}
+export function evaluateMilitary(context: AdvisorContext): Proposal<Extract<Action, {type: "build"}>>[] {
+  const { state, rules } = context;
+  const roles = context.cityRoles ?? cityRoles(context, []);
+  const capitalId = state.villages.find(village => roles.get(village.id)?.role === "capital")?.id;
+  if (!capitalId) return [];
   if (rules.version !== state.world.rulesVersion)
     throw new Error("Live rules do not match this world's rules version.");
   const metadata = (rules.rules.BUILDINGS as Record<BuildingId, {
@@ -21,6 +52,7 @@ export function evaluateMilitary({ state, rules }: AdvisorContext): Proposal<Ext
   if (!metadata || !pikeman) throw new Error("Live military rules are unavailable.");
   const proposals: Proposal<Extract<Action, {type: "build"}>>[] = [];
   for (const v of state.villages) {
+    if (v.id !== capitalId) continue;
     if (Math.min(v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard)<10) continue;
     // Never buy further levels or duplicate an existing military training path.
     const facilities = ["barracks", "stable", "workshop", "court"] as const;
@@ -69,15 +101,20 @@ export function evaluateMilitary({ state, rules }: AdvisorContext): Proposal<Ext
       affordableAtTick: option.affordableAtTick,
     });
   }
-  return [...proposals, ...evaluateMilitaryHall({state,rules}), ...evaluateDefensiveSmithy({ state, rules })];
+  return [...proposals, ...evaluateMilitaryHall({state,rules})];
 }
 
 /** Close the initial Hall prerequisite chain after the production-only opening. */
-export function evaluateMilitaryHall({state,rules}:AdvisorContext): Proposal<Extract<Action,{type:"build"}>>[] {
+export function evaluateMilitaryHall(context:AdvisorContext): Proposal<Extract<Action,{type:"build"}>>[] {
+  const {state,rules}=context;
+  const roles=context.cityRoles??cityRoles(context,[]);
+  const capitalId=state.villages.find(village=>roles.get(village.id)?.role==="capital")?.id;
+  if(!capitalId)return [];
   if(rules.version!==state.world.rulesVersion)throw new Error("Live rules do not match this world's rules version.");
   const buildings=rules.rules.BUILDINGS as Record<BuildingId,{requires:Partial<Record<BuildingId,number>>}>;
   const proposals:Proposal<Extract<Action,{type:"build"}>>[]=[];
   for(const v of state.villages){
+    if(v.id!==capitalId)continue;
     const facility=v.buildings.barracks<1?"barracks":v.buildings.smithy<1?"smithy":null;
     const required=facility?buildings[facility].requires.hall:undefined;
     if(!required||v.buildings.hall>=required||[v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard].some(n=>n<10))continue;

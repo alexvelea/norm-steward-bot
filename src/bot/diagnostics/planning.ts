@@ -86,16 +86,6 @@ export interface PlanningMission {
   };
 }
 
-export interface PlanningCommitment {
-  id: string;
-  kind: string;
-  nodeKey: string;
-  villageId: string;
-  targets: { pikemen: number; shieldmen: number };
-  baselines: { pikemen: number; shieldmen: number };
-  createdTick: number;
-}
-
 export interface PlanningProjection {
   version: 1;
   revision: number;
@@ -107,7 +97,6 @@ export interface PlanningProjection {
   edges: readonly PlanEdge[];
   villages: PlanningVillage[];
   missions: PlanningMission[];
-  commitments: PlanningCommitment[];
   candidates: PlanningCandidate[];
   allocation: PlanningAllocation;
   reservations: PlanningReservation[];

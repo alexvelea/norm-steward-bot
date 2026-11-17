@@ -21,7 +21,6 @@ test("private settings and journal survive atomic saves without leaving temporar
       active: [],
       automatic: true,
       missions: [],
-      commitments: [],
       production: undefined,
       persistenceFault: undefined,
     });

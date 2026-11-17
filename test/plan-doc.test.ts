@@ -12,6 +12,7 @@ test("PLAN has a valid rooted containment tree and acyclic prerequisites",()=>{
   assert.doesNotThrow(()=>validatePlan());
   assert.throws(()=>validatePlan({...PLAN,nodes:[...PLAN.nodes,PLAN.nodes[0]]} as PlanDefinition),/Duplicate/);
   assert.throws(()=>validatePlan({...PLAN,edges:[...PLAN.edges,{from:"missing",to:"round",kind:"requires"}]}),/Unknown plan edge/);
+  assert.throws(()=>validatePlan({...PLAN,nodes:PLAN.nodes.map(node=>node.key==="military.pikemen-baseline"?{...node,replacedBy:"missing"}:node)}),/Unknown replacement target/);
   assert.throws(()=>validatePlan({...PLAN,edges:[...PLAN.edges,{from:"conquest.dispatch",to:"conquest.enabled",kind:"requires"}]}),/Requires cycle/);
 });
 

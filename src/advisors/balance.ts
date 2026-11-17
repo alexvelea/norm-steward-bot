@@ -5,8 +5,10 @@ export type ResourceId = (typeof RESOURCE_IDS)[number];
 
 type BalanceView = Pick<VillageState, "resources" | "production">;
 
+/** Stock measured in minutes of the village's average production, so every resource shares one rate. */
 export function stockMinutes(village: BalanceView, resource: ResourceId): number {
-  return village.resources[resource] / Math.max(1e-9, village.production[resource]);
+  const average = RESOURCE_IDS.reduce((sum, id) => sum + village.production[id], 0) / RESOURCE_IDS.length;
+  return village.resources[resource] / Math.max(1e-9, average);
 }
 
 export function balanceLags(
@@ -18,9 +20,7 @@ export function balanceLags(
     const otherStocks = RESOURCE_IDS
       .filter((other) => other !== resource)
       .map((other) => stockMinutes(village, other));
-    lags[resource] =
-      otherStocks.reduce((sum, stock) => sum + stock, 0) / otherStocks.length -
-      stockMinutes(village, resource);
+    lags[resource] = Math.min(...otherStocks) - stockMinutes(village, resource);
   }
   return lags;
 }

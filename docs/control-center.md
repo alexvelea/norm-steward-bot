@@ -7,22 +7,34 @@ No LLM, model key, prompt or inference service participates in economic decision
 ## Current phased economy and recruitment policy
 
 The three producer levels (Lumberyard, Quarry, Iron Mine) define the stages; Farm, Cellar and
-Storehouse do not have forced level milestones. This section supersedes earlier experimental
-military targets described later in this document.
+Storehouse do not have forced level milestones.
 
 1. Bring all three producers to 5. Defer Cellar and military investment; necessary population or
    storage capacity remains allowed.
 2. Grow them toward 8, expanding Storehouse only for projected overflow and Cellar only for one
    minute of gross production. No initial troop quotas.
 3. Once all three reach 8, bring Great Hall toward 5; continue producers to 10.
-4. At all three producers >=10, unlock Barracks 3 and Smithy 1. Start direct whole 3Pi1Sh cohorts
-   when income sustains them with construction headroom. No preliminary 10 Pikemen, 5 Shieldmen
-   or 10 Raiders; no automatic Raider recruitment or Raider-specific Smithy unlock.
+4. At all three producers >=10, unlock Barracks 3 and Smithy 1 and train Pikemen only. The
+   capital keeps 250 Pikemen at home before producer 20; after that, the home target is
+   `max(250, 3 × strongest economic-city stationed Pikemen)`. Each economic city with Wall 10
+   targets `max(250, floor(capital home Pikemen / 3))` stationed Pikemen and requests a top-up
+   only below 80% of that target. The capital fulfils requests only when its home reserve covers
+   its own target plus the request. Economic cities never train troops.
+5. Train Raiders in the Barracks toward 140 owned Raiders, counting home, away and queued.
+   Retrain losses. A conquest attack waits for 140 Raiders at home and sends all home Raiders
+   plus one Envoy.
+6. Keep 20 Scouts at the capital per owned city, counting home and queued. Wall-10 economic
+   cities request 20 stationed Scouts; the capital fulfils them from its home reserve. Stable 1
+   is only for Scouts. The runtime follows the live building requirements; the current rules
+   require Barracks 5 and Smithy 5, beyond the initial Barracks 3 and Smithy 1 path.
+7. Economic-city producers stop at level 10 until Wall 10 is complete, then can grow to 25.
+   Economic cities build only Wall 10 as a military building; the capital never builds Walls
+   above level 10.
 
-For each resource, full-time training demand must be <=80% of gross production: at least 20%
-of income remains for construction. One full cohort must also be affordable and fit the population
-reserve. This headroom is an explicit initial policy setting, not a proven optimum. At Barracks 3,
-one 3Pi1Sh takes 31 ticks and the queued cohort is 6 Pikemen + 2 Shieldmen over 62 ticks.
+For each resource, full-time Pikeman training demand must be <=80% of gross production: at least
+20% of income remains for construction. One complete minute-long Pikeman batch must also be
+affordable and fit the population reserve. This headroom is an explicit policy setting, not a
+proven optimum.
 
 The advisor page shows phase, gross income/min, target troop burn/min, reserved burn/min and net
 income left for construction. Producer coverage forecasts and Storehouse forecasts use income
@@ -31,28 +43,23 @@ keeps the actual gross marginal output for the upgrade's return; soldier spendin
 producer magically less productive. The total-production ledger remains gross.
 
 If sustainable funding is missing, the resource producers needed to restore it outrank routine
-recruitment. Recruitment waits rather than spending down a stockpile on an unsustainable flow.
-Accepted cohort complements still finish safely. Existing buildings and troops are preserved;
-this policy only changes new proposals. New producer upgrades retain the level-20 policy ceiling
-and round-end payback test. Farm retains its capacity/bundle population policy.
+Pikeman recruitment. Recruitment waits rather than spending down a stockpile on an unsustainable
+flow. Existing buildings and troops are preserved; this policy only changes new proposals.
+Capital producer upgrades retain the level-20 ceiling and round-end payback test.
 
 For sustainable defensive recruitment, the President also considers population runway before
 committing to another building. If that build followed by a Farm would leave too few slots for
-future whole minute-long cohorts plus the usual population buffer, it offers the Farm first at
+future whole minute-long Pikeman batches plus the usual population buffer, it offers the Farm first at
 score 95. Live construction durations, action intervals and the paid Barracks queue determine
 the runway; accepted work already counts in population used. Standing build or training orders,
 occupied construction, unsustainable income and other hard blockers prevent this promotion.
-The Farm must still leave time for a complete cohort and 60 useful ticks. The existing executor
+The Farm must still leave time for a complete batch and 60 useful ticks. The existing executor
 reranks on fresh state before writing and preserves the persisted operator pause.
 
-The matched peaceful full-round test delivered 11% more infantry at a cost of 5.9% less retained
-production and later fortification/producer-15 readiness. This policy targets continuous defensive
-recruitment; its effect on survival and the proposed conquest phase remains unmeasured.
-
-Stable/cavalry development requires income for both the defensive mix and cavalry with the same
-construction allowance. Finite cavalry recruitment remains independently bounded; movement risk
-checks are separate from training quotas. Historical starter policies live only under
-`scripts/legacy-advisors/` for reproducible old experiments, never in the live council.
+A prior peaceful full-round simulation of a retired infantry composition delivered 11% more
+infantry at a cost of 5.9% less retained production and later fortification/producer-15 readiness.
+That is historical evidence; the current Pikemen-only and Raider targets have not been measured
+against survival outcomes.
 
 ## Advisor contract and President
 
@@ -82,15 +89,17 @@ Scores are deterministic integers:
 
 | Candidate | Importance policy |
 |---|---|
-| Farm | 100 if no free population; 95 for the max(50, 20% of capacity) buffer, the next whole cohort, or sustainable recruitment runway before another selected build; otherwise not-needed (20) |
+| Farm | 100 if no free population; 95 for the max(50, 20% of capacity) buffer, the next Pikeman batch, or sustainable recruitment runway before another selected build; otherwise not-needed (20) |
 | Storehouse | 90–99 **only** if current stock + production over min(300, remaining round ticks) exceeds capacity for any resource; otherwise not-needed (25) |
 | Cellar | 80 **only** if protection per resource is below the largest 60-tick production amount (one minute); otherwise not-needed (25) |
 | First Barracks | 79 when unlocked and usable, below capacity/protection and ahead of discretionary Hall/production investment (ties prefer Barracks); no further military levels |
-| First defensive Smithy | 77 after ten owned Pikemen, with existing Hall/Barracks prerequisites and enough current resources and population for Smithy 1 plus the remaining complement of at most five Shieldmen; no resource reservation |
-| Sustained 3Pi1Sh | 70 after the starter force; repeat 3 Pikemen / 1 Shieldman by owned+away+queued counts, no fixed army cap; affordable small batches only |
-| Military Hall unlock | 79 for currently affordable steps to the live first Barracks / defensive Smithy Hall prerequisite after the opening |
-| Great Hall | At most 69 once the 3Pi1Sh training path is unlocked; otherwise 70–79 only when Hall-first finishes the same useful upgrade sequence sooner after resource costs/waits and a safety margin; otherwise not-needed (30) |
-| Resource producer | Below level 5: 85 minus production rank (83–85), ahead of Cellar/Hall/starter military but below necessary capacity. From level 5: 60/50/40 by coverage; 80–82 for a recruitment-resource shortage; no producer upgrades beyond level 20 |
+| Military development | 76 for the capital's Barracks 3 → Smithy 1 → Stable 1 Scout path; 79 for the first Barracks/Hall prerequisite step |
+| Capital Pikemen | 75 while below the home target plus active requests; 50 for a minute-long batch after producer 20 when the target is met |
+| Economic-city defender request | 80 when stationed Pikemen are below 80% of target; capital sends only with its own reserve plus the full request |
+| Raiders | 72 to train toward 140 owned, counting home + away + queued; attacks require all 140 at home |
+| Scouts | 60 to maintain 20 at the capital per city owned, counting home + queued; Stable 1 is only for Scouts |
+| Walls | Capital 84 only when marginal Wall benefit beats one Pikeman; never above 10. Economic-city Wall 10 is 75 after producers reach 10 |
+| Resource producer | Below level 5: 85 minus production rank (83–85), ahead of Cellar/Hall/starter military but below necessary capacity. From level 5: 60/50/40 by coverage; 80–82 for a Pikeman-resource shortage. Capital ceiling 20; economic cities 10 before Wall 10 and 25 after |
 
 90–100 = capacity, 70–89 = opening production/protection/construction speed/military spending, 40–69 = production. Lower scores are
 informational and never executed. Not-needed proposals remain visible at the bottom. Ties use
@@ -152,30 +161,13 @@ estimate and its tick range, and shows each village's inventory, projected suppl
 
 ## Allocation and waiting
 
-The Military Advisor proposes only Barracks 1 in villages without an existing or queued Barracks,
-Stable, Workshop or Court. It uses live build options and prerequisites; impossible prerequisites,
-storage bills, or population requirements are not-needed and do not reserve resources. Population
-must also leave room for one Pikeman under the live rules. A feasible resource-only wait can reserve
-the village budget. Construction must finish with at least 300 ticks remaining for use (or a longer
-live Council interval plus one recruit's training duration). The same completion window includes
-affordability and Council cooldown. Busy queues, external build orders, cooldown and non-running
-worlds prevent submission. Fresh executor revalidation applies both advisors again before writing.
-After infrastructure completes, a separate Military Advisor proposal recruits an initial defensive
-force: at most five Pikemen per batch toward ten owned per village (home + away + queued). Live
-training options determine costs, batch affordability, duration and population. The population
-buffer stays at max(50, 20% of capacity), queues stay shallow, external build/training orders prevent
-recruitment, and the whole batch must finish at least 60 ticks before round end. Unavailable
-recruitment is not-needed and never reserves the economy. No combat improvement is claimed.
-
-After ten Pikemen are owned (home plus away), a separate score-77 proposal can build Smithy 1
-when its Hall/Barracks prerequisites already exist. It funds the complete remaining Shieldman
-complement from current stock without crediting future income, and preserves max(50, 20% of
-capacity) free population after construction and those troops. It skips unavailable infrastructure
-or training, caps the complement at five including home/away/queued units, and buys no Hall levels
-or Smithy upgrades. Construction and training queues and standing orders defer it. Construction
-must leave at least 300 ticks, extended when the Council interval plus full-batch training and
-60 ticks for use need longer. Actual recruitment remains a separate fresh President decision;
-the durable executor journals and reconciles both actions through its existing build/train paths.
+The Military Advisor builds Barracks 1 only in the capital, then follows the affordable Barracks 3,
+Smithy 1 and Stable 1 path. Stable 1 is for Scouts only. After Barracks 10 and Smithy 2, Raider
+training targets 140 owned troops; the capital's home-Pikeman and Scout targets use home plus
+queued counts as specified above. Live training options determine costs, batch limits, duration and
+population. The population buffer stays at max(50, 20% of capacity); external orders, busy queues,
+unavailable options and round-end timing prevent submission. Barracks growth is proposed at
+importance 65 when queued and needed Pikeman/Raider training exceeds 600 ticks.
 
 - Affordability is per village. Resources are never pooled or automatically traded.
 - Existing construction blocks additional advisor builds in that village. The first iteration keeps
@@ -244,7 +236,7 @@ The last 100 decisions and any pending request survive restarts in `control.json
 
 The live conquest transition uses this same
 President and durable executor. After 150 home Pikemen,
-it finishes the paid defensive cohort, catches all three producers up to 15, then funds
+it preserves the Pikeman garrison, catches all three producers up to 15, then funds
 Hall 13, Barracks 10, Smithy 10, Market 5 and Court. Capacity remains an ordinary paid
 prerequisite. It prepares one bounded Raider escort in approximately minute-long batches once Barracks 10 is
 ready, plus one Envoy, retaining home infantry. At four ticks per Raider, each full batch contains
@@ -348,31 +340,25 @@ bot. The map's manual commands and the game's public scouting/battle reports rem
 
 ## Income versus spending policy (2026-11-16)
 
-After the level-5 production opening and existing starter force (10 Pikemen, 5 Shieldmen,
-10 Raiders), the President can repeatedly recruit 3Pi1Sh defence. It counts owned, away and queued
-units, then queues whole cohorts covering just over 60 ticks of training. There is no fixed total army cap; live affordability, population, queue limits, external
-orders and a 60-tick post-completion use window bound recruitment. A rejected/unaffordable batch
-never reserves resources. Recruitment itself dispatches no troops.
+The capital's defense is Pikemen only. Before all three capital producers reach level 20, its home
+target is 250; after that, the target is `max(250, 3 × strongest economic-city stationed Pikemen)`.
+Each Wall-10 economic city targets `max(250, floor(capital home Pikemen / 3))` stationed Pikemen.
+It requests a top-up only below 80% of target, and the capital sends only when home Pikemen cover
+its own target plus the request. Economic cities never train troops.
 
-The economy computes this mix's average resource demand from live training costs and times.
-For resource r, low runway means production is below demand AND current stock is less than
-`max(one bundle's r cost, 120 × (r demand/tick − r production/tick))`. The corresponding producer
-then scores 82 minus its usual coverage rank (80–82). It outranks routine recruitment, provided
-its existing total-resource payback test passes and its current level is below 20. Otherwise
-available troop spending outranks discretionary producer and Hall investment. Capacity and
-Cellar protection, starter unlocks, and military development retain their policy priorities.
+Pikeman budget uses one Pikeman's live costs, training time and population. It preserves 20% of
+gross production for construction and the `max(50, 20% of capacity)` free-population buffer.
+Training is minute-sized, affordable, and bounded by queues and round-end use time. The Farm can
+run before a long build when future Pikeman batches would not fit above that buffer. The capital
+trains Raiders toward 140 owned (home, away and queued); conquest requires 140 at home. Scouts are
+maintained at 20 per owned city at the capital and supported at 20 per economic city on request.
 
-The Farm also considers room for the next bundle above the usual free-population buffer, with
-time left to construct and use it. This avoids stopping exactly at the reserve. The small Hall
-unlock chain reaches only live Barracks/defensive Smithy prerequisites after the opening; it is
-not an unrestricted military technology planner. Hall's projected producer sequence excludes
-levels beyond the same producer ceiling.
+The capital producer ceiling is level 20. Economic-city producers stop at level 10 until Wall 10,
+then can grow to level 25. An economic city builds only Wall 10 as a military building. Capital
+Walls compare marginal defense against one Pikeman and stop at level 10. The executor journals and
+reconciles each action separately, including support and recall.
 
-Level 20 is an explicit owner-directed policy ceiling, not a proven mathematical optimum.
-This iteration does not estimate the marginal combat value of another bundle versus a producer.
-The executor now supports independent accepted queues; see the concurrency/cohort policy below.
-
-## Parallel queues, military buildings and minute-long cohorts
+## Parallel queues, military buildings and recruitment batches
 
 One authoritative process remains. `pending` journals the single prepared/submitted/uncertain
 network write; `active` durably records accepted queue items and commands until confirmed.
@@ -382,38 +368,25 @@ account/world/epoch scoping, request IDs and operator pauses apply to all tracke
 Known accepted costs are already deducted from live stocks; every new submission refreshes state.
 The President skips candidates blocked by an occupied queue so other queues can use their budget.
 Unknown requests still serialize further writes until safely resolved. Normal construction remains
-one queued build per village, normal training one cohort per facility, and combat one command
+one queued build per village, normal training one batch per facility, and combat one command
 lane globally. This is concurrency of server work, not concurrent duplicate network writers.
 
-The military construction path is Barracks 3 -> Smithy 1, with later Stable prerequisites only when sustainable. It follows live missing
-prerequisites one affordable step at a time, scores 76 and leaves 600 ticks after construction.
-The former automated Scout-readiness policy was removed; there is no bot Stable/Scout proposal path.
-The existing production opening, resource-deficit policy, capacity and population constraints remain. The scarce-resource candidate retains one complete next minute-long cohort’s funding for each resource whose production is below defensive training demand before allowing military development. This applies after the starter force, including while Barracks training is active, only with population and round time to use another cohort. It releases construction when the step and cohort are both funded; production upgrades remain eligible through the President. Manual training orders bypass this automatic recruitment buffer. A feasible unfunded sustained cohort is a resource-only waiting proposal, allowing the President to save at score 70 ahead of discretionary production. Full-cohort affordability, training and 60 ticks of use must fit before round end; zero income, storage, population, manual orders and hard server blockers release that reservation. Deficient income, capacity, protection and valuable Walls retain their higher scores.
-Stable 3 enables minute-sized Lancer batches toward a first force of 30 owned/queued (score 72),
-including away troops; no new movement policy is introduced. Barracks training does not block
-Stable recruitment or construction. The initial Lancer cap remains deliberately bounded.
+Training uses the existing per-facility queues and the President's single-action allocation.
+Pikemen are recruited toward the capital's defense target and Raider losses are retrained toward
+140 owned. Scouts are recruited at Stable 1 toward 20 at home per owned city. Each batch is
+bounded by live training options, the one-minute duration, queue limits, affordability, the
+population buffer and the round-end use window. The garrison remains Pikemen-only; Raiders are
+the attack force and Scout training stays at Stable 1. The executor journals each action
+separately and reports each accepted, confirmed,
+rejected or uncertain result.
 
-For 3Pi1Sh, `bundles = ceil(61 / (3*pikemanTicks + shieldmanTicks))`. A balanced Barracks 1 queues
-6 Pikemen + 2 Shieldmen (70 ticks); Barracks 5 queues 9 + 3 (81 ticks). Each cohort contains exactly three Pikemen per Shieldman. The complete cohort must fit current funding and the
-population buffer before starting. Its plan is journalled with the first request. The second unit
-component uses that recorded plan and gets score 100 to reserve its funding before discretionary
-spending. After both are queued, no further Barracks recruitment is proposed until the cohort
-drains. A crash/unknown response retains request IDs; un-attributable changes suppress replay.
-Final short cavalry batches may take under a minute when approaching the 30-unit limit.
+Capital Walls are capped at 10. Their marginal static defense is compared against one Pikeman,
+using live wall and unit rules. Economic cities build Wall 10 after all producers reach level 10
+at importance 75; it is the only military building an economic city builds. Economic-city
+producers stop at 10 until Wall 10 is complete, then grow to 25. The capital's producer ceiling
+remains 20.
 
-If a pause or service downtime lets the Pikeman component finish before its Shieldmen are
-queued, confirmation also saves the outstanding complement independently of the completed
-operation. It retains the original cohort counts across paused reconciliation and restarts.
-A persisted operator pause still requires an explicit resume before spending. The complement returns through the President with
-the usual funding, population, manual-order and round-end checks; an unrelated Barracks queue
-must drain first. Queued or owned Shieldmen satisfy the remembered target. Changed account,
-server, world or epoch, a lost village, a finished round, or losses below the completed Pikeman
-target discard this memory; it never authorizes replacement Pikemen.
-
-Walls are ineligible until **all three resource producers reach level 13**. Recruitment remains
-eligible from producer minimum 10, subject to sustainable income and prerequisites. After that gate,
-Walls score 84 only when their marginal defence per resource is at least 1.10 times a new
-3Pi1Sh for **every** attack type. Live wall flat/base/multiplier rules and actual home plus supporting
-troops determine the gain; away troops are excluded. This static efficiency test includes base
-defence, needs enough time to finish plus 120 ticks of use, and makes no claim about attacking
-Rams or actual battle outcomes. It permits useful Wall growth without a fixed Wall/army ratio.
+After each capture, every capital-origin Raider stack stationed in the new economic city is
+recalled to the capital; Pikemen remain. Recall is journalled and reconciled like other actions.
+Enemy-village scouting, close/big target ranking and 2× battle simulation remain planned and are
+not implemented in this phase.

@@ -7,7 +7,6 @@ import type {
 import type { EconomicForecast } from "../advisors/economic.js";
 import type { ProductionLedger, ProductionView } from "./production.js";
 import type { Proposal, Selection } from "../advisors/types.js";
-import type { StrategicCommitment } from "../bot/strategy/commitments.js";
 import type { MissionInstance } from "../bot/strategy/missions/conquest.js";
 import type { PlanningProjection } from "../bot/diagnostics/planning.js";
 export interface Settings {
@@ -17,7 +16,7 @@ export interface Settings {
 }
 export interface Pending {
   proposal: Proposal;
-  action: Extract<Action, { type: "build" | "train" | "send" | "trade" }>;
+  action: Extract<Action, { type: "build" | "train" | "send" | "trade" | "recall" }>;
   accountId: string;
   worldId: string;
   epoch: string;
@@ -54,7 +53,6 @@ export interface SavedControl {
   decisions: Decision[];
   production?: ProductionLedger;
   missions?: MissionInstance[];
-  commitments?: StrategicCommitment[];
   persistenceFault?: string;
   recoveryRequired?: string;
   /** Persisted execution preference; service restarts must not override an operator pause. */

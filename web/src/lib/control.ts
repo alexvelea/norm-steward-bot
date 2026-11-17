@@ -6,7 +6,6 @@ export type {
   PlanningAllocation,
   PlanningBlocker,
   PlanningCandidate,
-  PlanningCommitment,
   PlanningNode,
   PlanningNodeState,
   PlanningOperation,

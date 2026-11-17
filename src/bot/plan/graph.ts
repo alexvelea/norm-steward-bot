@@ -26,6 +26,7 @@ export interface PlanNode {
   roles?: readonly CityRole[];
   /** Designed in the diagram but not codified yet: rendered, never executed. */
   planned?: true;
+  replacedBy?: string;
 }
 
 export interface PlanEdge {
@@ -39,7 +40,7 @@ export interface PlanDefinition {
   edges: readonly PlanEdge[];
 }
 
-const producerLevels = { "5": 5, "8": 8, "10": 10, "15": 15, ceiling: PRODUCER_CEILING };
+const producerLevels = { "5": 5, "8": 8, "10": 10, "15": 15, "20": 20, ceiling: PRODUCER_CEILING };
 
 export const PLAN = {
   nodes: [
@@ -54,24 +55,30 @@ export const PLAN = {
     { key: "economy.producers.8", kind: "milestone", title: "Producers at level 8", summary: "All three resource producers reach level 8.", scope: "village", predicateKey: "producers.minimum", thresholds: { minimum: producerLevels["8"] } },
     { key: "economy.producers.10", kind: "milestone", title: "Producers at level 10", summary: "All three resource producers reach level 10.", scope: "village", predicateKey: "producers.minimum", thresholds: { minimum: producerLevels["10"] } },
     { key: "economy.producers.15", kind: "milestone", title: "Producers at level 15", summary: "All three resource producers reach level 15 for the first conquest transition.", scope: "village", predicateKey: "producers.minimum", thresholds: { minimum: producerLevels["15"] } },
+    { key: "economy.producers.20", kind: "milestone", title: "Producers at level 20", summary: "All three resource producers reach level 20.", scope: "village", predicateKey: "producers.minimum", thresholds: { minimum: producerLevels["20"] } },
     { key: "economy.capacity", kind: "group", title: "Capacity and protection", summary: "Protect resources and maintain population and storage capacity.", scope: "village" },
-    { key: "economy.farm", kind: "task", title: "Farm capacity", summary: "Maintain the existing population and cohort runway.", advisor: "economic", scope: "village", predicateKey: "building.farm" },
+    { key: "economy.farm", kind: "task", title: "Farm capacity", summary: "Keep free population for queued work and Pikeman training; before a long build, offer the Farm first if the batches trained meanwhile wouldn't fit.", advisor: "economic", scope: "village", predicateKey: "building.farm" },
     { key: "economy.storehouse", kind: "task", title: "Storehouse overflow", summary: "Prevent projected stock from exceeding storage.", advisor: "economic", scope: "village", predicateKey: "building.storehouse" },
-    { key: "economy.farm-runway", kind: "policy", title: "Farm runway", summary: "Keep the existing farm buffer and cohort population runway.", scope: "village" },
     { key: "economy.cellar", kind: "task", title: "Cellar protection", summary: "Protect the existing 60-tick production threshold.", advisor: "economic", scope: "village", predicateKey: "building.cellar" },
     { key: "economy.hall", kind: "task", title: "Great Hall", summary: "Use the existing bounded construction payback comparison.", advisor: "economic", scope: "village", predicateKey: "building.hall" },
     { key: "economy.successor-window", kind: "policy", title: "Early-build successor window", summary: "Allow only the existing strict construction-successor window.", scope: "village", thresholds: { remainingRealSecondsExclusive: 10 } },
     { key: "economy.payback", kind: "policy", title: "Production payback", summary: "Keep the existing round-end production return test and ceiling.", scope: "village", thresholds: { producerCeiling: producerLevels.ceiling } },
     { key: "economy.round-end", kind: "policy", title: "Round-end completion", summary: "Keep current affordability, construction, and use deadlines.", scope: "village" },
-    { key: "defense", kind: "mission", title: "Develop defence", summary: "Follow the existing defensive construction and cohort policy.", scope: "account", roles: ["capital"] },
+    { key: "economy.hall-push", kind: "policy", title: "Great Hall push", summary: "After producers 20 the capital keeps the Great Hall growing alongside military growth.", scope: "village", planned: true },
+    { key: "defense", kind: "mission", title: "Military", summary: "Build the Pikemen garrison, keep the Raider attack force trained, and station Scouts.", scope: "account", roles: ["capital"] },
     { key: "defense.barracks1", kind: "task", title: "First Barracks", summary: "Build Barracks 1 when currently permitted.", advisor: "military", scope: "village", predicateKey: "building.barracks", thresholds: { level: 1 } },
     { key: "defense.smithy1", kind: "task", title: "Defensive Smithy", summary: "Unlock the first defensive Smithy under current prerequisites.", advisor: "military", scope: "village", predicateKey: "building.smithy", thresholds: { level: 1 } },
     { key: "defense.development", kind: "task", title: "Military development work", summary: "Fund intermediate military development steps under current prerequisites.", advisor: "military", scope: "village", predicateKey: "military.development" },
     { key: "defense.barracks3", kind: "task", title: "Barracks 3", summary: "Develop Barracks through the existing level-3 milestone.", advisor: "military", scope: "village", predicateKey: "building.barracks", thresholds: { level: 3 } },
-    { key: "defense.stable3", kind: "task", title: "Stable 3", summary: "Complete the existing Stable level-3 development milestone.", advisor: "military", scope: "village", predicateKey: "building.stable", thresholds: { level: 3 } },
-    { key: "defense.walls", kind: "task", title: "Walls", summary: "Evaluate the existing wall policy.", advisor: "military", scope: "village", predicateKey: "building.wall" },
-    { key: "defense.cavalry", kind: "task", title: "Bounded cavalry force", summary: "Train the existing bounded Lancer force without movement policy.", advisor: "military", scope: "village", predicateKey: "troops.lancer" },
-    { key: "defense.cohort", kind: "task", title: "Sustained 3Pi1Sh cohort", summary: "Maintain the persisted paid cohort obligation and existing loss rules.", advisor: "military", scope: "village", predicateKey: "troops.defense-cohort" },
+    { key: "military.garrison", kind: "group", title: "Garrison", summary: "Organize the capital's garrison requirements and growth.", scope: "village" },
+    { key: "military.pikemen-baseline", kind: "task", title: "250 Pikemen per city", summary: "The capital keeps 250 Pikemen at home and trains 250 for each economic city's defender request. Pikemen only; no Shieldmen.", scope: "village", predicateKey: "troops.pikeman", thresholds: { perCity: 250 } },
+    { key: "military.defence-scale", kind: "policy", title: "Capital holds 3× any city", summary: "Once the capital's producers reach 20, the capital's home Pikemen grow to 3× the strongest other city's; economic cities follow via their ÷3 defender target.", scope: "village", thresholds: { multiplier: 3 } },
+    { key: "military.barracks-growth", kind: "task", title: "Barracks grows when troops lag", summary: "Raise Barracks when the Pikemen target or the 140 Raiders can't be trained fast enough; both train there. No level cap.", scope: "village" },
+    { key: "military.army", kind: "group", title: "Attack force", summary: "The capital's Raider force and its size.", scope: "village" },
+    { key: "military.raiders", kind: "task", title: "Raider force", summary: "Keep 140 Raiders trained at home; losses are retrained. An attack (hamlet or enemy) needs all 140 at home.", scope: "village", predicateKey: "troops.raider", thresholds: { count: 140 } },
+    { key: "military.scouts", kind: "task", title: "Scouts", summary: "The capital keeps 20 Scouts at home per city it owns, and stations 20 in each economic city on request. The Stable is only for Scouts (Stable 1).", scope: "village", predicateKey: "troops.scout", thresholds: { perCity: 20 } },
+    { key: "military.wall-cap", kind: "policy", title: "Wall capped at 10", summary: "Capital Walls stop at level 10.", scope: "village", predicateKey: "building.wall", thresholds: { maxLevel: 10 } },
+    { key: "military.workshop", kind: "capability", title: "Workshop siege", summary: "Skipped: we win on numbers, not Rams or Trebuchets.", scope: "village", planned: true },
     { key: "first-conquest", kind: "mission", title: "Enable conquest", summary: "Build everything the game requires before an Envoy can conquer: Hall 13, Barracks 10, Smithy 10, Market 5 and a Court.", scope: "account", roles: ["capital"], thresholds: { originVillages: 1, homePikemen: 150, standingOrders: 0 } },
     { key: "conquest.infrastructure", kind: "group", title: "Conquest infrastructure", summary: "Complete current building requirements and ordinary capacity prerequisites.", scope: "village" },
     { key: "conquest.hall13", kind: "task", title: "Great Hall 13", summary: "Build the conquest Hall requirement.", advisor: "conquest", scope: "village", predicateKey: "building.hall", thresholds: { level: 13 } },
@@ -89,6 +96,7 @@ export const PLAN = {
     { key: "conquest.dispatch", kind: "task", title: "Dispatch conquest wave", summary: "Recheck ownership and simulation before each of at most six waves.", advisor: "conquest", scope: "village", predicateKey: "conquest.dispatch", thresholds: { maximumWaves: 6 } },
     { key: "conquest.target-owned", kind: "milestone", title: "Target owned", summary: "Fresh village ownership completes the mission regardless of final response attribution.", scope: "account", predicateKey: "village.target-owned" },
     { key: "conquest.first-achieved", kind: "milestone", title: "First city captured", summary: "Retain evidence for the completed first conquest.", scope: "account", predicateKey: "history.first-conquest" },
+    { key: "expansion.recall", kind: "task", title: "Recall the escort", summary: "After a capture, the conquering attack's survivors stay in the captured city as support; send every stationed Raider back home to the capital. Pikemen are left in place.", scope: "village", roles: ["economic"] },
     { key: "capability.parallel-budgets", kind: "capability", title: "Parallel mission budgets", summary: "Unavailable: no cross-mission parallel budget allocator.", scope: "account" },
     { key: "capability.multi-submit", kind: "capability", title: "Multiple submissions per cycle", summary: "Unavailable: one authorized submission per cycle remains.", scope: "account" },
     { key: "roles", kind: "policy", title: "City roles", summary: "Tag every city automatically: the conquest origin is the capital, every other city is economic.", scope: "account" },
@@ -103,32 +111,44 @@ export const PLAN = {
     { key: "econ.cellar10", kind: "task", title: "5. Cellar 10", summary: "Hides 5,860 of each resource.", advisor: "economic", scope: "village", predicateKey: "building.cellar", thresholds: { level: 10 } },
     { key: "econ.storehouse3", kind: "task", title: "6. Storehouse 3", summary: "Holds 5,358 of each resource, room for larger top-ups and for stock bound to the capital.", advisor: "economic", scope: "village", predicateKey: "building.storehouse", thresholds: { level: 3 } },
     { key: "econ.setup-done", kind: "milestone", title: "Setup done", summary: "Every build-order step is done; the city moves on to producers, storage growth and the Market.", scope: "village", predicateKey: "steps.done" },
-    { key: "econ.producers", kind: "group", title: "Producers", summary: "After the build order, push all three producers under the existing payback rule.", scope: "village" },
-    { key: "econ.lumberyard", kind: "task", title: "Lumberyard", summary: "Grow timber production.", advisor: "economic", scope: "village", predicateKey: "building.lumberyard" },
-    { key: "econ.quarry", kind: "task", title: "Quarry", summary: "Grow stone production.", advisor: "economic", scope: "village", predicateKey: "building.quarry" },
-    { key: "econ.mine", kind: "task", title: "Iron mine", summary: "Grow iron production.", advisor: "economic", scope: "village", predicateKey: "building.mine" },
+    { key: "econ.producers", kind: "group", title: "Producers", summary: "Producers up to 10; above that is Producers 11–25, after Wall 10.", scope: "village" },
+    { key: "econ.lumberyard", kind: "task", title: "Lumberyard", summary: "Grow timber production.", advisor: "economic", scope: "village", predicateKey: "building.lumberyard", thresholds: { level: 10 } },
+    { key: "econ.quarry", kind: "task", title: "Quarry", summary: "Grow stone production.", advisor: "economic", scope: "village", predicateKey: "building.quarry", thresholds: { level: 10 } },
+    { key: "econ.mine", kind: "task", title: "Iron mine", summary: "Grow iron production.", advisor: "economic", scope: "village", predicateKey: "building.mine", thresholds: { level: 10 } },
     { key: "econ.balance", kind: "policy", title: "Resource balance", summary: "Same rule as the capital: boost the producer of a lagging resource; the boost is not capped by the economic-city producer score.", scope: "village", thresholds: { lagMinutes: 5, baseScore: 90, maxScore: 99 } },
     { key: "econ.producers.5", kind: "milestone", title: "Producers at level 5", summary: "All three producers reach level 5.", scope: "village", predicateKey: "producers.minimum", thresholds: { minimum: 5 } },
+    { key: "econ.producers.10", kind: "milestone", title: "Producers at level 10", summary: "All three producers reach level 10.", scope: "village", predicateKey: "producers.minimum", thresholds: { minimum: 10 } },
+    { key: "econ.producers-late", kind: "group", title: "Producers 11–25", summary: "Raise producers from level 11 through 25 after Wall 10.", scope: "village" },
+    { key: "econ.lumberyard25", kind: "task", title: "Lumberyard", summary: "Grow timber production.", advisor: "economic", scope: "village", predicateKey: "building.lumberyard", thresholds: { level: 25 } },
+    { key: "econ.quarry25", kind: "task", title: "Quarry", summary: "Grow stone production.", advisor: "economic", scope: "village", predicateKey: "building.quarry", thresholds: { level: 25 } },
+    { key: "econ.mine25", kind: "task", title: "Iron mine", summary: "Grow iron production.", advisor: "economic", scope: "village", predicateKey: "building.mine", thresholds: { level: 25 } },
+    { key: "econ.producers.25", kind: "milestone", title: "Producers at level 25", summary: "All three producers reach level 25.", scope: "village", predicateKey: "producers.minimum", thresholds: { minimum: 25 } },
     { key: "econ.farm", kind: "task", title: "Farm when blocked", summary: "Build a Farm only when population blocks the next step.", advisor: "economic", scope: "village", predicateKey: "building.farm" },
     { key: "econ.storage-growth", kind: "policy", title: "Storage grows when needed", summary: "Raise the Storehouse when stock plus shipments in flight and income would overflow it; the Cellar follows so it keeps protecting the stock.", scope: "village", thresholds: { forecastTicks: 300 } },
     { key: "econ.storehouse", kind: "task", title: "Storehouse", summary: "Storehouse upgrade chosen by the storage policy.", advisor: "economic", scope: "village", predicateKey: "building.storehouse" },
     { key: "econ.cellar", kind: "task", title: "Cellar follows storage", summary: "Keep Cellar protection at or above the stock the city holds.", advisor: "economic", scope: "village", predicateKey: "building.cellar" },
     { key: "econ.market-growth", kind: "policy", title: "Market grows when needed", summary: "Market 1 after producers 5; further levels once this city fulfils overflow requests.", scope: "village" },
-    { key: "econ.no-military", kind: "policy", title: "No military", summary: "Economic cities never build Barracks, Smithy, Stable or Walls and never train troops.", scope: "village" },
+    { key: "econ.no-military", kind: "policy", title: "No military", summary: "Never builds Barracks, Smithy or Stable and never trains troops; the Wall up to 10 is the exception. Defenders and Scouts are stationed by the capital.", scope: "village" },
     { key: "econ.market", kind: "task", title: "Market", summary: "Build a Market once producers reach level 5, to fulfil the capital's overflow requests later; the market policy raises it further.", advisor: "economic", scope: "village", predicateKey: "building.market", thresholds: { level: 1 } },
     { key: "logistics.market-growth", kind: "task", title: "Market grows when needed", summary: "Raise the capital's Market when open requests need more merchants than it has.", advisor: "logistics", scope: "village", predicateKey: "building.market" },
     { key: "econ.requests", kind: "group", title: "Requests to the capital", summary: "What this city asks the capital for; the capital decides whether it can afford it.", scope: "village" },
     { key: "econ.request-resources", kind: "task", title: "Request resources", summary: "Per resource, by stage: setup below 1,000 tops up to 2,000 (95); growth below 2,000 tops up to 4,000 (85); developed the same buffer at 40.", advisor: "logistics", scope: "village", predicateKey: "requests.resources", thresholds: { setupBelow: 1000, setupTopUp: 2000, setupScore: 95, growthBelow: 2000, growthTopUp: 4000, growthScore: 85, developedScore: 40 } },
-    { key: "econ.request-defenders", kind: "capability", title: "Request defenders", summary: "Later: request stationed defenders when the city has none, and rebalance them.", scope: "account" },
-    { key: "econ.request-rate", kind: "capability", title: "Request rate function", summary: "Later: each city publishes a continuous request rate instead of fixed top-ups.", scope: "account" },
+    { key: "econ.request-defenders", kind: "task", title: "Request defenders", summary: "Unlocked by Wall 10. Target Pikemen stationed = max(250, capital home Pikemen ÷ 3). Request a top-up to the target only when stationed Pikemen fall below 80% of it (for example, capital 600 → target 200, top-up when ≤160 (below 200×0.8)). Fulfilled by the capital.", scope: "village", thresholds: { baseline: 250, capitalShare: 3, triggerShare: 0.8 } },
+    { key: "econ.request-scouts", kind: "task", title: "Request scouts", summary: "Keep 20 Scouts stationed; support Scouts defend against enemy scouting.", scope: "village" },
     { key: "econ.overflow", kind: "capability", title: "Fulfil capital overflow requests", summary: "Later: when this city outproduces its construction, its Market fulfils requests from the capital.", scope: "account" },
-    { key: "econ.walls", kind: "capability", title: "Economic-city Walls", summary: "Later: Walls once the economy is established.", scope: "account" },
+    { key: "econ.wall10", kind: "task", title: "Wall 10", summary: "Built after producers reach 10; the only military building an economic city builds.", scope: "village", thresholds: { level: 10 } },
     { key: "expansion.next", kind: "group", title: "Next cities", summary: "After the first capture, keep taking one new city at a time when existing cities are developed enough.", scope: "account", roles: ["capital"] },
     { key: "expansion.readiness", kind: "policy", title: "Expansion readiness", summary: "The next conquest starts only once every economic city has reached Great Hall 10.", scope: "village", thresholds: { economicHall: 10, homePikemen: 150 } },
     { key: "expansion.envoy", kind: "task", title: "Train next Envoy", summary: "Train one Envoy for the next target once the next conquest has started.", advisor: "conquest", scope: "village", predicateKey: "troops.envoy" },
-    { key: "expansion.escort", kind: "task", title: "Escort army at home", summary: "Requires the simulated escort at home; reuses survivors and trains only the missing Raiders before the first wave.", advisor: "conquest", scope: "village", predicateKey: "troops.raider" },
-    { key: "expansion.dispatch", kind: "task", title: "Dispatch waves", summary: "Same rules as the first conquest: nearest unowned target, recheck before each of at most six waves.", advisor: "conquest", scope: "village", predicateKey: "conquest.dispatch", thresholds: { maximumWaves: 6 } },
+    { key: "expansion.escort", kind: "task", title: "Escort army at home", summary: "Before every wave, train up to max(140, simulated escort) Raiders at home; earlier survivors count.", advisor: "conquest", scope: "village", predicateKey: "troops.raider" },
+    { key: "expansion.dispatch", kind: "task", title: "Dispatch waves", summary: "Same rules as the first conquest: nearest unowned target, 140 Raiders at home, and recheck before each of at most six waves.", advisor: "conquest", scope: "village", predicateKey: "conquest.dispatch", thresholds: { maximumWaves: 6 } },
     { key: "expansion.captured", kind: "milestone", title: "Target captured", summary: "The captured city is tagged economic and starts the economic-city flow.", scope: "account" },
+    { key: "expansion.cities4", kind: "milestone", title: "4 cities owned", summary: "Own four cities before opening the enemy-conquest plan.", scope: "account", predicateKey: "cities.count", thresholds: { minimum: 4 }, planned: true },
+    { key: "expansion.enemy", kind: "group", title: "Enemy conquest", summary: "Scout and simulate attacks on enemy player villages before dispatching conquest.", scope: "account", planned: true },
+    { key: "expansion.enemy-target", kind: "policy", title: "Close and big", summary: "Target enemy player villages, ranked by size (points) over distance.", scope: "account", planned: true },
+    { key: "expansion.enemy-scout", kind: "task", title: "Scout the target", summary: "Send Scouts before any attack; use the report's intel for the battle simulation.", scope: "village", planned: true },
+    { key: "expansion.decisive", kind: "policy", title: "Attack at 2×", summary: "Attack only with 140 Raiders at home, when our attack is at least 2× their defence and an Envoy is simulated to survive. Winner losses are (loser ÷ winner)^1.5, so a 2× edge costs about 35% of the army.", scope: "account", thresholds: { strengthRatio: 2 }, planned: true },
+    { key: "expansion.enemy-dispatch", kind: "task", title: "Dispatch conquest", summary: "Dispatch the enemy conquest after scouting and a decisive battle simulation, with 140 Raiders at home.", scope: "village", planned: true },
   ] as const satisfies readonly PlanNode[],
   edges: [
     { from: "round", to: "economy", kind: "contains" },
@@ -154,6 +174,13 @@ export const PLAN = {
     { from: "econ.producers", to: "econ.mine", kind: "contains" },
     { from: "econ.producers", to: "econ.balance", kind: "contains" },
     { from: "econ.producers", to: "econ.producers.5", kind: "contains" },
+    { from: "econ.producers", to: "econ.producers.10", kind: "contains" },
+    { from: "economic-city", to: "econ.wall10", kind: "contains" },
+    { from: "economic-city", to: "econ.producers-late", kind: "contains" },
+    { from: "econ.producers-late", to: "econ.lumberyard25", kind: "contains" },
+    { from: "econ.producers-late", to: "econ.quarry25", kind: "contains" },
+    { from: "econ.producers-late", to: "econ.mine25", kind: "contains" },
+    { from: "econ.producers-late", to: "econ.producers.25", kind: "contains" },
     { from: "economic-city", to: "econ.farm", kind: "contains" },
     { from: "economic-city", to: "econ.storage-growth", kind: "contains" },
     { from: "econ.storage-growth", to: "econ.storehouse", kind: "contains" },
@@ -165,14 +192,20 @@ export const PLAN = {
     { from: "economic-city", to: "econ.requests", kind: "contains" },
     { from: "econ.requests", to: "econ.request-resources", kind: "contains" },
     { from: "econ.requests", to: "econ.request-defenders", kind: "contains" },
-    { from: "econ.requests", to: "econ.request-rate", kind: "contains" },
+    { from: "econ.requests", to: "econ.request-scouts", kind: "contains" },
     { from: "economic-city", to: "econ.overflow", kind: "contains" },
-    { from: "economic-city", to: "econ.walls", kind: "contains" },
     { from: "expansion.next", to: "expansion.readiness", kind: "contains" },
     { from: "expansion.readiness", to: "expansion.envoy", kind: "contains" },
     { from: "expansion.next", to: "expansion.escort", kind: "contains" },
     { from: "expansion.next", to: "expansion.dispatch", kind: "contains" },
     { from: "expansion.next", to: "expansion.captured", kind: "contains" },
+    { from: "expansion", to: "expansion.recall", kind: "contains" },
+    { from: "expansion", to: "expansion.cities4", kind: "contains" },
+    { from: "expansion", to: "expansion.enemy", kind: "contains" },
+    { from: "expansion.enemy", to: "expansion.enemy-target", kind: "contains" },
+    { from: "expansion.enemy", to: "expansion.enemy-scout", kind: "contains" },
+    { from: "expansion.enemy", to: "expansion.decisive", kind: "contains" },
+    { from: "expansion.enemy", to: "expansion.enemy-dispatch", kind: "contains" },
     { from: "econ.cellar3", to: "econ.hall5", kind: "requires" },
     { from: "econ.hall5", to: "econ.cellar-cover", kind: "requires" },
     { from: "econ.cellar-cover", to: "econ.hall13", kind: "requires" },
@@ -183,9 +216,14 @@ export const PLAN = {
     { from: "econ.setup-done", to: "econ.storage-growth", kind: "requires" },
     { from: "econ.setup-done", to: "econ.market-growth", kind: "requires" },
     { from: "econ.producers.5", to: "econ.market", kind: "requires" },
+    { from: "econ.producers.10", to: "econ.wall10", kind: "requires" },
+    { from: "econ.wall10", to: "econ.producers-late", kind: "requires" },
+    { from: "econ.wall10", to: "econ.request-defenders", kind: "requires" },
     { from: "econ.market", to: "econ.overflow", kind: "requires" },
     { from: "conquest.market5", to: "logistics", kind: "requires" },
     { from: "econ.request-resources", to: "logistics.fulfil", kind: "contributesTo" },
+    { from: "econ.request-defenders", to: "logistics.fulfil", kind: "contributesTo" },
+    { from: "econ.request-scouts", to: "logistics.fulfil", kind: "contributesTo" },
     { from: "logistics.fulfil", to: "economic-city", kind: "contributesTo" },
     { from: "conquest.first-achieved", to: "expansion.next", kind: "requires" },
     { from: "expansion.envoy", to: "expansion.dispatch", kind: "requires" },
@@ -201,23 +239,29 @@ export const PLAN = {
     { from: "economy.producers", to: "economy.producers.8", kind: "contains" },
     { from: "economy.producers", to: "economy.producers.10", kind: "contains" },
     { from: "economy.producers", to: "economy.producers.15", kind: "contains" },
+    { from: "economy.producers", to: "economy.producers.20", kind: "contains" },
     { from: "economy", to: "economy.capacity", kind: "contains" },
     { from: "economy.capacity", to: "economy.farm", kind: "contains" },
     { from: "economy.capacity", to: "economy.storehouse", kind: "contains" },
-    { from: "economy.capacity", to: "economy.farm-runway", kind: "contains" },
     { from: "economy.capacity", to: "economy.cellar", kind: "contains" },
     { from: "economy", to: "economy.hall", kind: "contains" },
     { from: "economy", to: "economy.successor-window", kind: "contains" },
     { from: "economy", to: "economy.payback", kind: "contains" },
     { from: "economy", to: "economy.round-end", kind: "contains" },
+    { from: "economy", to: "economy.hall-push", kind: "contains" },
     { from: "defense", to: "defense.barracks1", kind: "contains" },
     { from: "defense", to: "defense.smithy1", kind: "contains" },
     { from: "defense", to: "defense.development", kind: "contains" },
     { from: "defense", to: "defense.barracks3", kind: "contains" },
-    { from: "defense", to: "defense.stable3", kind: "contains" },
-    { from: "defense", to: "defense.walls", kind: "contains" },
-    { from: "defense", to: "defense.cavalry", kind: "contains" },
-    { from: "defense", to: "defense.cohort", kind: "contains" },
+    { from: "defense", to: "military.garrison", kind: "contains" },
+    { from: "military.garrison", to: "military.pikemen-baseline", kind: "contains" },
+    { from: "military.garrison", to: "military.defence-scale", kind: "contains" },
+    { from: "military.garrison", to: "military.barracks-growth", kind: "contains" },
+    { from: "defense", to: "military.army", kind: "contains" },
+    { from: "military.army", to: "military.raiders", kind: "contains" },
+    { from: "defense", to: "military.scouts", kind: "contains" },
+    { from: "defense", to: "military.wall-cap", kind: "contains" },
+    { from: "defense", to: "military.workshop", kind: "contains" },
     { from: "first-conquest", to: "conquest.infrastructure", kind: "contains" },
     { from: "conquest.infrastructure", to: "conquest.hall13", kind: "contains" },
     { from: "conquest.infrastructure", to: "conquest.barracks10", kind: "contains" },
@@ -234,14 +278,18 @@ export const PLAN = {
     { from: "expansion", to: "conquest.target-owned", kind: "contains" },
     { from: "expansion", to: "conquest.first-achieved", kind: "contains" },
     { from: "expansion", to: "expansion.next", kind: "contains" },
+    { from: "expansion.cities4", to: "expansion.enemy", kind: "requires" },
+    { from: "expansion.enemy-scout", to: "expansion.enemy-dispatch", kind: "requires" },
     { from: "conquest.producer-funding", to: "conquest.producer-investment", kind: "contains" },
     { from: "economy.producers.5", to: "economy.producers.8", kind: "requires" },
     { from: "economy.producers.8", to: "economy.producers.10", kind: "requires" },
     { from: "economy.producers.8", to: "economy.hall", kind: "requires" },
+    { from: "economy.producers.20", to: "military.defence-scale", kind: "requires" },
+    { from: "economy.producers.20", to: "economy.hall-push", kind: "requires" },
     { from: "economy.producers.10", to: "defense.barracks1", kind: "requires" },
     { from: "defense.barracks1", to: "defense.barracks3", kind: "requires" },
     { from: "defense.barracks3", to: "defense.smithy1", kind: "requires" },
-    { from: "defense.smithy1", to: "defense.stable3", kind: "requires" },
+    { from: "defense.smithy1", to: "military.scouts", kind: "requires" },
     { from: "economy.producers.15", to: "conquest.infrastructure", kind: "requires" },
     { from: "conquest.escort", to: "conquest.dispatch", kind: "requires" },
     { from: "conquest.envoy", to: "conquest.dispatch", kind: "requires" },
@@ -254,10 +302,11 @@ export const PLAN = {
     { from: "conquest.enabled", to: "conquest.dispatch", kind: "requires" },
     { from: "conquest.dispatch", to: "conquest.target-owned", kind: "contributesTo" },
     { from: "conquest.target-owned", to: "conquest.first-achieved", kind: "requires" },
+    { from: "conquest.target-owned", to: "expansion.recall", kind: "requires" },
   ] as const satisfies readonly PlanEdge[],
 } satisfies PlanDefinition;
 
-export type TaskKey = Extract<(typeof PLAN.nodes)[number], { kind: "task" }>["key"];
+export type TaskKey = Extract<(typeof PLAN.nodes)[number], { kind: "task" | "policy" }>["key"];
 
 export function proposalTask(
   advisor: string,
@@ -265,6 +314,7 @@ export function proposalTask(
   targetLevel: number,
 ): TaskKey {
   if (action.type === "trade") return "logistics.fulfil";
+  if (action.type === "recall") return "expansion.recall";
   if (advisor === "conquest") {
     if (action.type === "send") return "conquest.dispatch";
     if (action.type === "train") return action.unit === "envoy" ? "conquest.envoy" : "conquest.escort";
@@ -277,8 +327,10 @@ export function proposalTask(
     return "conquest.capacity";
   }
   if (action.type === "train") {
-    if (action.unit === "lancer") return "defense.cavalry";
-    return "defense.cohort";
+    if (action.unit === "pikeman") return "military.pikemen-baseline";
+    if (action.unit === "raider") return "military.raiders";
+    if (action.unit === "scout") return "military.scouts";
+    return "defense.development";
   }
   if (action.building === "farm") return "economy.farm";
   if (action.building === "storehouse") return "economy.storehouse";
@@ -287,16 +339,19 @@ export function proposalTask(
   if (action.building === "lumberyard") return "economy.lumberyard";
   if (action.building === "quarry") return "economy.quarry";
   if (action.building === "mine") return "economy.mine";
-  if (action.building === "wall") return "defense.walls";
+  if (action.building === "wall") return "military.wall-cap";
   if (action.building === "barracks" && targetLevel === 1) return "defense.barracks1";
   if (action.building === "barracks" && targetLevel === 3) return "defense.barracks3";
-  if (action.building === "stable" && targetLevel === 3) return "defense.stable3";
+  if (action.building === "stable" && targetLevel === 1) return "military.scouts";
   if (action.building === "smithy" && targetLevel === 1) return "defense.smithy1";
   return "defense.development";
 }
 
 export function isTaskKey(value: unknown): value is TaskKey {
-  return typeof value === "string" && PLAN.nodes.some(node => node.kind === "task" && node.key === value);
+  return typeof value === "string" && PLAN.nodes.some(node =>
+    node.key === value && (node.kind === "task" ||
+      (node.kind === "policy" && !PLAN.edges.some(edge => edge.kind === "contains" && edge.from === node.key)))
+  );
 }
 
 export function validatePlan(plan: PlanDefinition = PLAN): void {
@@ -307,6 +362,11 @@ export function validatePlan(plan: PlanDefinition = PLAN): void {
       throw new Error(`Plan node ${node.key} requires a scope`);
     }
     byKey.set(node.key, node);
+  }
+  for (const node of plan.nodes) {
+    if (node.replacedBy && !byKey.has(node.replacedBy)) {
+      throw new Error(`Unknown replacement target for ${node.key}: ${node.replacedBy}`);
+    }
   }
   const containsParents = new Map<string, string>();
   const requires = new Map<string, string[]>();

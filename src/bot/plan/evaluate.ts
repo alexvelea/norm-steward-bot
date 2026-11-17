@@ -4,7 +4,6 @@ import type {
   PlanningAllocation,
   PlanningBlocker,
   PlanningCandidate,
-  PlanningCommitment,
   PlanningMission,
   PlanningNodeState,
   PlanningOperation,
@@ -14,12 +13,10 @@ import type {
 } from "../diagnostics/planning.js";
 import { PLAN, type CityRole, type PlanNode } from "./graph.js";
 import type { MissionInstance } from "../strategy/missions/conquest.js";
-import type { StrategicCommitment } from "../strategy/commitments.js";
 import { cityRoles } from "../strategy/roles.js";
 
 export interface PlanningMemory {
   missions: readonly MissionInstance[];
-  commitments: readonly StrategicCommitment[];
   scope: string;
 }
 
@@ -82,26 +79,32 @@ function taskProgress(
   } else if (node.key === "expansion.escort" && village) {
     observed = village.units.home.raider ?? 0;
   } else if (predicate === "troops.raider" && village) {
-    observed = (village.units.home.raider ?? 0) + (village.units.away.raider ?? 0);
+    observed = (village.units.home.raider ?? 0) + (village.units.away.raider ?? 0) +
+      Object.values(village.training).flat().filter(batch => batch.unit === "raider").reduce((sum, batch) => sum + batch.remaining, 0);
+  } else if (predicate === "troops.pikeman" && village) {
+    observed = (village.units.home.pikeman ?? 0) +
+      village.training.barracks.filter(batch => batch.unit === "pikeman").reduce((sum, batch) => sum + batch.remaining, 0);
+  } else if (predicate === "troops.scout" && village) {
+    observed = (village.units.home.scout ?? 0) +
+      village.training.stable.filter(batch => batch.unit === "scout").reduce((sum, batch) => sum + batch.remaining, 0);
   } else if (predicate === "troops.envoy" && village) {
     observed = (village.units.home.envoy ?? 0) + (village.units.away.envoy ?? 0);
-  } else if (predicate === "troops.lancer" && village) {
-    observed = (village.units.home.lancer ?? 0) + (village.units.away.lancer ?? 0);
   } else if ((node.key === "conquest.dispatch" || node.key === "expansion.dispatch") && mission) {
     observed = mission.memory.waves;
-  } else if (node.key === "defense.cohort" && village) {
-    observed =
-      (village.units.home.pikeman ?? 0) +
-      (village.units.away.pikeman ?? 0) +
-      (village.units.home.shieldman ?? 0) +
-      (village.units.away.shieldman ?? 0);
   }
-  const explicitLevel = node.thresholds?.level;
-  const goal = explicitLevel ?? candidate?.targetLevel ?? null;
+  const explicitGoal = node.thresholds?.level ?? node.thresholds?.maxLevel ?? node.thresholds?.count ??
+    (node.thresholds?.perCity === undefined ? undefined : node.thresholds.perCity * context.state.villages.length);
+  const candidateGoal = candidate && (
+    candidate.action.type === "train" ||
+    (candidate.action.type === "build" && predicate === `building.${candidate.action.building}`) ||
+    candidate.action.type === "send" ||
+    candidate.action.type === "recall"
+  ) ? candidate.targetLevel : undefined;
+  const goal = candidateGoal ?? explicitGoal ?? null;
   return {
     observed,
     goal,
-    satisfied: explicitLevel !== undefined && observed !== null && observed >= explicitLevel,
+    satisfied: explicitGoal !== undefined && observed !== null && observed >= explicitGoal,
   };
 }
 
@@ -121,6 +124,11 @@ function isRollupNode(node: PlanNode): boolean {
   );
 }
 
+function isActionNode(node: PlanNode): boolean {
+  return node.kind === "task" ||
+    (node.kind === "policy" && !PLAN.edges.some(edge => edge.kind === "contains" && edge.from === node.key));
+}
+
 function containedTaskKeys(nodeKey: string): string[] {
   const children = new Map<string, string[]>();
   for (const edge of PLAN.edges) {
@@ -133,7 +141,7 @@ function containedTaskKeys(nodeKey: string): string[] {
     for (const childKey of children.get(parent) ?? []) {
       const child = nodes.get(childKey);
       if (!child || child.kind === "capability") continue;
-      if (child.kind === "task" || child.kind === "milestone") result.push(child.key);
+      if (child.kind === "task" || child.kind === "milestone" || isActionNode(child)) result.push(child.key);
       else visit(child.key);
     }
   };
@@ -212,18 +220,6 @@ function planningMissions(missions: readonly MissionInstance[]): PlanningMission
   }));
 }
 
-function planningCommitments(commitments: readonly StrategicCommitment[]): PlanningCommitment[] {
-  return commitments.map(commitment => ({
-    id: commitment.id,
-    kind: commitment.kind,
-    nodeKey: "defense.cohort",
-    villageId: commitment.villageId,
-    targets: { ...commitment.targets },
-    baselines: { ...commitment.baselines },
-    createdTick: commitment.createdTick,
-  }));
-}
-
 export function evaluatePlanning(input: PlanningInput): PlanningProjection {
   const { context, memory } = input;
   const candidates: PlanningCandidate[] = input.candidates.map(proposal => ({
@@ -260,7 +256,7 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
       const operationsForNode = operations.filter(operation => operation.task === node.key && operation.villageId === village.id);
       const progress = node.kind === "milestone"
         ? milestoneProgress(node, context, village.id, firstMission, memory.missions)
-        : node.kind === "task"
+        : isActionNode(node)
           ? taskProgress(node, context, village.id, mission, candidate)
           : { observed: null, goal: null, satisfied: false };
       let status: TaskState = "idle";
@@ -283,7 +279,7 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
         const rollup = rollupState(node.key, states);
         status = rollup.status;
         primaryBlocker = rollup.primaryBlocker;
-      } else if (node.kind === "task") {
+      } else if (isActionNode(node)) {
         if (progress.satisfied) status = "satisfied";
         else if (operationsForNode.length > 0) status = "running";
         else if (candidate) {
@@ -454,7 +450,6 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
     reservations,
     operations,
     missions: planningMissions(memory.missions),
-    commitments: planningCommitments(memory.commitments),
     wake,
   };
 }

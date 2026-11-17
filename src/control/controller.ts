@@ -5,6 +5,7 @@ import {
   type Server as LeaseServer,
 } from "node:net";
 import type {
+  Action,
   ActionsResponse,
   HistoryResponse,
   MapResponse,
@@ -36,7 +37,6 @@ import { effectiveRoles, evaluatePlanning } from "../bot/plan/evaluate.js";
 import { PLAN } from "../bot/plan/graph.js";
 import { BotRunner } from "../bot/runner/runner.js";
 import { prepareJournalEntry } from "../bot/execution/journal.js";
-import { commitmentFromPending, reconcileCommitments } from "../bot/strategy/commitments.js";
 import { conquestMission, conquestPlan, type MissionInstance } from "../bot/strategy/missions/conquest.js";
 import { cityRoles, filterProposalsByRole } from "../bot/strategy/roles.js";
 import {
@@ -139,7 +139,6 @@ export class Controller {
       edges: PLAN.edges,
       villages: [],
       missions: [],
-      commitments: [],
       candidates: [],
       allocation: { selectedCandidateId: null, reasonCode: "NOT_EVALUATED", excluded: [] },
       reservations: [],
@@ -168,7 +167,6 @@ export class Controller {
       pending: null,
       decisions: [],
       missions: [],
-      commitments: [],
     };
     if (!saved.recoveryRequired && !saved.persistenceFault)
       saved.settings.serverUrl = validateOrigin(saved.settings.serverUrl);
@@ -519,7 +517,7 @@ export class Controller {
       }
       if(!plan.escort){plan.status='stopped';plan.reason='No bounded surviving-Envoy escort';savePlan();return;}
     }
-    const requiredEscort=(plan.sequence??1)>=2?(plan.escort??Infinity):1;
+    const requiredEscort=Math.max(140,plan.escort??Infinity);
     if((v.units.home.envoy??0)<1||(v.units.home.raider??0)<requiredEscort||
       state.commands.outgoing.some(c=>c.from.id===v.id)){savePlan();return;}
     const travel=conquestTravel(context,this.conquest)!;
@@ -582,12 +580,10 @@ export class Controller {
   private plan(context: AdvisorContext): void {
     // A completed first component can outlive its accepted queue item across a pause/restart.
     // Do not use that memory to append to an unrelated/manual Barracks queue.
-    const complements = (this.saved.commitments ?? []).filter(commitment =>
-      !context.state.villages.find(v => v.id === commitment.villageId)?.training.barracks.length);
     const missionScope=conquestScope(this.settings.serverUrl,this.view.account!.id,context);
     const missions=(this.saved.missions??[]).filter(value=>value.scope===missionScope);
     const roles=cityRoles(context,missions);
-    context = {...context, cityRoles:roles, activeProposals:[...(this.saved.active ?? []), ...(this.saved.pending?[this.saved.pending]:[]), ...complements].map(p => p.proposal)};
+    context = {...context, cityRoles:roles, activeProposals:[...(this.saved.active ?? []), ...(this.saved.pending?[this.saved.pending]:[])].map(p => p.proposal)};
     this.view.world = context.state.world;
     this.view.villages = context.state.villages.map((v) => ({
       id: v.id,
@@ -595,9 +591,8 @@ export class Controller {
       points: v.points,
     }));
     this.view.economicForecasts = context.state.villages.map(forecastEconomy);
-    this.view.proposals = [economicAdvisor, militaryAdvisor, economicCityAdvisor, logisticsAdvisor].flatMap(
-      (advisor) => advisor.evaluate(context),
-    );
+    this.view.proposals = [economicAdvisor, militaryAdvisor, economicCityAdvisor, logisticsAdvisor]
+      .flatMap(advisor => advisor.evaluate(context));
     // Role filter first: deduplication must never let a role-excluded proposal displace an allowed one.
     this.view.proposals=filterProposalsByRole(this.view.proposals,roles,effectiveRoles);
     prioritizeFarmRunway(context, this.view.proposals);
@@ -623,7 +618,8 @@ export class Controller {
     this.view.proposals=filterProposalsByRole(this.view.proposals,roles,effectiveRoles);
     const lane = (a: Proposal["action"]) => {
       if (a.type === "build") return `${a.village}:build`;
-      if (a.type === "send") return "combat";
+      if (a.type === "send") return a.kind === "attack" ? "combat" : `support:${a.target}`;
+      if (a.type === "recall") return `recall:${a.village}:${a.home}`;
       if (a.type === "trade") {
         const resource = (["timber", "stone", "iron"] as const).find(
           (value) => (a.resources[value] ?? 0) > 0,
@@ -634,13 +630,10 @@ export class Controller {
     };
     for (const proposal of this.view.proposals) {
       const occupied = (this.saved.active ?? []).filter(p => lane(p.action) === lane(proposal.action));
-      // A recorded 3Pi1Sh cohort may add its second unit type to the same Barracks queue.
-      const complement = proposal.defenseBatch && proposal.action.type === "train" && occupied.length === 1 &&
-        occupied[0].proposal.defenseBatch && occupied[0].action.type === "train" && occupied[0].action.unit !== proposal.action.unit;
       const v=context.state.villages.find(v=>v.id===proposal.villageId);
       const early=proposal.action.type==='build'&&v&&earlyBuildWindow(context.state,v)&&occupied.length===1&&
         occupied[0].phase==='accepted'&&occupied[0].itemId===v.buildQueue[0].id;
-      if (occupied.length && !complement && !early && proposal.status === "ready") {
+      if (occupied.length && !early && proposal.status === "ready") {
         proposal.status = "waiting"; proposal.blockers.push("EXECUTOR_QUEUE_BUSY");
       }
     }
@@ -652,7 +645,7 @@ export class Controller {
     const journal=[...(this.saved.active??[]),...(this.saved.pending?[this.saved.pending]:[])];
     this.view.planning=evaluatePlanning({
       context,
-      memory:{missions,commitments:this.saved.commitments??[],scope},
+      memory:{missions,scope},
       candidates:this.view.proposals,
       journal,
       evaluatedAt:new Date(this.now()).toISOString(),
@@ -702,14 +695,6 @@ export class Controller {
   private async reconcile(context: AdvisorContext): Promise<void> {
     for (const p of [...(this.saved.active ?? []), ...(this.saved.pending ? [this.saved.pending] : [])]) await this.reconcileOne(context, p);
     this.archiveAccepted();
-    this.saved.commitments=reconcileCommitments(this.saved.commitments??[],context.state.villages,{
-      value:productionScope(this.settings.serverUrl,this.view.account!.id,context.state),
-      serverUrl:this.settings.serverUrl,
-      worldId:context.state.world.id,
-      epoch:context.state.world.epoch,
-      accountId:this.view.account!.id,
-      ended:context.state.world.status==="ended",
-    });
   }
   private async reconcileOne(context: AdvisorContext, p: Pending): Promise<void> {
     const s = context.state;
@@ -733,8 +718,24 @@ export class Controller {
       return;
     }
     if (p.action.type === "send") {
+      const action = p.action as Extract<Action, {type:"send"}>;
       if(p.missionId)await this.reconcileConquest(context,p);
-      else if(p.phase!=="accepted"){
+      else if(p.action.kind === "support" && p.phase === "accepted") {
+        if (s.commands.outgoing.some(command => command.id === p.itemId)) return;
+        const destination=s.villages.find(city=>city.id===action.target);
+        const sentUnits=Object.entries(action.units)
+          .filter((entry):entry is [string,number]=>typeof entry[1]==="number"&&entry[1]>0);
+        const confirmed=sentUnits.length>0&&sentUnits.every(([unit,count])=>{
+          const stationed=destination?.supportHere.filter(stack=>stack.home.id===action.village)
+            .reduce((sum,stack)=>sum+(stack.units[unit as keyof typeof stack.units]??0),0)??0;
+          return stationed>=count;
+        });
+        this.record(confirmed?"confirmed":"cancelled",confirmed?
+          "Support arrived and is present in fresh state.":
+          "Accepted support command disappeared without reaching its target; no arrival is inferred.",
+          p.proposal,p.action.clientId,s.world.tick);
+        this.clearOperation(p);await this.persist();
+      } else if(p.phase!=="accepted"){
         this.automatic=false;
         this.record("uncertain","An unclassified legacy send is retained for operator inspection and will not be replayed.",p.proposal,p.action.clientId,s.world.tick);
         await this.persist();
@@ -744,6 +745,24 @@ export class Controller {
         await this.persist();
       }
       return;
+    }
+    if(p.action.type==="recall"){
+      const action = p.action as Extract<Action, {type:"recall"}>;
+      if(p.phase!=="accepted"){
+        this.automatic=false;
+        this.record("uncertain","Recall outcome is unknown; automatic execution is paused rather than replaying it.",p.proposal,p.action.clientId,s.world.tick);
+        await this.persist();return;
+      }
+      if(s.commands.outgoing.some(command=>command.id===p.itemId))return;
+      const city=s.villages.find(value=>value.id===action.village);
+      const remaining=city?.supportHere.filter(stack=>stack.home.id===action.home)
+        .reduce((sum,stack)=>sum+(stack.units.raider??0),0)??0;
+      const confirmed=remaining<p.proposal.currentLevel;
+      this.record(confirmed?"confirmed":"cancelled",confirmed?
+        "Recalled Raiders left the captured city, confirmed by fresh state.":
+        "Accepted recall disappeared without changing the stationed Raider stack.",
+        p.proposal,p.action.clientId,s.world.tick);
+      this.clearOperation(p);await this.persist();return;
     }
     if (p.action.type === "train") {
       await this.reconcileTraining(context, p);
@@ -846,17 +865,6 @@ export class Controller {
         p.action.clientId,
         context.state.world.tick,
       );
-      if (complete && unit === "pikeman" && p.proposal.defenseBatch) {
-        const missionScope=conquestScope(this.settings.serverUrl,this.view.account!.id,context);
-        const role=cityRoles(context,(this.saved.missions??[]).filter(value=>value.scope===missionScope)).get(v.id)?.role;
-        const commitment=role==="capital"?commitmentFromPending(p,productionScope(
-          this.settings.serverUrl,this.view.account!.id,context.state,
-        )):null;
-        if(commitment)this.saved.commitments=[
-          ...(this.saved.commitments??[]).filter(value=>value.villageId!==commitment.villageId),
-          commitment,
-        ];
-      }
       this.clearOperation(p);
     } else if (
       owned !== p.proposal.currentLevel ||
@@ -1028,15 +1036,25 @@ export class Controller {
             Math.max(10000, Number(result.error.details?.retryAfterMs) || 0);
         } else if (pending.action.type === "send" && "command" in result.data) {
           const command = result.data.command;
-          if(!pending.missionId||command.kind!=='attack'||command.from.id!==pending.action.village||command.to.id!==pending.action.target||
+          if(pending.action.kind==="support") {
+            if(command.kind!=="support"||command.from.id!==pending.action.village||command.to.id!==pending.action.target)
+              throw new RemoteError(0,5000,"Unexpected support command; inspect activity.");
+          } else if(!pending.missionId||command.kind!=='attack'||command.from.id!==pending.action.village||command.to.id!==pending.action.target||
               JSON.stringify(command.units)!==JSON.stringify(pending.action.units))
             throw new RemoteError(0,5000,'Unexpected conquest command; inspect activity.');
           pending.phase = "accepted";
           pending.itemId = command.id;
-          const mission=this.saved.missions?.find(value=>value.id===pending!.missionId);
-          if(!mission)throw new RemoteError(0,5000,'Conquest mission disappeared before command acceptance was recorded.');
-          mission.memory.waves++;
-          this.record('accepted',`Conquest wave ${mission.memory.waves} dispatched; arrival tick ${command.arrivalTick}.`,selected,pending.action.clientId,response.tick);
+          if(pending.missionId){
+            const mission=this.saved.missions?.find(value=>value.id===pending!.missionId);
+            if(!mission)throw new RemoteError(0,5000,'Conquest mission disappeared before command acceptance was recorded.');
+            mission.memory.waves++;
+            this.record('accepted',`Conquest wave ${mission.memory.waves} dispatched; arrival tick ${command.arrivalTick}.`,selected,pending.action.clientId,response.tick);
+          }else this.record("accepted",`Support command accepted; arrival tick ${command.arrivalTick}.`,selected,pending.action.clientId,response.tick);
+        } else if(pending.action.type==="recall"&&"command" in result.data) {
+          const command=result.data.command;
+          if(command.kind!=="support"||!command.returning)throw new RemoteError(0,5000,"Unexpected recall result; inspect activity.");
+          pending.phase="accepted";pending.itemId=command.id;
+          this.record("accepted",`Recall accepted; return arrival tick ${command.arrivalTick}.`,selected,pending.action.clientId,response.tick);
         } else if (pending.action.type === "trade" && "trade" in result.data) {
           const tradeAction=pending.action as Extract<Pending["action"],{type:"trade"}>;
           const trade=result.data.trade;

@@ -14,12 +14,19 @@ test("resource balance scores lag boundaries and skips zero-production resources
   const v = context().state.villages[0]!;
   v.production = { timber: 1, stone: 0, iron: 1 };
   v.resources = { timber: 5, stone: 123, iron: 10 };
-  const zeroRateStock = 123 / 1e-9;
-  assert.equal(stockMinutes(v, "timber"), 5);
-  assert.equal(stockMinutes(v, "stone"), zeroRateStock);
-  assert.equal(balanceLags(v).timber, (zeroRateStock + 10) / 2 - 5);
-  assert.equal(balanceLags(v).iron, (zeroRateStock + 5) / 2 - 10);
+  assert.equal(stockMinutes(v, "timber"), 7.5);
+  assert.equal(stockMinutes(v, "stone"), 184.5);
+  assert.equal(stockMinutes(v, "iron"), 15);
+  assert.equal(balanceLags(v).timber, 7.5);
+  assert.equal(balanceLags(v).iron, -7.5);
   assert.equal(balanceLags(v).stone, undefined);
+
+  // Elmby regression: a high-level Quarry must not be boosted for its own fast production.
+  v.production = { timber: 100, stone: 300, iron: 230 };
+  v.resources = { timber: 4843, stone: 11939, iron: 33057 };
+  assert.ok(balanceScore(balanceLags(v).timber!)! >= 90);
+  assert.equal(balanceScore(balanceLags(v).stone!), null);
+  assert.equal(balanceScore(balanceLags(v).iron!), null);
 });
 
 test("economic scores are deterministic, explain production bottlenecks and cover exactly seven buildings", () => {
@@ -36,8 +43,8 @@ test("economic scores are deterministic, explain production bottlenecks and cove
     ),
   );
   assert.ok(
-    first.find((p) => p.action.building === "lumberyard")!.importance >
-      first.find((p) => p.action.building === "mine")!.importance,
+    first.find((p) => p.action.building === "mine")!.importance >
+      first.find((p) => p.action.building === "lumberyard")!.importance,
   );
   assert.match(
     first.find((p) => p.action.building === "mine")!.reason,

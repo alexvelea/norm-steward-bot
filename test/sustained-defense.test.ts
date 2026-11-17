@@ -1,86 +1,163 @@
-import { evaluateMilitaryHall } from "../src/advisors/military.js";
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {developedContext} from "./control-fixtures.js";
+import type {AdvisorContext} from "../src/advisors/types.js";
 import {evaluateSustainedDefense} from "../src/advisors/sustained-defense.js";
-import {evaluateEconomy} from "../src/advisors/economic.js";
-import {selectProposal} from "../src/advisors/president.js";
-function ready(): import("../src/advisors/types.js").AdvisorContext {
- const c=developedContext(),v=c.state.villages[0];
- v.buildings.barracks=3;v.buildings.smithy=2;v.hidden=1000;
- v.units.home={pikeman:30,shieldman:10,raider:10};
- v.productionPerTickMilli={timber:10000,stone:10000,iron:10000};
- v.options.train=[{unit:"pikeman",cost:{timber:45,stone:35,iron:15},pop:1,ticksEach:8,maxCount:100,ok:true,blockers:[],affordableAtTick:null},
- {unit:"shieldman",cost:{timber:35,stone:30,iron:65},pop:1,ticksEach:11,maxCount:100,ok:true,blockers:[],affordableAtTick:null}];
- return c;
+import {militaryAdvisor} from "../src/advisors/military.js";
+import {developedContext} from "./control-fixtures.js";
+
+function ready(): AdvisorContext {
+  const context: AdvisorContext = developedContext();
+  const capital = context.state.villages[0]!;
+  Object.assign(capital.buildings, {
+    lumberyard: 20, quarry: 20, mine: 20, barracks: 10, smithy: 2,
+  });
+  capital.population = {max: 1000, used: 300};
+  capital.storage = 100000;
+  capital.resourcesMilli = {timber: 100000000, stone: 100000000, iron: 100000000};
+  capital.productionPerTickMilli = {timber: 100000, stone: 100000, iron: 100000};
+  capital.units.home = {pikeman: 250, raider: 140, scout: 0};
+  capital.units.away = {};
+  capital.training.barracks = [];
+  capital.training.stable = [];
+  capital.options.train = [
+    {unit: "pikeman", cost: {timber: 45, stone: 35, iron: 15}, pop: 1, ticksEach: 8, maxCount: 100, ok: true, blockers: [], affordableAtTick: null},
+    {unit: "raider", cost: {timber: 75, stone: 55, iron: 40}, pop: 1, ticksEach: 8, maxCount: 100, ok: true, blockers: [], affordableAtTick: null},
+    {unit: "scout", cost: {timber: 30, stone: 20, iron: 15}, pop: 1, ticksEach: 4, maxCount: 100, ok: true, blockers: [], affordableAtTick: null},
+  ];
+  context.cityRoles = new Map([[capital.id, {role: "capital", reason: "fixture"}]]);
+  return context;
 }
-test("minute-long 3Pi1Sh cohort queues both parts once, counts away troops and drains",()=>{
- const c=ready(),v=c.state.villages[0];
- let p=evaluateSustainedDefense(c)[0];assert.equal(p.action.unit,"pikeman");assert.equal(p.action.count,6);assert.equal(p.defenseBatch!.ticks,70);
- c.activeProposals=[p];v.units.away.pikeman=6;
- p=evaluateSustainedDefense(c)[0];assert.equal(p.action.unit,"shieldman");assert.equal(p.action.count,2);
- c.activeProposals.push(p);v.training.barracks=[{id:"s",unit:"shieldman",count:2,remaining:2,costEach:{timber:35,stone:30,iron:65},nextTick:108,endTick:124}];
- assert.deepEqual(evaluateSustainedDefense(c),[]);
-});
-test("affordable military beats discretionary producers; resource starvation promotes the deficient income",()=>{
- const c=ready(),v=c.state.villages[0];v.storage=100000;
- assert.equal(selectProposal([...evaluateEconomy(c),...evaluateSustainedDefense(c)]).selected?.action.type,"train");
- v.productionPerTickMilli.timber=100;v.resourcesMilli.timber=0;v.resources.timber=0;
- const p=evaluateEconomy(c).find(p=>p.action.building==="lumberyard")!;assert.ok(p.importance>=80);assert.match(p.reason,/Recruitment resource shortage/);
- assert.equal(evaluateSustainedDefense(c)[0].status,"not-needed");assert.equal(selectProposal(evaluateSustainedDefense(c)).reservations.length,0);
-});
-test("opening, cap20, population expansion and late-round gates remain explicit",()=>{
- const c=ready(),v=c.state.villages[0];v.buildings.mine=4;assert.deepEqual(evaluateSustainedDefense(c),[]);
- v.buildings.mine=20;assert.equal(evaluateEconomy(c).find(p=>p.action.building==="mine")!.status,"not-needed");
- v.population.used=150;assert.equal(evaluateSustainedDefense(c)[0].status,"not-needed");
- assert.notEqual(evaluateEconomy(c).find(p=>p.action.building==="farm")!.status,"not-needed");
- v.population.used=30;c.state.world.endsAtTick=c.state.world.tick+129;
- assert.ok(evaluateSustainedDefense(c)[0].blockers.includes("ROUND_END_TOO_SOON"));
- c.state.world.endsAtTick=c.state.world.tick+130;assert.equal(evaluateSustainedDefense(c)[0].status,"ready");
-});
-test("queued work and manual orders prevent duplicate spending or a separate execution loop",()=>{
- const c=ready(),v=c.state.villages[0];
- v.training.barracks=[{id:"q",unit:"pikeman",count:3,remaining:3,costEach:{timber:45,stone:35,iron:15},nextTick:108,endTick:124}];
- let p=evaluateSustainedDefense(c)[0];assert.ok(p.blockers.includes("TRAIN_QUEUE_BUSY"));
- v.training.barracks=[];v.orders.train=[{unit:"pikeman",keep:60}];p=evaluateSustainedDefense(c)[0];assert.ok(p.blockers.includes("EXTERNAL_ORDERS"));
+
+function addEconomicCity(context: AdvisorContext) {
+  const capital = context.state.villages[0]!;
+  const city = structuredClone(capital);
+  city.id = "eco";
+  city.name = "Economic city";
+  city.buildings.wall = 10;
+  city.units.home = {};
+  city.supportHere = [];
+  context.state.villages.push(city);
+  context.state.world.villages = context.state.villages.length;
+  context.cityRoles = new Map([
+    [capital.id, {role: "capital", reason: "fixture"}],
+    [city.id, {role: "economic", reason: "fixture"}],
+  ]);
+  return {capital, city};
+}
+
+test("economic Pikemen target is topped up only below 80%, counting home, stationed and incoming", () => {
+  const context = ready();
+  const {capital, city} = addEconomicCity(context);
+  capital.units.home.pikeman = 700;
+  city.units.home.pikeman = 0;
+  city.supportHere = [{
+    home: {id: capital.id, name: capital.name},
+    units: {pikeman: 180},
+  }] as typeof city.supportHere;
+  context.state.commands.incoming = [{
+    id: "incoming",
+    kind: "support",
+    from: {id: capital.id, name: capital.name},
+    to: {id: city.id, name: city.name},
+    units: {pikeman: 20},
+  }] as typeof context.state.commands.incoming;
+
+  let proposals = evaluateSustainedDefense(context);
+  assert.ok(!proposals.some(proposal => proposal.task === "econ.request-defenders"));
+
+  city.supportHere[0] = {
+    ...city.supportHere[0]!,
+    units: {pikeman: 199},
+  };
+  context.state.commands.incoming = [];
+  proposals = evaluateSustainedDefense(context);
+  const request = proposals.find(proposal => proposal.task === "econ.request-defenders");
+  assert.equal(request?.action.type, "send");
+  if (request?.action.type === "send") {
+    assert.deepEqual(request.action.units, {pikeman: 51});
+    assert.equal(request.action.target, city.id);
+  }
 });
 
-test("military Hall unlock follows live Barracks and Smithy prerequisites only after the opening",()=>{
- const c=ready(),v=c.state.villages[0];
- v.buildings.barracks=0;v.buildings.smithy=0;v.buildings.hall=1;
- let p=evaluateMilitaryHall(c)[0];assert.equal(p.action.building,"hall");assert.equal(p.importance,79);
- v.buildings.hall=3;assert.deepEqual(evaluateMilitaryHall(c),[]);
- v.buildings.barracks=3;assert.equal(evaluateMilitaryHall(c)[0].action.building,"hall");
- v.buildings.hall=5;assert.deepEqual(evaluateMilitaryHall(c),[]);
- v.buildings.hall=1;v.buildings.mine=4;assert.deepEqual(evaluateMilitaryHall(c),[]);
+test("capital Pikemen target is 250 before producer 20, then scales to three times the strongest city", () => {
+  const context = ready();
+  const {capital, city} = addEconomicCity(context);
+  city.units.home.pikeman = 250;
+  Object.assign(capital.buildings, {lumberyard: 19, quarry: 19, mine: 19});
+  capital.units.home.pikeman = 200;
+  let pikes = evaluateSustainedDefense(context).find(proposal =>
+    proposal.action.type === "train" && proposal.action.unit === "pikeman",
+  );
+  assert.equal(pikes?.targetLevel, 250);
+
+  Object.assign(capital.buildings, {lumberyard: 20, quarry: 20, mine: 20});
+  city.units.home.pikeman = 100;
+  capital.units.home.pikeman = 250;
+  pikes = evaluateSustainedDefense(context).find(proposal =>
+    proposal.action.type === "train" && proposal.action.unit === "pikeman",
+  );
+  assert.equal(pikes?.targetLevel, 450);
 });
 
-test("Barracks 5 queues exactly 9 Pikemen plus 3 Shieldmen, independent of the pre-existing force ratio",()=>{
- const c=ready(),v=c.state.villages[0];v.units.home={pikeman:10,shieldman:5,raider:10};v.buildings.barracks=5;
- v.options.train[0].ticksEach=6;v.options.train[1].ticksEach=9;
- const p=evaluateSustainedDefense(c)[0];assert.equal(p.action.count,9);assert.equal(p.defenseBatch!.shieldmen,3);assert.equal(p.defenseBatch!.ticks,81);
+test("bounded Pikemen targets train when unsustainable but growth batches do not", () => {
+  const context = ready();
+  const capital = context.state.villages[0]!;
+  capital.units.home.pikeman = 200;
+  capital.productionPerTickMilli = {timber: 1, stone: 1, iron: 1};
+
+  let pikes = evaluateSustainedDefense(context).find(proposal =>
+    proposal.action.type === "train" && proposal.action.unit === "pikeman",
+  );
+  assert.equal(pikes?.importance, 75);
+  assert.ok(!pikes?.blockers.includes("INCOME_CANNOT_SUSTAIN_TRAINING_AND_CONSTRUCTION"));
+
+  capital.units.home.pikeman = 250;
+  pikes = evaluateSustainedDefense(context).find(proposal =>
+    proposal.action.type === "train" && proposal.action.unit === "pikeman",
+  );
+  assert.equal(pikes, undefined);
 });
 
+test("capital sends a defender request only when home Pikemen cover its target plus the request", () => {
+  const context = ready();
+  const {capital, city} = addEconomicCity(context);
+  Object.assign(capital.buildings, {lumberyard: 19, quarry: 19, mine: 19});
+  city.units.home.pikeman = 199;
+  capital.units.home.pikeman = 300;
 
-test("whole-cohort resource waits reserve discretionary spending but release impossible or late batches",()=>{
- const c=ready(),v=c.state.villages[0];v.storage=100000;
- v.resourcesMilli={timber:200000,stone:200000,iron:200000};
- v.resources={timber:200,stone:200,iron:200};
- let p=evaluateSustainedDefense(c)[0];
- assert.equal(p.status,"waiting");assert.deepEqual(p.blockers,["INSUFFICIENT_RESOURCES"]);
- assert.equal(p.affordableAtTick,c.state.world.tick+14);
- assert.equal(selectProposal([...evaluateEconomy(c),p]).reservations[0]?.proposalId,p.id);
- assert.equal(selectProposal([...evaluateEconomy(c),p]).selected,null);
- // The live per-unit maxCount can be resource-limited; it must not invalidate a future funded batch.
- v.options.train[0].maxCount=4;p=evaluateSustainedDefense(c)[0];assert.equal(p.status,"waiting");
- v.resourcesMilli.timber=0;v.options.train[0].ok=false;v.options.train[0].blockers=["INSUFFICIENT_RESOURCES"];v.options.train[0].maxCount=0;
- assert.equal(evaluateSustainedDefense(c)[0].status,"waiting");
- c.state.world.endsAtTick=c.state.world.tick+163; // 34 funding + 70 training + 60 use needs 164.
- assert.equal(evaluateSustainedDefense(c)[0].status,"not-needed");
- c.state.world.endsAtTick=c.state.world.tick+164;assert.equal(evaluateSustainedDefense(c)[0].status,"waiting");
- v.productionPerTickMilli.timber=0;assert.equal(evaluateSustainedDefense(c)[0].status,"not-needed");
- v.productionPerTickMilli.timber=10000;v.options.train[0].blockers=["REQUIREMENTS_NOT_MET"];
- assert.equal(evaluateSustainedDefense(c)[0].status,"not-needed");
+  let proposal = evaluateSustainedDefense(context).find(value => value.task === "econ.request-defenders");
+  assert.ok(!proposal, "300 home Pikemen is below 250 + 51");
+
+  capital.units.home.pikeman = 301;
+  proposal = evaluateSustainedDefense(context).find(value => value.task === "econ.request-defenders");
+  assert.equal(proposal?.action.type, "send");
+  if (proposal?.action.type === "send") assert.deepEqual(proposal.action.units, {pikeman: 51});
 });
 
-test("no starter troop quotas: zero army starts full cohorts once economy supports construction and training",()=>{const c=ready(),v=c.state.villages[0];v.units.home={};assert.equal(evaluateSustainedDefense(c)[0].status,"ready");assert.equal(evaluateSustainedDefense(c)[0].action.count,6);v.buildings.mine=9;assert.deepEqual(evaluateSustainedDefense(c),[]);});
+test("capital trains Scouts at 20 per owned city and economic cities never train troops", () => {
+  const context = ready();
+  const {capital, city} = addEconomicCity(context);
+  capital.units.home.scout = 10;
+  const proposals = militaryAdvisor.evaluate(context);
+  const scoutTrain = proposals.find(proposal =>
+    proposal.action.type === "train" && proposal.action.unit === "scout",
+  );
+  assert.equal(scoutTrain?.villageId, capital.id);
+  assert.equal(scoutTrain?.targetLevel, 60);
+  assert.equal(scoutTrain?.importance, 60);
+  assert.ok(proposals.every(proposal =>
+    proposal.villageId !== city.id || proposal.action.type !== "train",
+  ));
+});
+
+test("economic-city Scout requests are sent before the capital's own reserve is full", () => {
+  const context = ready();
+  const {capital, city} = addEconomicCity(context);
+  capital.units.home.scout = 25;
+  const send = evaluateSustainedDefense(context).find(value => value.task === "econ.request-scouts");
+  assert.equal(send?.action.type, "send");
+  if (send?.action.type === "send") {
+    assert.equal(send.action.target, city.id);
+    assert.deepEqual(send.action.units, {scout: 20});
+  }
+});

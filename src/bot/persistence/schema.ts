@@ -2,7 +2,6 @@ import type { Pending, SavedControl, Settings, Decision } from "../../control/ty
 import type { ConquestPlan } from "../../advisors/conquest.js";
 import { proposalTask, isTaskKey } from "../plan/graph.js";
 import type { ProductionLedger } from "../../control/production.js";
-import type { StrategicCommitment } from "../strategy/commitments.js";
 import { conquestMission, type MissionInstance } from "../strategy/missions/conquest.js";
 
 export const CONTROL_STORE_VERSION = 2;
@@ -22,7 +21,7 @@ export interface ControlStoreV2 {
   strategy: {
     schema: 1;
     missions: MissionInstance[];
-    commitments: StrategicCommitment[];
+    commitments?: unknown[];
     production?: ProductionLedger;
   };
 }
@@ -42,7 +41,7 @@ export function isControlStoreV2(value: unknown): value is ControlStoreV2 {
         (mission.sequence===undefined||
           (typeof mission.sequence==="number"&&Number.isInteger(mission.sequence)&&mission.sequence>=1));
     }) &&
-    Array.isArray(store.strategy.commitments);
+    (!("commitments" in store.strategy) || Array.isArray(store.strategy.commitments));
 }
 
 export class UnsupportedControlStoreError extends Error {
@@ -123,45 +122,6 @@ function migrateLegacy(value: Record<string, unknown>): SavedControl {
   const pending=isRemovedLegacySend(pendingValue)
     ? (cancelled.push(removedSendDecision(pendingValue,0)),null)
     : normalizePending(pendingValue,missionId);
-  const commitments = Array.isArray(value.defenseComplements)
-    ? value.defenseComplements.flatMap(item => {
-        const complement = record(item);
-        const proposal = record(complement?.proposal);
-        const batch = record(proposal?.defenseBatch);
-        if (!complement || !proposal || !batch ||
-            typeof proposal.id !== "string" || typeof proposal.villageId !== "string" ||
-            typeof batch.baselinePikemen !== "number" || typeof batch.baselineShieldmen !== "number" ||
-            typeof batch.pikemen !== "number" || typeof batch.shieldmen !== "number" ||
-            typeof complement.serverUrl !== "string" || typeof complement.worldId !== "string" ||
-            typeof complement.epoch !== "string" || typeof complement.accountId !== "string") return [];
-        const action = record(proposal.action);
-        if (!action) return [];
-        const task = typeof proposal.task === "string" && isTaskKey(proposal.task)
-          ? proposal.task
-          : proposalTask(
-              typeof proposal.advisor === "string" ? proposal.advisor : "military",
-              action as { type: string; building?: string; unit?: string },
-              typeof proposal.targetLevel === "number" ? proposal.targetLevel : 0,
-            );
-        const normalizedProposal = { ...proposal, task } as unknown as Pending["proposal"];
-        const scope = `${complement.serverUrl}|${complement.accountId}|${complement.worldId}|${complement.epoch}`;
-        return [{
-          id: `${scope}:defenseCohort:${proposal.id}`,
-          scope,
-          villageId: proposal.villageId,
-          kind: "defenceCohort" as const,
-          targets: { pikemen: batch.pikemen, shieldmen: batch.shieldmen },
-          baselines: { pikemen: batch.baselinePikemen, shieldmen: batch.baselineShieldmen },
-          ownerTask: "defense.cohort" as const,
-          createdTick: typeof proposal.createdTick === "number" ? proposal.createdTick : 0,
-          proposal: normalizedProposal,
-          serverUrl: complement.serverUrl,
-          worldId: complement.worldId,
-          epoch: complement.epoch,
-          accountId: complement.accountId,
-        }];
-      })
-    : [];
   const active = Array.isArray(value.active) ? value.active : [];
   const migratedActive=active.flatMap((item,index)=>{
     if(isRemovedLegacySend(item)){cancelled.push(removedSendDecision(item,index+1));return [];}
@@ -176,7 +136,6 @@ function migrateLegacy(value: Record<string, unknown>): SavedControl {
     ...(value.production ? { production: value.production as SavedControl["production"] } : {}),
     ...(typeof value.automatic === "boolean" ? { automatic: value.automatic } : {}),
     missions,
-    commitments,
   };
 }
 
@@ -216,7 +175,6 @@ export function controlStore(value: SavedControl): ControlStoreV2 {
     strategy: {
       schema: 1,
       missions: value.missions ?? [],
-      commitments: value.commitments ?? [],
       ...(value.production ? { production: value.production } : {}),
     },
   };
@@ -230,7 +188,6 @@ export function hydrateControlStore(store: ControlStoreV2): SavedControl {
     decisions: store.execution.decisions,
     automatic: store.execution.automatic,
     missions: store.strategy.missions,
-    commitments: store.strategy.commitments,
     production: store.strategy.production,
     persistenceFault: store.execution.persistenceFault,
   };

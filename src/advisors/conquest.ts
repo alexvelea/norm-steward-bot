@@ -1,9 +1,10 @@
 /** Research candidate: the owner's bounded first-conquest transition.
  * All proposals still pass through the President and the journalled executor.
  * Peaceful hamlet assumptions are experimental, not a player-threat policy. */
-import type {BuildingId, MapResponse, Report, Resources, SimulateBattleResponse, UnitId, VillageState} from '../shared/api.js';
+import type {Action,BuildingId, MapResponse, Report, Resources, SimulateBattleResponse, UnitId, VillageState} from '../shared/api.js';
 import type {AdvisorContext, Proposal} from './types.js';
 import { proposalTask } from '../bot/plan/graph.js';
+import { cityRoles } from "../bot/strategy/roles.js";
 import {nextConquestBuilding, fundingUpgrade, conquestLoyalty} from '../review/conquest-plan.js';
 
 export interface ConquestPlan {
@@ -90,7 +91,8 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   const owned=(v!.units.home[unit]??0)+(v!.units.away[unit]??0);
   const queued=Object.values(v!.training).flat().filter(q=>q.unit===unit).reduce((n,q)=>n+q.remaining,0);
   const remaining=goal-owned-queued;
-  const count=unit==='raider'?Math.min(remaining,Math.ceil(61/o.ticksEach)):remaining;if(count<=0)return null;
+  const count=unit==='raider'?Math.min(remaining,Math.ceil(61/o.ticksEach),
+   (rules.rules.ECONOMY as {trainBatchMax:number}).trainBatchMax,o.maxCount):remaining;if(count<=0)return null;
   if(free<o.pop*count+buffer)return build('farm',96);
   const cost=Object.fromEntries(resources.map(r=>[r,o.cost[r]*count])) as Resources;
   if(resources.some(r=>cost[r]>v!.storage))return build('storehouse',96);
@@ -106,7 +108,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   : proposalTask('conquest',{type:'train',unit},goal);
  return {id:`${state.world.epoch}:${v!.id}:conquest:train:${unit}:${goal}`,task,advisor:'conquest',villageId:v!.id,villageName:v!.name,
    action:{type:'train',village:v!.id,unit,count},buildingName:`Conquest ${unit}`,currentLevel:owned,targetLevel:owned+count,
-   importance:90,reason:'Fund the bounded escort in minute-long Raider batches and one reusable Envoy; no recurring Raider stream. Paid defensive troops remain at home.',requirements:cost,
+   importance:90,reason:'Top up the Raiders needed at home for each conquest wave, in minute-long batches, plus one reusable Envoy. Paid defensive troops remain at home.',requirements:cost,
    blockers:[...new Set(b)],status:b.length?'waiting':'ready',affordableAtTick:funded};
  }
  const producers=['lumberyard','quarry','mine'] as const;
@@ -126,11 +128,13 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   if(best)construction=best.p;
  }
  if(construction)retained.push(construction);
- if(plan.escort&&plan.waves===0&&v.buildings.barracks>=10){const p=train('raider',plan.escort);if(p)retained.push(p);}
+ if(plan.escort&&v.buildings.barracks>=10){const p=train('raider',Math.max(140,plan.escort));if(p)retained.push(p);}
  if(!next){const p=train('envoy',1);if(p)retained.push(p);}
  const raiders=v.units.home.raider??0;
- const escortReady=sequence<2||(plan.escort!==undefined&&raiders>=plan.escort);
- if(!next&&(v.units.home.envoy??0)>=1&&raiders>0&&escortReady&&!Object.values(v.training).some(q=>q.length)&&
+ const escortGoal=Math.max(140,plan.escort??Infinity);
+ const escortReady=plan.escort!==undefined&&raiders>=escortGoal;
+ const expeditionTraining=Object.values(v.training).flat().some(batch=>batch.unit==="raider"||batch.unit==="envoy");
+ if(!next&&(v.units.home.envoy??0)>=1&&raiders>0&&escortReady&&!expeditionTraining&&
    !state.commands.outgoing.some(cmd=>cmd.from.id===v.id)&&c.map?.tick===state.world.tick&&
    c.map.villages.find(t=>t.id===plan.targetId)?.ownerId===null&&c.assessment?.tick===state.world.tick&&
    c.assessment.raiders===raiders&&c.assessment.battle.winner==='attacker'&&(c.assessment.battle.attackerSurvivors.envoy??0)>=1){
@@ -142,4 +146,27 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
    importance:94,reason:'Fresh unowned target, server-simulated surviving Envoy and retained 150 Pikemen. Confirm each battle before reusing the Envoy; stop after capture or six waves.',requirements:{timber:0,stone:0,iron:0},blockers:b,status:b.length?'waiting':'ready',affordableAtTick:state.world.tick});
  }
  return deduplicateBuilds(retained);
+}
+
+export function evaluateRecall(context: AdvisorContext): Proposal<Extract<Action,{type:"recall"}>>[] {
+ const roles=context.cityRoles??cityRoles(context,[]);
+ const capital=context.state.villages.find(v=>roles.get(v.id)?.role==="capital")??context.state.villages[0];
+ if(!capital)return [];
+ return context.state.villages.filter(v=>roles.get(v.id)?.role==="economic").flatMap(city=>{
+  const raiders=city.supportHere.filter(stack=>stack.home.id===capital.id)
+   .reduce((sum,stack)=>sum+(stack.units.raider??0),0);
+  if(!raiders||(context.activeProposals??[]).some(proposal=>proposal.action.type==="recall"&&proposal.action.village===city.id&&proposal.action.home===capital.id))return [];
+  const blockers:string[]=[];
+  if(context.state.world.status!=="running")blockers.push("WORLD_NOT_RUNNING");
+  if((context.state.player.nextActTick??context.state.world.tick)>context.state.world.tick)blockers.push("COUNCIL_COOLDOWN");
+  return [{
+   id:`${context.state.world.epoch}:${city.id}:recall:${raiders}`,task:"expansion.recall" as const,
+   advisor:"conquest",villageId:city.id,villageName:city.name,
+   action:{type:"recall" as const,village:city.id,home:capital.id,units:{raider:raiders}},
+   buildingName:"Recall Raiders",currentLevel:raiders,targetLevel:0,importance:93,
+   reason:"Return every Raider stationed here from the capital after capture; leave Pikemen in place.",
+   requirements:{timber:0,stone:0,iron:0},blockers,status:blockers.length?"waiting" as const:"ready" as const,
+   affordableAtTick:null,
+  }];
+ });
 }

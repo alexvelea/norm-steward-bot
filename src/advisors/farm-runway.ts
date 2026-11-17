@@ -19,19 +19,19 @@ export function prioritizeFarmRunway({state}: AdvisorContext, proposals: Proposa
   if(!farmOption||!otherOption)continue;
   const farmWindow=completionWindow(state,v,farmOption),otherWindow=completionWindow(state,v,otherOption);
   const budget=defenseBudget(v)!;
-  const bundles=Math.ceil(61/budget.ticks),cohortTicks=budget.ticks*bundles;
+  const bundles=Math.ceil(61/budget.ticks),batchTicks=budget.ticks*bundles;
   const queueEnd=Math.max(state.world.tick,...v.training.barracks.map(q=>q.endTick));
   const interval=state.world.actIntervalTicks??0;
-  // Retain the whole-cohort/use deadline, independently of this earlier trigger.
-  if(!farmWindow||!otherWindow||Math.max(farmWindow.completionTick+interval,queueEnd)+cohortTicks+RECRUIT_USE_TICKS>state.world.endsAtTick)continue;
+  // Retain the complete-batch/use deadline, independently of this earlier trigger.
+  if(!farmWindow||!otherWindow||Math.max(farmWindow.completionTick+interval,queueEnd)+batchTicks+RECRUIT_USE_TICKS>state.world.endsAtTick)continue;
   const capacityAfterOther=otherWindow.completionTick+interval+farmOption.ticks+interval;
-  const cohortsBeforeCapacity=Math.max(0,Math.ceil((capacityAfterOther-queueEnd)/cohortTicks));
-  const required=Math.max(50,Math.ceil(v.population.max*.2))+cohortsBeforeCapacity*budget.pop*bundles;
+  const batchesBeforeCapacity=Math.max(0,Math.ceil((capacityAfterOther-queueEnd)/batchTicks));
+  const required=Math.max(50,Math.ceil(v.population.max*.2))+batchesBeforeCapacity*budget.pop*bundles;
   // The proposed alternative also reserves population when accepted.
   const freeAfterOther=v.population.max-v.population.used-otherOption.pop;
   if(freeAfterOther>=required)continue;
   farm.blockers=farm.blockers.filter(b=>b!=='NOT_NEEDED');
   farm.status=farm.blockers.length?'waiting':'ready';farm.importance=95;
-  farm.reason+=` Recruitment runway: ${selected.buildingName} then Farm would delay new capacity until tick ${capacityAfterOther}; ${cohortsBeforeCapacity} future whole cohorts need ${required} free slots including the buffer, versus ${freeAfterOther} after that build. Offer Farm first; existing paid troops already count in population used.`;
+  farm.reason+=` Recruitment runway: ${selected.buildingName} then Farm would delay new capacity until tick ${capacityAfterOther}; ${batchesBeforeCapacity} future Pikeman batches need ${required} free slots including the buffer, versus ${freeAfterOther} after that build. Offer Farm first; existing paid troops already count in population used.`;
  }
 }

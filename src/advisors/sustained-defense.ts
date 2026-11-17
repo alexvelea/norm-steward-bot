@@ -1,65 +1,128 @@
-import type { Action, Resources } from "../shared/api.js";
+import type { Action, Resources, VillageState } from "../shared/api.js";
 import type { AdvisorContext, Proposal } from "./types.js";
 import { defenseBudget, defenseReady, defenseSustainable } from "./defense-budget.js";
-import { RECRUIT_USE_TICKS } from "./defense-budget.js";
-import { proposalTask } from "../bot/plan/graph.js";
-/** Queue a little over one minute of 3Pi1Sh; fill both parts, then drain the whole cohort. */
-export function evaluateSustainedDefense({state,rules,activeProposals=[]}: AdvisorContext): Proposal<Extract<Action,{type:"train"}>>[] {
+import { minuteTrainingProposal } from "./military-training.js";
+import { cityRoles } from "../bot/strategy/roles.js";
+
+const zeroCost: Resources = { timber: 0, stone: 0, iron: 0 };
+
+function supportCommands(context: AdvisorContext, capitalId: string, cityId: string) {
+  const commands = [...context.state.commands.outgoing, ...context.state.commands.incoming]
+    .filter(command => command.kind === "support" && command.from.id === capitalId &&
+      command.to.id === cityId && !("returning" in command && command.returning));
+  return [...new Map(commands.map(command => [command.id, command])).values()];
+}
+
+function incomingSupport(context: AdvisorContext, capitalId: string, cityId: string, unit: "pikeman" | "scout"): number {
+  return supportCommands(context, capitalId, cityId)
+    .reduce((sum, command) => sum + (command.units?.[unit] ?? 0), 0);
+}
+
+function stationed(village: VillageState, unit: "pikeman" | "scout"): number {
+  return village.supportHere.reduce((sum, stack) => sum + (stack.units[unit] ?? 0), 0);
+}
+
+function supportInFlight(context: AdvisorContext, capitalId: string, cityId: string): boolean {
+  return supportCommands(context, capitalId, cityId).length > 0 ||
+    (context.activeProposals ?? []).some(proposal => proposal.action.type === "send" &&
+      proposal.action.kind === "support" && proposal.action.village === capitalId &&
+      proposal.action.target === cityId);
+}
+
+function supportProposal(
+  context: AdvisorContext, capital: VillageState, city: VillageState,
+  unit: "pikeman" | "scout", count: number, current: number, target: number,
+  task: "econ.request-defenders" | "econ.request-scouts", importance: number,
+): Proposal<Extract<Action, { type: "send" }>> {
+  const blockers: string[] = [];
+  if (context.state.world.status !== "running") blockers.push("WORLD_NOT_RUNNING");
+  if ((context.state.player.nextActTick ?? context.state.world.tick) > context.state.world.tick) blockers.push("COUNCIL_COOLDOWN");
+  return {
+    id: `${context.state.world.epoch}:${city.id}:${task}:${count}`, task, advisor: "military",
+    villageId: city.id, villageName: city.name,
+    action: { type: "send", village: capital.id, target: city.id, kind: "support", units: { [unit]: count } },
+    buildingName: `${unit} support for ${city.name}`, currentLevel: current, targetLevel: target, importance,
+    reason: `Station ${count} ${unit}s from the capital to bring this city to ${target}.`,
+    requirements: zeroCost, blockers, status: blockers.length ? "waiting" : "ready", affordableAtTick: null,
+  };
+}
+
+export function evaluateSustainedDefense(context: AdvisorContext): Proposal[] {
+  const { state, rules } = context;
   if (rules.version !== state.world.rulesVersion) throw new Error("Live rules do not match this world's rules version.");
-  const limit=(rules.rules.ECONOMY as {trainBatchMax:number}).trainBatchMax;
-  if (!Number.isSafeInteger(limit)||limit<1) throw new Error("Invalid live recruitment batch limit.");
-  const result:Proposal<Extract<Action,{type:"train"}>>[]=[];
-  for(const v of state.villages){
-    const budget=defenseBudget(v);if(!budget)continue;
-    const completing=activeProposals.some(p=>p.villageId===v.id&&p.defenseBatch);
-    if(!completing&&!defenseReady(v))continue;
-    const owned=(u:"pikeman"|"shieldman"|"raider")=>(v.units.home[u]??0)+(v.units.away[u]??0);
-    const queued=(u:string)=>Object.values(v.training).flat().filter(q=>q.unit===u).reduce((n,q)=>n+q.remaining,0);
-    const active=activeProposals.find(p=>p.villageId===v.id&&p.defenseBatch)?.defenseBatch;
-    const bundles=Math.max(1,Math.ceil(61/budget.ticks));
-    const baselinePikemen=owned("pikeman"),baselineShieldmen=owned("shieldman");
-    const targetShields=baselineShieldmen+bundles;
-    const plan=active??{baselinePikemen,baselineShieldmen,pikemen:3*bundles,shieldmen:targetShields-baselineShieldmen,ticks:0};
-    const p=v.options.train.find(o=>o.unit==="pikeman")!,s=v.options.train.find(o=>o.unit==="shieldman")!;
-    plan.ticks=plan.pikemen*p.ticksEach+plan.shieldmen*s.ticksEach;
-    const remainingP=Math.min(plan.pikemen,Math.max(0,plan.baselinePikemen+plan.pikemen-owned("pikeman")-queued("pikeman")));
-    const remainingS=Math.min(plan.shieldmen,Math.max(0,plan.baselineShieldmen+plan.shieldmen-owned("shieldman")-queued("shieldman")));
-    if(active&&!remainingP&&!remainingS)continue; // Both parts queued; no Barracks refill until it drains.
-    const unit=remainingP>0?"pikeman":"shieldman",count=unit==="pikeman"?remainingP:remainingS;
-    const option=unit==="pikeman"?p:s;
-    const blockers:string[]=[...option.blockers];const add=(b:string)=>{if(!blockers.includes(b))blockers.push(b);};let needed=true;
-    const skip=(b:string)=>{needed=false;add(b);};
-    if(!active&&!defenseSustainable(v))skip("INCOME_CANNOT_SUSTAIN_TRAINING_AND_CONSTRUCTION");
-    const fullCost=Object.fromEntries((["timber","stone","iron"] as const).map(r=>[r,remainingP*p.cost[r]+remainingS*s.cost[r]])) as Resources;
-    const funded=(["timber","stone","iron"] as const).every(r=>fullCost[r]*1000<=v.resourcesMilli[r]);
-    // A resource-only wait owns the President's budget; treating it as not-needed
-    // lets cheaper discretionary investments continually consume cohort funding.
-    if(!option.ok&&(!blockers.length||blockers.some(b=>b!=="INSUFFICIENT_RESOURCES")))skip("RECRUIT_UNAVAILABLE");
-    if(!Number.isSafeInteger(count)||count<1||count>limit||(funded&&count>option.maxCount))skip("BATCH_CAPACITY");
-    const buffer=Math.max(50,Math.ceil(v.population.max*.2));
-    const remainingPop=remainingP*p.pop+remainingS*s.pop;
-    if(v.population.max-v.population.used-buffer<remainingPop)skip("POPULATION_CAPACITY");
-    const requirements=Object.fromEntries((["timber","stone","iron"] as const).map(r=>[r,option.cost[r]*count])) as Resources;
-    let fundedAtTick=state.world.tick;
-    for(const r of ["timber","stone","iron"] as const){
-      const completeCost=fullCost[r];
-      if(completeCost>v.storage)skip("STORAGE_CAPACITY");
-      if(completeCost*1000>v.resourcesMilli[r]){
-        add("INSUFFICIENT_RESOURCES");
-        if(v.productionPerTickMilli[r]<=0)skip("NO_AFFORDABLE_TICK");
-        else fundedAtTick=Math.max(fundedAtTick,state.world.tick+Math.ceil((completeCost*1000-v.resourcesMilli[r])/v.productionPerTickMilli[r]));
+  const roles = context.cityRoles ?? cityRoles(context, []);
+  const capital = state.villages.find(village => roles.get(village.id)?.role === "capital") ?? state.villages[0];
+  if (!capital) return [];
+  const cities = state.villages.filter(village => roles.get(village.id)?.role === "economic");
+  const pikeAt = (city: VillageState) =>
+    (city.units.home.pikeman ?? 0) + stationed(city, "pikeman") +
+    incomingSupport(context, capital.id, city.id, "pikeman");
+  const defenderRequests = cities.flatMap(city => {
+    if (city.buildings.wall < 10) return [];
+    const target = Math.max(250, Math.floor((capital.units.home.pikeman ?? 0) / 3));
+    const atCity = pikeAt(city);
+    return atCity < 0.8 * target ? [{ city, target, atCity, amount: target - atCity }] : [];
+  });
+  const strongestCity = cities.reduce((maximum, city) => Math.max(maximum, pikeAt(city)), 0);
+  const producers = Math.min(capital.buildings.mine, capital.buildings.quarry, capital.buildings.lumberyard);
+  const ownTarget = producers < 20 ? 250 : Math.max(250, 3 * strongestCity);
+  const requestTotal = defenderRequests.reduce((sum, request) => sum + request.amount, 0);
+  const pikeTarget = ownTarget + requestTotal;
+  const proposals: Proposal[] = [];
+
+  const pikeOption = capital.options.train.find(option => option.unit === "pikeman");
+  const budget = defenseBudget(capital);
+  if (pikeOption && budget && defenseReady(capital)) {
+    const queued = capital.training.barracks.filter(batch => batch.unit === "pikeman")
+      .reduce((sum, batch) => sum + batch.remaining, 0);
+    const deficit = pikeTarget - (capital.units.home.pikeman ?? 0) - queued;
+    const growth = deficit <= 0 && producers >= 20;
+    const batch = growth ? Math.ceil(61 / budget.ticks) : Math.max(0, deficit);
+    if (batch > 0 && (!growth || defenseSustainable(capital))) {
+      const pikeTask = producers >= 20 ? "military.defence-scale" : "military.pikemen-baseline";
+      const proposal = minuteTrainingProposal(context, capital, "pikeman", batch, pikeTask,
+        growth ? 50 : 75,
+        growth ? "Grow the Pikemen garrison after its current target is met." :
+          `Train toward ${pikeTarget} home Pikemen: own target ${ownTarget} plus ${requestTotal} active city requests.`,
+        `${state.world.epoch}:${capital.id}:pikemen:${pikeTarget}:${growth ? "growth" : "target"}`,
+        (capital.units.home.pikeman ?? 0) + queued,
+        growth ? (capital.units.home.pikeman ?? 0) + queued + batch : pikeTarget);
+      if (proposal) {
+        proposals.push(proposal);
       }
     }
-    if(v.training.barracks.length&&!active)add("TRAIN_QUEUE_BUSY");
-    if(v.orders.train.length)add("EXTERNAL_ORDERS");
-    const start=Math.max(fundedAtTick,state.player.nextActTick??state.world.tick,...v.training.barracks.map(q=>q.endTick));
-    const remainingTicks=remainingP*p.ticksEach+remainingS*s.ticksEach;
-    if(start+remainingTicks+RECRUIT_USE_TICKS>state.world.endsAtTick)skip("ROUND_END_TOO_SOON");
-    if(state.world.status!=="running")add("WORLD_NOT_RUNNING");if((state.player.nextActTick??state.world.tick)>state.world.tick)add("COUNCIL_COOLDOWN");
-    result.push({id:`${state.world.epoch}:${v.id}:defense:${unit}:${plan.baselinePikemen}:${plan.baselineShieldmen}:${count}`,task:proposalTask("military",{type:"train",unit},owned(unit)+count),advisor:"military",villageId:v.id,villageName:v.name,
-      action:{type:"train",village:v.id,unit,count},buildingName:`3Pi1Sh: ${unit}`,currentLevel:owned(unit),targetLevel:owned(unit)+count,importance:active?100:70,
-      reason:`Queue a 3Pi1Sh cohort: ${plan.pikemen} Pikemen + ${plan.shieldmen} Shieldmen, ${plan.ticks} ticks at current Barracks speed (whole 3:1 bundles covering over one minute). Submit ${count} ${unit} now; once both parts are queued, leave Barracks alone until the cohort drains. Save through the President for an unfunded but feasible complete cohort; higher-priority deficient income and capacity still win. Keep ${buffer} population free. Construction and other training buildings can operate alongside it.`,
-      defenseBatch:plan,requirements,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:fundedAtTick});
   }
-  return result;
+  for (const request of defenderRequests) {
+    if (supportInFlight(context, capital.id, request.city.id)) continue;
+    const needed = request.amount;
+    if (needed <= 0 || (capital.units.home.pikeman ?? 0) < ownTarget + needed) continue;
+    proposals.push(supportProposal(context, capital, request.city, "pikeman", needed,
+      request.atCity, request.target, "econ.request-defenders", 80));
+  }
+
+  const homeScoutTarget = 20 * state.villages.length;
+  const scoutRequests = cities.flatMap(city => {
+    if (city.buildings.wall < 10) return [];
+    const atCity = stationed(city, "scout") + incomingSupport(context, capital.id, city.id, "scout");
+    return atCity < 20 ? [{ city, atCity, amount: 20 - atCity }] : [];
+  });
+  const scoutTarget = homeScoutTarget + scoutRequests.reduce((sum, request) => sum + request.amount, 0);
+  const queuedScouts = capital.training.stable.filter(batch => batch.unit === "scout")
+    .reduce((sum, batch) => sum + batch.remaining, 0);
+  const scoutDeficit = scoutTarget - (capital.units.home.scout ?? 0) - queuedScouts;
+  if (scoutDeficit > 0) {
+    const proposal = minuteTrainingProposal(context, capital, "scout", scoutDeficit, "military.scouts", 60,
+      `Train toward ${scoutTarget} home Scouts: ${homeScoutTarget} for owned cities plus ${scoutTarget - homeScoutTarget} active city requests.`,
+      `${state.world.epoch}:${capital.id}:scouts:${scoutTarget}`,
+      (capital.units.home.scout ?? 0) + queuedScouts, scoutTarget);
+    if (proposal) proposals.push(proposal);
+  }
+  for (const request of scoutRequests) {
+    if (supportInFlight(context, capital.id, request.city.id)) continue;
+    const needed = request.amount;
+    if (needed <= 0 || (capital.units.home.scout ?? 0) < needed) continue;
+    proposals.push(supportProposal(context, capital, request.city, "scout", needed,
+      request.atCity, 20, "econ.request-scouts", 62));
+  }
+  return proposals;
 }

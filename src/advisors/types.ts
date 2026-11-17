@@ -15,7 +15,7 @@ export interface AdvisorContext {
   activeProposals?: Proposal[];
   cityRoles?: CityRoles;
 }
-export type AdvisorAction = Extract<Action, { type: "build" | "train" | "send" | "trade" }>;
+export type AdvisorAction = Extract<Action, { type: "build" | "train" | "send" | "trade" | "recall" }>;
 export interface Proposal<A extends AdvisorAction = AdvisorAction> {
   id: string;
   task: TaskKey;
@@ -34,7 +34,6 @@ export interface Proposal<A extends AdvisorAction = AdvisorAction> {
   status: "ready" | "waiting" | "queued" | "not-needed";
   affordableAtTick: number | null;
   requestRank?: number;
-  defenseBatch?: { pikemen: number; shieldmen: number; baselinePikemen: number; baselineShieldmen: number; ticks: number };
 }
 export interface Advisor {
   id: string;
@@ -52,8 +51,14 @@ export function compareProposals(a: Proposal, b: Proposal): number {
     b.importance - a.importance ||
     (a.requestRank !== undefined && b.requestRank !== undefined ? a.requestRank - b.requestRank : 0) ||
     a.villageId.localeCompare(b.villageId) ||
-    (a.action.type === "build" ? a.action.building : a.action.type === "train" ? a.action.unit : a.action.target).localeCompare(
-      b.action.type === "build" ? b.action.building : b.action.type === "train" ? b.action.unit : b.action.target
-    )
+    actionKey(a.action).localeCompare(actionKey(b.action))
   );
+}
+
+function actionKey(action: AdvisorAction): string {
+  if (action.type === "build") return action.building;
+  if (action.type === "train") return action.unit;
+  if (action.type === "send") return action.target;
+  if (action.type === "trade") return action.target;
+  return action.home;
 }
