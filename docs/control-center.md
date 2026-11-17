@@ -230,6 +230,31 @@ cancellation/possible losses, not false confirmation. Uncertain training retries
 count and ID; observed troop or queue changes suppress replay without claiming attribution.
 The last 100 decisions and any pending request survive restarts in `control.json` (mode 0600).
 
+## Bounded first-conquest transition
+
+The verified conquest transition (ready for wrapper activation) uses this same
+President and durable executor. After 150 home Pikemen,
+it finishes the paid defensive cohort, catches all three producers up to 15, then funds
+Hall 13, Barracks 10, Smithy 10, Market 5 and Court. Capacity remains an ordinary paid
+prerequisite. It prepares one bounded Raider escort and one Envoy, retaining home infantry.
+It targets an unowned town and rechecks ownership and the server battle simulation before
+each attack, allowing at most six waves with the surviving Envoy and escort. Incoming attacks,
+external orders and scheduled actions defer transition spending. No live experimental loop
+or separate resource allocator exists.
+
+Progress is persisted under server/account/world/epoch scope, independently of the operator
+pause. Accepted attacks await their matching battle details; fresh owned-village state marks
+capture, including after a round-ending victory. A failed battle, lost Envoy, changed target
+ownership or vanished accepted command stops the plan. An uncertain applied send suppresses
+replay; an unchanged unapplied request keeps its exact action ID, and expiry pauses execution.
+Authoritative target ownership remains captured even without the final response or report;
+the journal explicitly leaves the missing request or battle attribution unknown.
+Paused restarts reconcile accepted work without submitting new actions.
+
+The matched private result demonstrates peaceful capture at 113:04, with substantially less
+home defence and lower production than continuous recruitment. It does not establish survival
+against a hostile player. See [strategy](strategy.md) for measured costs and verification status.
+
 ## Existing starter bots and operator agent
 
 Stop `npm run bot`, the Python starter and LLM shift runners for this account before automatic mode.

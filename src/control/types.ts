@@ -1,4 +1,5 @@
 import type { RaidAttempt } from "../advisors/raid-execution.js";
+import type {ConquestPlan} from "../advisors/conquest.js";
 import type { ScoutObservation } from "../advisors/scout-dispatch.js";
 import type {
   Action,
@@ -27,6 +28,7 @@ export interface Pending {
   itemId?: string;
   scout?: ScoutObservation;
   raid?: RaidAttempt;
+  conquest?: boolean;
 }
 export interface Decision {
   id: string;
@@ -57,6 +59,8 @@ export interface SavedControl {
   production?: ProductionLedger;
   scouting?: ScoutObservation[];
   raids?: RaidAttempt[];
+  /** Research candidate: scoped first-conquest progress, independent of execution pause. */
+  conquest?: ConquestPlan;
   /** Persisted execution preference; service restarts must not override an operator pause. */
   automatic?: boolean;
 }

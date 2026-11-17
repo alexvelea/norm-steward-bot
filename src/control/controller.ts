@@ -26,6 +26,8 @@ import { evaluateScoutDispatch, usableScoutObservation, type ScoutingContext, ty
 import { evaluateRaidExecution, hamletArrivalDefense, usableRaidIntel, type RaidContext, type RaidAttempt } from "../advisors/raid-execution.js";
 import { selectProposal } from "../advisors/president.js";
 import { prioritizeFarmRunway } from "../advisors/farm-runway.js";
+import {applyConquest, conquestScope, conquestTravel, type ConquestContext} from "../advisors/conquest.js";
+import {safeEnvoyAttack} from "../review/conquest-plan.js";
 import type { AdvisorContext, Proposal } from "../advisors/types.js";
 import type { ControlStorage } from "./storage.js";
 import {
@@ -77,6 +79,7 @@ export class Controller {
     rules: RulesResponse;
   } | null = null;
   private scouting: ScoutingContext | undefined;
+  private conquest: ConquestContext | undefined;
   private raids: RaidContext = { attempts: [], assessments: [] };
   private scoutReports: ReportsResponse = { reports: [], next: null };
   private persistence: Promise<void> = Promise.resolve();
@@ -445,6 +448,95 @@ export class Controller {
       break; // One authoritative risk assessment per evaluation.
     }
   }
+  /** Research transition uses only the existing executor. No timers or independent spender. */
+  private async readConquest(context: AdvisorContext): Promise<void> {
+    const {state,rules}=context;
+    const scope=conquestScope(this.settings.serverUrl,this.view.account!.id,context);
+    if(this.saved.conquest?.scope!==scope)this.saved.conquest=undefined;
+    if(!this.saved.conquest&&state.villages.length===1&&state.world.status==='running'){
+      const v=state.villages[0];
+      if((v.units.home.pikeman??0)>=150&&!Object.values(v.orders).some(q=>q.length)&&
+        !state.commands.incoming.some(c=>c.kind==='attack'&&c.to.id===v.id))
+        this.saved.conquest={scope,villageId:v.id,startedTick:state.world.tick,status:'preparing',waves:0};
+    }
+    const plan=this.saved.conquest;
+    if(!plan){this.conquest=undefined;return;}
+    const v=state.villages.find(v=>v.id===plan.villageId);
+    if(!v){plan.status='stopped';plan.reason='Origin lost';}
+    if(plan.targetId&&state.villages.some(v=>v.id===plan.targetId)){
+      plan.status='captured';plan.capturedTick??=state.world.tick;
+    }
+    this.conquest={plan};
+    if(plan.status!=='preparing'||!v||Math.min(v.buildings.lumberyard,v.buildings.quarry,v.buildings.mine)<15)return;
+    const map=await this.request<MapResponse>(this.settings,this.path('/map'));
+    this.conquest.map=map;
+    if(!plan.targetId){
+      plan.targetId=map.villages.filter(t=>t.ownerId===null).sort((a,b)=>
+        Math.hypot(a.x-v.x,a.y-v.y)-Math.hypot(b.x-v.x,b.y-v.y)||a.id.localeCompare(b.id))[0]?.id;
+      if(!plan.targetId){plan.status='stopped';plan.reason='No unowned target';return;}
+    }
+    if(map.villages.find(t=>t.id===plan.targetId)?.ownerId!==null){plan.status='stopped';plan.reason='Target ownership changed';return;}
+    const hamlet=rules.rules.MAP as {hamletLevels:{wall:number[]};hamletBaseDefense:number;hamletMilitiaCap:number;hamletMilitiaPerTick:number};
+    if(!plan.escort){
+      for(let n=20;n<=1000;n+=20){
+        const battle=await this.request<SimulateBattleResponse>(this.settings,this.path('/simulate/battle'),{
+          attacker:{raider:n,envoy:1},defender:{},wall:hamlet.hamletLevels.wall[1],loyalty:100,
+          baseDefense:hamlet.hamletBaseDefense+hamlet.hamletMilitiaCap});
+        if(safeEnvoyAttack(battle)){plan.escort=n;break;}
+      }
+      if(!plan.escort){plan.status='stopped';plan.reason='No bounded surviving-Envoy escort';return;}
+    }
+    if((v.units.home.envoy??0)<1||(v.units.home.raider??0)<1||state.commands.outgoing.some(c=>c.from.id===v.id))return;
+    const travel=conquestTravel(context,this.conquest)!;
+    const last=plan.lastBattle;
+    // Only a journal-linked own victory may reset militia. Otherwise use the maximum.
+    const baseDefense=hamlet.hamletBaseDefense+(last?.outcome==='won'?
+      Math.min(hamlet.hamletMilitiaCap,Math.ceil(hamlet.hamletMilitiaPerTick*(state.world.tick+travel-last.tick))):hamlet.hamletMilitiaCap);
+    const battle=await this.request<SimulateBattleResponse>(this.settings,this.path('/simulate/battle'),{
+      attacker:{raider:v.units.home.raider,envoy:1},defender:{},wall:hamlet.hamletLevels.wall[1],loyalty:100,baseDefense});
+    this.conquest.assessment={tick:state.world.tick,raiders:v.units.home.raider!,battle};
+  }
+  private async reconcileConquest(context: AdvisorContext,p: Pending): Promise<void> {
+    const state=context.state,plan=this.saved.conquest;
+    if(!plan||plan.scope!==conquestScope(this.settings.serverUrl,this.view.account!.id,context)){
+      this.clearOperation(p);return;
+    }
+    // Ownership establishes the objective even when the last request/report is uncertain.
+    // Do not downgrade a captured plan or attribute that ownership to an unknown write.
+    const captured=!!plan.targetId&&state.villages.some(v=>v.id===plan.targetId);
+    if(captured){plan.status='captured';plan.capturedTick??=state.world.tick;}
+    if(captured&&p.phase!=='accepted'){
+      this.record('uncertain','Fresh state confirms conquest target ownership; final request attribution remains unknown. Suppress replay.',p.proposal,p.action.clientId,state.world.tick);
+      this.clearOperation(p);await this.persist();return;
+    }
+    if(p.phase==='accepted'){
+      const report=this.scoutReports.reports.find(r=>r.commandId===p.itemId&&r.kind==='battle'&&r.role==='attacker'&&
+        r.attacker.id===plan.villageId&&r.attacker.ownerId===state.player.id&&r.defender.id===plan.targetId&&r.tick>=p.createdTick&&r.tick<=state.world.tick);
+      if(report){
+        const detail=await this.request<Report>(this.settings,this.path(`/reports/${encodeURIComponent(report.id)}`));
+        if(detail.commandId!==p.itemId||detail.attacker.id!==plan.villageId||detail.defender.id!==plan.targetId||detail.role!=='attacker')
+          throw new Error('Conquest report provenance mismatch');
+        plan.lastBattle=detail;
+        if(!captured&&(detail.outcome!=='won'||(!detail.conquered&&(detail.attackerUnits?.sent.envoy??0)-(detail.attackerUnits?.lost.envoy??0)<1))){
+          plan.status='stopped';plan.reason='Battle failed or sole Envoy lost';
+        }
+        this.record('confirmed',`Conquest battle ${detail.id}: ${detail.outcome}; loyalty ${detail.loyalty?.after??'unknown'}. Ownership is checked in fresh state.`,p.proposal,p.action.clientId,state.world.tick);
+        this.clearOperation(p);
+      }else if(!state.commands.outgoing.some(c=>c.id===p.itemId)){
+        if(!captured){plan.status='stopped';plan.reason='Accepted conquest command disappeared without report';}
+        this.record(captured?'confirmed':'cancelled',captured?
+          'Fresh state confirms conquest target ownership; no retained matching battle report, so battle attribution remains unknown.':
+          'Accepted conquest command disappeared without report; no battle success is inferred.',p.proposal,p.action.clientId,state.world.tick);
+        this.clearOperation(p);
+      }
+    }else if(state.commands.outgoing.some(c=>c.from.id===plan.villageId)||
+      (state.villages.find(v=>v.id===plan.villageId)?.units.home.raider??0)!==p.proposal.currentLevel){
+      plan.status='stopped';plan.reason='Uncertain conquest send changed troops; inspect activity';this.clearOperation(p);
+    }else if(state.world.tick>=p.expiresTick){
+      this.automatic=false;this.record('uncertain','Conquest idempotency window expired; inspect activity before resuming.',p.proposal,p.action.clientId,state.world.tick);
+    }
+    await this.persist();
+  }
   private rememberScout(observation: ScoutObservation): void {
     if (!observation.clearing && observation.targetOwnerId === null) observation = { ...observation,
       clearing: this.scouting?.observations.find(o => o.targetId === observation.targetId && o.clearing)?.clearing };
@@ -537,7 +629,8 @@ export class Controller {
         proposal.status = "waiting"; proposal.blockers.push("EXECUTOR_QUEUE_BUSY");
       }
     }
-    prioritizeFarmRunway(context, this.view.proposals);
+    if(this.conquest?.plan.status!=='preparing')prioritizeFarmRunway(context, this.view.proposals);
+    this.view.proposals=applyConquest(context,this.view.proposals,this.conquest);
     this.view.selection = selectProposal(this.saved.pending ? this.view.proposals.filter(p => p.id === this.saved.pending!.proposal.id) : this.view.proposals);
     if (!this.view.selection.selected && this.saved.active?.length) {
       this.view.selection.reason += ` Tracking ${this.saved.active.length} accepted operation(s) across independent construction/training/command queues.`;
@@ -613,7 +706,8 @@ export class Controller {
       return;
     }
     if (p.action.type === "send") {
-      if (p.raid) await this.reconcileRaid(context, p);
+      if(p.conquest)await this.reconcileConquest(context,p);
+      else if (p.raid) await this.reconcileRaid(context, p);
       else await this.reconcileScout(context, p);
       return;
     }
@@ -770,6 +864,7 @@ export class Controller {
       );
       this.view.production = productionView(this.saved.production);
       await this.readScouting(context);
+      await this.readConquest(context);
       await this.reconcile(context);
       this.plan(context);
       await this.persist();
@@ -785,6 +880,7 @@ export class Controller {
       );
       this.view.production = productionView(this.saved.production);
       await this.readScouting(fresh);
+      await this.readConquest(fresh);
       await this.reconcile(fresh);
       this.plan(fresh);
       if (!this.automatic || revision !== this.revision || this.stopped) return;
@@ -822,7 +918,8 @@ export class Controller {
             sentTick: fresh.state.world.tick,
           } } : {}),
         };
-        if (selected.action.type === "send" && (selected.action.units.raider === 10 || selected.action.units.lancer === 30)) {
+        if(selected.advisor==='conquest'&&selected.action.type==='send')pending.conquest=true;
+        if (selected.advisor!=='conquest'&&selected.action.type === "send" && (selected.action.units.raider === 10 || selected.action.units.lancer === 30)) {
           const observation = this.scouting!.observations.find(o => selected.id.endsWith(`:raid:${o.report?.id}`))!;
           pending.raid = { scope: this.scoutingScope(fresh.state), villageId: selected.villageId,
             targetId: selected.action.target, reportId: observation.report!.id, sentTick: fresh.state.world.tick };
@@ -877,7 +974,13 @@ export class Controller {
             Math.max(10000, Number(result.error.details?.retryAfterMs) || 0);
         } else if (pending.action.type === "send" && "command" in result.data) {
           const command = result.data.command;
-          if (pending.raid) {
+          if(pending.conquest){
+            if(command.kind!=='attack'||command.from.id!==pending.action.village||command.to.id!==pending.action.target||
+              JSON.stringify(command.units)!==JSON.stringify(pending.action.units))throw new RemoteError(0,5000,'Unexpected conquest command; inspect activity.');
+            pending.phase='accepted';pending.itemId=command.id;
+            this.saved.conquest!.waves++;
+            this.record('accepted',`Conquest wave ${this.saved.conquest!.waves} dispatched; arrival tick ${command.arrivalTick}.`,selected,pending.action.clientId,response.tick);
+          } else if (pending.raid) {
             if (command.kind !== "attack" || command.from.id !== pending.action.village || command.to.id !== pending.action.target ||
                 JSON.stringify(command.units) !== JSON.stringify(pending.action.units))
               throw new RemoteError(0, 5000, "Unexpected raid command result; inspect activity.");

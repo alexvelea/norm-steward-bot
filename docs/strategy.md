@@ -67,25 +67,87 @@ experiment worker outside the 15-minute Codex budget. A negative result can comp
 implementation tasks remain subject to exact tested-code evidence, checks and deployment gates.
 Next measure: observe the approved hybrid in the next live world, including production, delivered
 troops, Wall timing, spending and building-queue occupancy. Later test threats and the upstream training-speed changes only
-after live rules actually expose them. The Farm deadline guard below is deployed. Population-runway
-research and the Farm runway implementation review are complete; the unchanged tested policy is
-ready for wrapper activation. Gameplay execution preference remains unchanged.
+after live rules actually expose them. The Farm deadline and Farm runway guards are deployed (`3977d0d`, then `d054552`).
+Population-runway research and delivery are complete. Gameplay execution preference remains unchanged.
 
-## Sandbox-tested expansion proposal (2026-11-16)
+## Conquest transition: verified for activation (2026-11-17)
 
-The owner requested a transition after at least 150 Pikemen and producer minimum 15: pause
-routine production investment, push Hall 13, Barracks 10, Smithy 10, Market 5 and Court, and take
-an unowned town using Raiders plus one Envoy. A paid seed-73430 rules-v3 private prototype
-succeeded at tick 6656 (110:56), preserving 153 Pikemen/51 Shieldmen at home. It trained 140
-Raiders alongside infrastructure; one Envoy made four successful attacks, with loyalty regen
-requiring the fourth. Conquest consumed the Envoy; 108 Raiders remained as support at the new town.
+The owner requested a transition after 150 home Pikemen and producer minimum 15:
+finish the paid defensive cohort, then divert routine growth/defence spending to Hall 13,
+Barracks 10, Smithy 10, Market 5, Court, one bounded Raider escort and one reusable Envoy.
+The integrated candidate uses the existing President and durable executor. It retains existing
+buildings and troops; it does not remove live fortifications or cancel accepted work.
+Research `conquest-transition-economics` supports this bounded peaceful capture objective.
+Delivery `conquest-transition-gameplay-delivery` is now verified and ready for wrapper activation;
+this review does not itself deploy or change the persisted gameplay execution preference.
 
-No additional producer upgrades were needed after 15/15/15. Funding gaps of 209 and 22 ticks
-were handled by saving; the producer fallback was unit-checked but not exercised in this case.
-This is a scripted sandbox extension, **not a deployed conquest advisor**. The existing live
-advisor list has not changed. Detailed timing, costs, Hall-speed accounting, limits and reproduction
-are in [the conquest experiment](experiments/conquest-opening.md). Preserve this evidence when
-designing an integrated phase; do not infer combat safety or optimal thresholds from one peaceful seed.
+The falsifiable hypothesis was capture before tick 10800 while retaining at least 150 home
+Pikemen and the paid Shieldmen. Completed worker job `20261117T063645Z-a27f75` tested the exact
+candidate against deployed `d054552`: fresh matched seed-73430 owner-only worlds, rules v3,
+1000 of each initial resource, no enemies and 600-tick checkpoints. Both policies planned with
+status `running` while their private clocks were paused. Both reached common tick **6784
+(113:04)**; candidate's fourth attack captured the neutral town and ended the world by owning
+two of four villages. Baseline captured nothing. This measures peaceful feasibility and its
+opportunity cost; it cannot measure survival or post-capture growth.
+
+| Metric at tick 6784 | Continuous defence | Conquest transition |
+|---|---:|---:|
+| Home Pikemen / Shieldmen | 569 / 189 | 153 / 51 |
+| Away Raiders | 0 | 108 |
+| Origin producers timber / stone / iron | 18 / 17 / 15 | 15 / 15 / 15 |
+| Origin production/minute, timber / stone / iron | 1502.31 / 1289.53 / 950.13 | 950.13 / 950.13 / 950.13 |
+| Origin stock total (rounded) | 41179 | 23925 |
+| Non-Wall construction / Wall / training spend | 118441 / 12537 / 79680 | 136320 / 0 / 60065 |
+| Construction busy / idle ticks | 5378 / 1406 | 4376 / 2408 |
+| Barracks busy / idle ticks after first training | 5115 / 228 | 1937 / 3406 |
+| Farm / Wall | 13 / 13 | 11 / 0 |
+
+Both start training at 1441. Candidate reaches producer minimum 15 at 3673 versus 6400;
+Court completes at 6039, Envoy at 6189, attacks arrive at 6274, 6444, 6614 and 6784.
+Capture consumes the Envoy; 32 of the initial 140 Raiders are lost. Baseline has paid Mine 16
+and training still queued at the endpoint: spending and occupied ticks include accepted work,
+while completed levels and delivered troops exclude it. Candidate Barracks idleness is the
+measured diversion to conquest. Resource spending and construction time are separate costs.
+
+The candidate retains **554 fewer home infantry**, buys no Wall, and has 23.8% lower origin
+production and 41.9% lower origin stocks at capture. The acquired town adds 6302.25 timber,
+6302.25 stone, 6537 iron and 438.05 total production/minute; account production remains 12.1%
+lower. Acquired stocks and battle loot are assets, never credited as produced income. At the
+clean precombat tick 6000, retained production is 3.1% lower and stocks 27.3% lower. Retained
+production means exact stocks plus paid costs minus initial stocks, excluding overflow;
+buildings and troops remain separate assets. No threshold optimality or survival claim follows.
+
+All 363 ordinary actions succeeded and both worlds were deleted. All actions and checkpoints
+match the earlier research job `20261117T050825Z-398f24`. The current policy fingerprint is
+`a541964b6dc59c562594049b6b84a9f2fd980f7c968a155e42cba291c8a48f8a`;
+all 32 current source files byte-match the immutable tested snapshot, and fresh live rules are
+still v3. Typecheck, all 219 tests, the web build and diff checks pass. No policy was edited
+after that comparison. Wrapper push, activation and health gates still apply.
+
+Delivery verifies journal-before-write, paused restart, terminal capture, an applied response
+lost in transport, unapplied 429 retry with the same ID, expiry, changed epoch, fresh target
+ownership/home defence, external orders, incoming attacks, scheduled actions and per-action
+rejection. Failed battles or vanished accepted commands stop the plan without replacement
+attackers. A separate real-server replay of 138 paid actions exactly reproduced the captured
+endpoint and tested the Controller cycle omitted by the worker. Authoritative target ownership
+stays `captured` when the final report or response is missing, while attribution stays unknown;
+the old candidate recorded `stopped`. Both failure cases preserve a pause and make zero
+post-capture writes. The ordinary matching-report path confirms its full battle detail.
+
+Read-only receipt/source audit and per-resource spending, Farm timing and checkpoint accounting:
+`/var/lib/norm-steward-review/runs/20261117T073022Z/conquest-delivery-assessment.json`.
+Worker comparison:
+`/var/lib/norm-steward-review/experiments/jobs/20261117T063645Z-a27f75/comparison.json`.
+Lifecycle evidence:
+`/var/lib/norm-steward-review/runs/20261117T063001Z/conquest-lifecycle.json`.
+The earlier scripted prototype remains in [the conquest experiment](experiments/conquest-opening.md).
+
+Next compare defined matched hostile pressure: the 554-infantry gap and absent new Walls are
+the largest unresolved cost. Latest live evidence has no incoming attack; that snapshot does
+not establish safety. A recruitment funding guard could address part of 184 previously measured
+funding-only idle ticks (effort 5); retuning the unoptimised 20% construction allowance has broader,
+unmeasured effects (effort 8). Threat research (effort 8) takes priority by consequence and
+missing evidence. Any later policy edit requires a new matched comparison before activation.
 
 ## Verified recruitment-Farm deadline (2026-11-17)
 
@@ -147,8 +209,7 @@ plus a subsequent Farm would exhaust population reserved for future whole cohort
 live build durations, paid training completion and population already booked by accepted work;
 it preserves sustainable income, external-order and whole-cohort/use-deadline checks.
 Earlier Farm spending and queue use can delay production and fortification. More troops also
-consume resources. The candidate is **ready for wrapper activation**, with deployment still owned
-by the wrapper.
+consume resources. This candidate was deployed as `d054552` after its separate gameplay review.
 
 A matched paid-prefix test at ticks 4266–4866 supports the mechanism: candidate delivers
 89 infantry versus 67, with zero Barracks idle ticks versus 151. Final production matches;
@@ -190,13 +251,12 @@ needs a matched comparison of its own. No survival or combat benefit was measure
 Research is complete with `supports-change`. Gameplay delivery review
 (`farm-runway-gameplay-delivery`) verified the unchanged President/executor integration and added
 regressions for journal-before-write, paused restart/reconciliation, fresh external orders,
-income/population changes and per-action rejection. The implementation is ready for wrapper
-activation; no reviewer live writes or preference changes are needed. The current policy
-fingerprint exactly matches the tested candidate; policy edits require another comparison.
-Next compare the owner-requested conquest transition, including the 893-tick delay in producer-15
-readiness. It has greater strategic scope and a successful peaceful capture prototype. Extra
-funding protection has less measured upside (184 funding-only ticks in the prior two-hour replay)
-and competes with growth; defer it behind conquest research.
+income/population changes and per-action rejection. The implementation was deployed as `d054552`; no reviewer live writes or preference changes
+were needed. That deployed policy matched the tested candidate; the new conquest prototype
+requires its own comparison.
+The completed conquest comparison above measures the owner-requested expansion and its opportunity
+cost; separate gameplay delivery is next. Extra funding protection has less measured upside
+(184 funding-only ticks in the prior two-hour replay) and competes with growth.
 All 313 baseline and 334 candidate actions succeeded; both worlds were deleted. Source,
 receipt and fresh-rules audits, per-resource accounting and checkpoints:
 `/var/lib/norm-steward-review/runs/20261117T020001Z/farm-runway-full-round-assessment.json`.
