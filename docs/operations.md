@@ -32,7 +32,7 @@ and a shell; systemd owns continuous gameplay and scheduled reviews.
 | `norm-steward-control.service` | Running from the active release, with restart-on-failure enabled. |
 | Gameplay executor | Saved automatic execution enabled for `blitz-1`; recent accepted construction and fresh confirmations showed ongoing work. |
 | `norm-steward-review.timer` | Enabled; schedules around UTC :00/:30. No scheduled reviewer was running at inspection. |
-| `norm-steward-experiments.timer` | Enabled; checks roughly every two minutes. Latest invocations reported `idle`; recorded jobs were complete or cancelled. |
+| Retired experiment timer | Historical inventory only; current sandbox runs are foreground commands. See reviews.md for unit removal. |
 
 The last substantive review started at 10:00 Bucharest and timed out at 10:15. The 10:30 invocation
 reported `backoff`; the 11:00 invocation reported `paused`. At inspection, the pause file was absent,
@@ -51,10 +51,10 @@ git -C /root/norm-steward-bot log -1 --oneline
 git -C /var/lib/norm-steward-review/worktree status --short
 readlink -f /var/lib/norm-steward-deploy/current
 systemctl status norm-steward-control caddy --no-pager
-systemctl list-timers norm-steward-review.timer norm-steward-experiments.timer --no-pager
-journalctl -u norm-steward-review.service -u norm-steward-experiments.service -n 30 --no-pager
+systemctl list-timers norm-steward-review.timer --no-pager
+journalctl -u norm-steward-review.service -n 30 --no-pager
 python3 /root/norm-steward-bot/scripts/review.py status
-python3 /root/norm-steward-bot/scripts/experiments.py status
+ls /var/lib/norm-steward-review/experiments/runs  # retained single-version runs
 ss -lntp
 ```
 

@@ -556,17 +556,17 @@ export const LIMITS = {
 /** Server-side limits (transport, not game rules). */
 export const SERVER = {
   /** Per account: calls (token bucket). */
-  callBurst: 40,
-  callsPerSecond: 20,
+  callBurst: 200,
+  callsPerSecond: 100,
   /** Per account: actions across REST, MCP and both; standing orders are exempt. */
-  actionBurst: 200,
-  actionsPerSecond: 25,
+  actionBurst: 1000,
+  actionsPerSecond: 125,
   /** Calls without a key, per client IP (IPv6 grouped by /64). */
-  keylessBurst: 20,
-  keylessPerSecond: 5,
+  keylessBurst: 100,
+  keylessPerSecond: 25,
   /** Dashboard reads (GET with X-Steward-Client: dashboard), per account. */
-  dashboardBurst: 20,
-  dashboardPerSecond: 4,
+  dashboardBurst: 100,
+  dashboardPerSecond: 20,
   signupsPerIpPerHour: 5,
   rotationsPerHour: 3,
   concurrentWaitsPerAccount: 2,

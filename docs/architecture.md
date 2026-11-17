@@ -15,8 +15,7 @@ flowchart TD
   Control -->|manual commands and proxied reads| Game
   Timer[30-minute systemd review timer] --> Reviewer[Bounded noninteractive Codex review]
   Reviewer --> Worktree[Dedicated review worktree and pinned task]
-  Worktree --> Queue[Durable experiment job and immutable source copies]
-  Queue --> Worker[Experiment timer and single worker]
+  Worktree --> Worker[Immediate single-version sandbox runner]
   Worker --> Sandboxes[Owner-only paused private worlds on remote game server]
   Worktree --> Checks[Evidence gates, tests, commit and push]
   Checks --> Release[Immutable release, health check and rollback]
@@ -66,18 +65,18 @@ Its prompt and report schema are versioned files, not hidden text in a timer or 
 `progress.py` distinguishes research, experiments and deployed gameplay delivery. Stable work IDs
 prevent silent task reshuffling; a verified negative comparison can complete a research question.
 
-A long experiment snapshots baseline Git source and candidate source into a private job directory.
-`scripts/experiment-policy.mts` runs each policy through the real Controller with a sandbox-only
-transport. The server clock is paused between bounded steps; action follow-ups use one game tick,
-queue/funding events wake decisions, and idle steps are capped at 30 ticks. Ten-minute snapshots
-count completed buildings and trained units. Wall-clock duration is independent of simulated time.
-Normal action validation, ownership, stable retry IDs and rate limits still apply.
+A sandbox run selects one Git ref in a detached worktree, or explicitly uses uncommitted policy
+edits in the dedicated working tree. `scripts/sandbox-runner.mts` runs that policy through the real
+Controller with a sandbox-only transport. The server clock is paused between bounded steps;
+action follow-ups use one game tick, queue/funding events wake decisions, and idle steps are capped
+at 30 ticks. Five-minute snapshots include every owned city's state and are durable as they are taken.
 
-The persistent worker runs outside Codex's time/quota budget. It shares the review lock to avoid
-sandbox contention. The first worker supports a peaceful fresh-village comparison, one seed at a
-time. It does not measure survival, require an LLM, grant free assets, or simulate another player's
-account. Threat experiments need an appropriately controlled private scenario. Interrupted cases
-retain evidence and restart from zero after owned-world cleanup; completed cases are retained.
+The runner is foreground-only, serialized by experiment.lock, and respects the persisted review
+pause. There is no experiment queue or timer. Scheduled reviews must budget their own runtime.
+Each run has its own seed, horizon, revision/fingerprint and artifacts; reviewers compare separate
+runs by reading snapshots. Fresh peaceful worlds do not measure survival; threat tests need an
+appropriately controlled scenario. Interrupted runs preserve partial artifacts but do not count
+as completed evidence, and retries start a new run. Temporary ref worktrees are removed afterward.
 
 Policy activation requires matched evidence for the actual candidate fingerprint and current rules
 version, plus checks. Then the wrapper commits/pushes, atomically switches the release, restarts the
@@ -96,7 +95,7 @@ health restores the prior release. Source HEAD and the active release can theref
 | `.../paused`, `.../installed.json` | Separate review pause and installation marker. |
 | `.../worktree/` | Dedicated Git branch with durable unfinished prototypes. Never reset it to discard progress. |
 | `.../runs/<UTC>/` | Redacted agent logs, evidence, sandbox ownership receipts, checks and reports. |
-| `.../experiments/jobs/<id>/` | Job manifest, immutable baseline/candidate sources, traces, checkpoint tables and comparison. |
+| `.../experiments/runs/<id>/` | Single-run manifest, JSONL snapshots, result, checkpoint tables and receipts; ref worktree removed after execution. |
 | `.../review.lock`, `.../experiment.lock` | Kernel flocks; stale files alone do not mean a lock is held. |
 | `/var/lib/norm-steward-deploy/current` | Symlink to active immutable release. |
 | `.../deployment.json`, `.../releases/<commit>/` | Actual release, prior release and rollback record. Runtime settings are shared, source is immutable. |

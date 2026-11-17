@@ -1,5 +1,7 @@
 # Current strategy and implementation work
 
+> Historical experiment commands marked `retired-harness:` are archival evidence, not executable commands. Use the single-version sandbox runner documented in docs/reviews.md for new runs.
+
 
 ## Current policy: staged growth, no starter quotas, sustainable military budget
 
@@ -33,7 +35,7 @@ The final implementation additionally exposes the net budget and uses it for sto
 The comparison verifies every candidate troop submission starts after all three
 producers reach 10, with exact 3:1 cohort metadata and no Raider submissions. Private receipts:
 `/var/lib/norm-steward-review/owner-phased-economy-20261116/`. Reproduce with
-`STEWARD_BASELINE_COMMIT=61d2d2a STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx scripts/experiment-phased-economy.ts`.
+`STEWARD_BASELINE_COMMIT=61d2d2a STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx retired-harness:experiment-phased-economy.ts`.
 
 Next reviews should measure full-round delivered troops, production and retained assets, resource
 spending shares and idle queues under this policy. Old experiments starting at producer 7 are now
@@ -191,7 +193,7 @@ and finished with exactly those additional stocks; both delivered 17 Pikemen. Pr
 was identical; the baseline instead retained 42 additional population capacity. Both
 preserved a paused restart and both worlds were deleted. This measures avoided unusable
 recruitment capacity, not combat value or a whole-economy gain. Reproduce with
-`STEWARD_BASELINE_COMMIT=2ec95b6 node --import tsx scripts/experiment-recruitment-farm-window.ts`
+`STEWARD_BASELINE_COMMIT=2ec95b6 node --import tsx retired-harness:experiment-recruitment-farm-window.ts`
 in a managed review run. Results, receipts and the assessment are under
 `/var/lib/norm-steward-review/runs/20261116T230021Z/`. Earlier prototype evidence remains
 under `runs/20261116T173021Z`; its interrupted fresh-world prefixes are not completed comparisons.
@@ -307,7 +309,7 @@ received its report at 6738. Policy action spending was zero for both. Final res
 population and troops were identical. Both preserved a paused restart and reconciled their reports.
 All three worlds, including the initial fixture correction, were deleted.
 
-Reproduce with `node --import tsx scripts/experiment-scout-construction.ts` in a managed review run.
+Reproduce with `node --import tsx retired-harness:experiment-scout-construction.ts` in a managed review run.
 The default baseline is `82bce40`; `STEWARD_BASELINE_COMMIT` can select it explicitly. Raw results,
 current-code broker receipts and the initial fixture's failed comparison are under
 `/var/lib/norm-steward-review/runs/20261116T160016Z/`. This establishes ten ticks less command/report

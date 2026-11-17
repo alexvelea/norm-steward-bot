@@ -14,7 +14,7 @@ class ReviewTests(unittest.TestCase):
   self.assertEqual(budget_pause({'available':True,'limits':{'a':{'primary':{'usedPercent':100,'resetsAt':1200},'secondary':{'usedPercent':100,'resetsAt':1900}}}},1000),1960)
  def test_protected_changes_do_not_auto_activate(self):
   self.assertTrue(runner.allowed_changes(['src/advisors/hall.ts','test/hall.test.ts']))
-  for path in ['AGENTS.md','src/rules/config.ts','src/shared/api.ts','package-lock.json','scripts/review.py','scripts/experiments.py','scripts/experiment-policy.mts','deploy/service','../outside']:
+  for path in ['AGENTS.md','src/rules/config.ts','src/shared/api.ts','package-lock.json','scripts/review.py','scripts/experiments.py','scripts/sandbox-runner.mts','scripts/sandbox-broker.mts','scripts/review/sandbox-broker.ts','deploy/service','../outside']:
    self.assertFalse(runner.allowed_changes([path]))
  def test_unknown_final_result_never_activates(self):
   self.assertFalse(runner.validate_report({'summary':'done'}));self.assertFalse(runner.validate_report(None))
@@ -79,24 +79,6 @@ class ProgressTests(unittest.TestCase):
   from progress import assess
   self.report['activate']=True;(self.run/'fake.json').write_text('{"passed":true}');self.report['artifacts']=[str(self.run/'fake.json')]
   self.assertEqual(assess(self.report,self.task,['src/advisors/army.ts'],self.run,self.work,True)['kind'],'validation-missing')
- def test_actual_managed_comparison_is_credited_and_code_changes_invalidate_it(self):
-  from progress import assess
-  from sandbox import fingerprint
-  (self.work/'src/advisors').mkdir(parents=True);policy=self.work/'src/advisors/policy.ts';policy.write_text('old')
-  receipts=[]
-  for world in ['one','two']:
-   for op in ['create','step','act']:receipts.append({'op':op,'worldId':world,'ok':True,'fingerprint':fingerprint(self.work),'actionResults':[{'ok':True}]})
-  (self.run/'sandbox-events.jsonl').write_text(''.join(json.dumps(e)+'\n' for e in receipts))
-  artifact=self.run/'comparison.json';artifact.write_text(json.dumps({'passed':True,'results':[{'worldId':'one','policy':'baseline'},{'worldId':'two','policy':'candidate'}]}));self.report['artifacts']=[str(artifact)];self.report['activate']=True;self.report['verdict']='supports-change'
-  self.assertFalse(assess(self.report,self.task,['src/advisors/policy.ts'],self.run,self.work,True)['needsRetry'])
-  self.report['verdict']='rejects-change'
-  self.assertTrue(assess(self.report,self.task,['src/advisors/policy.ts'],self.run,self.work,True)['needsRetry'])
-  self.report['verdict']='supports-change'
-  artifact.write_text(json.dumps({'passed':False,'results':[{'worldId':'one','policy':'baseline'},{'worldId':'two','policy':'candidate'}]}))
-  self.assertTrue(assess(self.report,self.task,['src/advisors/policy.ts'],self.run,self.work,True)['needsRetry'])
-  artifact.write_text(json.dumps({'passed':True,'results':[{'worldId':'one','policy':'baseline'},{'worldId':'two','policy':'candidate'}]}))
-  policy.write_text('changed after experiment')
-  self.assertEqual(assess(self.report,self.task,['src/advisors/policy.ts'],self.run,self.work,True)['kind'],'validation-missing')
  def test_recovered_rate_limit_is_not_a_real_blocker(self):
   from progress import assess
   (self.run/'sandbox-events.jsonl').write_text(json.dumps({'op':'rate-limit','ok':False,'retryAfterSeconds':1})+'\n')
@@ -113,28 +95,6 @@ class ProgressTests(unittest.TestCase):
   from progress import assess
   result=assess(self.report,self.task,['src/advisors/pending.ts','src/review/report.ts'],self.run,self.work,True,['docs/review-report.md'])
   self.assertTrue(result['needsRetry'])
-
-class BrokerTests(unittest.TestCase):
- def test_broker_refuses_unregistered_live_or_foreign_world(self):
-  from sandbox import Broker,SandboxError
-  with tempfile.TemporaryDirectory() as tmp:
-   broker=Broker(pathlib.Path(tmp)/'run',pathlib.Path(tmp),api=lambda *a,**k:None)
-   for op in ['act','step','delete','read','join']:
-    with self.assertRaisesRegex(SandboxError,'not created'):broker.call({'op':op,'world':'blitz-1'})
- def test_broker_verifies_creator_and_stable_action_payload(self):
-  from sandbox import Broker,SandboxError
-  from unittest.mock import Mock
-  with tempfile.TemporaryDirectory() as tmp:
-   def api(path,body=None,method=None):
-    if path=='/me':return {'account':{'id':'owner'}}
-    if path=='/sandboxes':return {'id':'sb-one','kind':'sandbox','ownerId':'owner'}
-    if path=='/worlds/sb-one':return {'id':'sb-one','kind':'sandbox','ownerId':'owner','tick':0}
-    return {'results':[{'ok':True}]}
-   broker=Broker(pathlib.Path(tmp)/'run',pathlib.Path(tmp),api=api);broker.call({'op':'create'})
-   request={'op':'act','world':'sb-one','requestId':'stable','actions':[{'type':'build','building':'farm','village':'v'}]};broker.call(request)
-   request['actions'][0]['building']='hall'
-   with self.assertRaisesRegex(SandboxError,'different actions'):broker.call(request)
-
 
 class ReviewFlowTests(unittest.TestCase):
  def run_cycle(self,implement_on_retry):

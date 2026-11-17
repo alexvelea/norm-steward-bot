@@ -15,9 +15,9 @@ services and a game account are not required to read the code or run the ordinar
 | Review prompt | `scripts/review/prompt.md` |
 | Structured review/backlog contract | `scripts/review/result.schema.json` |
 | Review scheduler, usage, evidence and deployment | `scripts/review.py`, `scripts/review/` |
-| Persistent experiment queue and runner | `scripts/experiments.py`, `scripts/experiment-policy.mts` |
-| Private-world ownership/action broker | `scripts/sandbox.py`, `scripts/review/sandbox.py`, `src/review/sandbox-client.ts` |
-| All five systemd units | `deploy/norm-steward-*.service`, `deploy/norm-steward-*.timer` |
+| Single-version sandbox runner | `scripts/experiments.py`, `scripts/sandbox-runner.mts` |
+| Private-world ownership/action broker | `scripts/sandbox-broker.mts`, `scripts/review/sandbox-broker.ts`, `src/review/sandbox-client.ts` |
+| Control service and review service/timer | `deploy/norm-steward-*.service`, `deploy/norm-steward-*.timer` |
 | HTTPS reverse proxy | `web/Caddyfile` |
 | Fresh backlog seed | `deploy/review-backlog.example.json` |
 | Current strategy and prior reasoning | `docs/strategy.md`, `docs/strategy-history.md` |
@@ -104,7 +104,7 @@ On Alex's current machine the committed file is the whole installed site configu
 unrelated virtual hosts on a different machine. The browser talks to this HTTPS origin; the local
 control process proxies the authenticated game API to `norn-steward.velea.cc`.
 
-## 4. Authenticate and enable reviews and experiments
+## 4. Authenticate and enable reviews
 
 Use the existing Codex account on this machine:
 
@@ -125,15 +125,13 @@ are durable progress and must not be overwritten:
 
 ```bash
 cp deploy/review-backlog.example.json /var/lib/norm-steward-review/backlog.json
-install -m 0644 deploy/norm-steward-review.service deploy/norm-steward-review.timer \
-  deploy/norm-steward-experiments.service deploy/norm-steward-experiments.timer /etc/systemd/system/
+install -m 0644 deploy/norm-steward-review.service deploy/norm-steward-review.timer /etc/systemd/system/
 systemctl daemon-reload
 systemd-analyze verify /etc/systemd/system/norm-steward-review.service \
-  /etc/systemd/system/norm-steward-review.timer /etc/systemd/system/norm-steward-experiments.service \
-  /etc/systemd/system/norm-steward-experiments.timer
+  /etc/systemd/system/norm-steward-review.timer
 python3 scripts/review.py probe
 printf '%s\n' '{"installed":true}' > /var/lib/norm-steward-review/installed.json
-systemctl enable --now norm-steward-review.timer norm-steward-experiments.timer
+systemctl enable --now norm-steward-review.timer
 ```
 
 The first review creates its dedicated Git worktree and `work.json` from the backlog. `probe` checks
@@ -145,9 +143,9 @@ For a systemd-environment probe, see [reviews](reviews.md#install-on-this-machin
 
 ```bash
 python3 scripts/review.py status
-python3 scripts/experiments.py status
-systemctl list-timers norm-steward-review.timer norm-steward-experiments.timer
-journalctl -u norm-steward-control -u norm-steward-review -u norm-steward-experiments
+npm run sandbox -- --ref HEAD --hours 1  # optional foreground gameplay experiment
+systemctl list-timers norm-steward-review.timer
+journalctl -u norm-steward-control -u norm-steward-review
 python3 scripts/review.py pause
 python3 scripts/review.py resume
 ```

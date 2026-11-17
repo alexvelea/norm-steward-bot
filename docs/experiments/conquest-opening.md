@@ -1,5 +1,7 @@
 # First unowned-town conquest: rules v3
 
+> Historical experiment commands marked `retired-harness:` are archival evidence, not executable commands. Use the single-version sandbox runner documented in docs/reviews.md for new runs.
+
 Status: **successful private sandbox prototype, not a deployed conquest advisor**.
 Run: 2026-11-16, seed 73430, zero house bots, fresh 1000/1000/1000 stocks, normal paid actions,
 10800-tick round. The private clock was paused between steps. Times below are game minutes:seconds.
@@ -105,12 +107,9 @@ Requires this machine's configured game connection and sandbox permissions. Coor
 scheduled experiments so the account's two private-world slots and API limits are respected.
 Use a fresh private run directory; never point the script at a live world:
 
-```bash
-cd /root/norm-steward-bot
-export STEWARD_REVIEW_RUN="$(mktemp -d /var/lib/norm-steward-review/experiments/conquest-XXXXXX)"
-STEWARD_REVIEW_TOOLS="$PWD" STEWARD_EXPERIMENT_TICKS=10800 \
-  node --import tsx scripts/experiment-conquest-opening.mts
-```
+The specialized fixture was retired. For current full-policy runs use
+`npm run sandbox -- --ref <git-ref> --hours 1 --seed 73430`; see [reviews](../reviews.md).
+
 
 The script creates its own owner-only world and deletes it in `finally`. Logs preserve partial
 progress on interruption. `result.json` includes initial/final state, live rules, all accepted actions,

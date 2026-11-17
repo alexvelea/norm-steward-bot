@@ -1,5 +1,7 @@
 # Personal control center: first iteration
 
+> Historical experiment commands marked `retired-harness:` are archival evidence, not executable commands. Use the single-version sandbox runner documented in docs/reviews.md for new runs.
+
 This process is a client of the existing game. It contains no authoritative simulation, game clock, game account
 store or game persistence. The private file is local client configuration and execution bookkeeping.
 No LLM, model key, prompt or inference service participates in economic decisions.
@@ -320,7 +322,7 @@ For example, Lumberyard 1→2 costs 63 + 75 + 50 = 188. Live rates rise from 1.8
 +0.308. Repayment takes 611 earning ticks after the 11-tick Hall-1 build, plus any funding delay.
 Six owner-only sandbox cases test the exact old policy against the candidate one tick before,
 exactly at, and one tick after the repayment deadline, verifying live cost and rate changes.
-Run `scripts/experiment-payback.ts` with STEWARD_REVIEW_RUN pointing to a fresh private run directory.
+Run `retired-harness:experiment-payback.ts` with STEWARD_REVIEW_RUN pointing to a fresh private run directory.
 
 Hall planning applies the same rule to projected producer upgrades, using projected stocks/rates
 and live next-level costs, so it cannot justify a Hall using unprofitable future production work.

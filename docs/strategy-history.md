@@ -1,5 +1,7 @@
 # Historical strategy experiments
 
+> Historical experiment commands marked `retired-harness:` are archival evidence, not executable commands. Use the single-version sandbox runner documented in docs/reviews.md for new runs.
+
 These are historical measurements and superseded policies. [Current strategy](strategy.md) is authoritative.
 
 The following sections record earlier policies and measurements; the current policy above is
@@ -82,7 +84,7 @@ revision, duration and exact requested window, retaining its source receipt path
 Resume the candidate without repeating the completed baseline:
 
 ```bash
-STEWARD_CONTENTION_TICKS=300 STEWARD_CONTENTION_BASELINE=/var/lib/norm-steward-review/runs/20261116T133021Z/defense-contention-completed-baseline.json node --import tsx scripts/experiment-defense-contention.ts
+STEWARD_CONTENTION_TICKS=300 STEWARD_CONTENTION_BASELINE=/var/lib/norm-steward-review/runs/20261116T133021Z/defense-contention-completed-baseline.json node --import tsx retired-harness:experiment-defense-contention.ts
 ```
 
 The final initial-state assertions still require matched server stocks, buildings,
@@ -129,7 +131,7 @@ Evidence: `/var/lib/norm-steward-review/runs/20261116T130021Z/defense-contention
 `defense-cadence-comparison.json` and `sandbox-events.jsonl` in the same private directory.
 The interrupted experiments are distinct from the completed current-code comparison.
 
-Next run should start `STEWARD_CONTENTION_TICKS=300 node --import tsx scripts/experiment-defense-contention.ts`
+Next run should start `STEWARD_CONTENTION_TICKS=300 node --import tsx retired-harness:experiment-defense-contention.ts`
 before repeating checks. Measure the second cohort and resource/infrastructure tradeoff before
 activating or revising this saved buffer. The 150-tick fixture rejects a claim of increased
 completed cohorts; two extra busy ticks alone are insufficient. Then finish full-round coverage
@@ -156,7 +158,7 @@ the extra two Shieldmen's 70 timber / 60 stone / 130 iron. Both have identical c
 and show construction/training overlap. This verifies intended cohort recovery and continuing
 recruitment, not combat value or uninterrupted full-round throughput. Both worlds were deleted.
 
-Reproduce with `node --import tsx scripts/experiment-defense-recovery.ts`. Current-code receipts,
+Reproduce with `node --import tsx retired-harness:experiment-defense-recovery.ts`. Current-code receipts,
 paid setup, per-action results, queue samples and final stocks are in
 `/var/lib/norm-steward-review/runs/20261116T110010Z/defense-recovery-comparison.json` and
 `sandbox-events.jsonl` in that same private directory. Next compare uninterrupted full-round
@@ -170,7 +172,7 @@ Scout dispatch and risk-checked raids. It uses only home troops and retains cons
 standing-order, incoming-attack, intelligence, simulation, return deadline and storage guards.
 The President and durable executor remain the only allocator and writer. Reproduce its matched
 comparison against deployed `e346af8` with
-`node --import tsx scripts/experiment-raid-generalization.ts --training-overlap` in the managed
+`node --import tsx retired-harness:experiment-raid-generalization.ts --training-overlap` in the managed
 review environment. Both clocks stay paused between steps and both controllers plan as running.
 The ordinary paid fixture includes an existing force, a recent clearing and one 9Pi3Sh cohort;
 its acquisition expense and clearing losses are separate accounting views, not live profitability.
@@ -215,7 +217,7 @@ That prototype corrected the initial force ratio in its first cohort; final poli
 uses exact new 3:1 bundles, verified separately with the current controller and tests. Raw reports:
 `/var/lib/norm-steward-review/owner-parallel-military-20261116/` and
 `/var/lib/norm-steward-review/owner-parallel-batch-final-20261116/`. All created worlds are cleaned
-up. Reproduce with `STEWARD_BASELINE_COMMIT=99bc3b0 STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx scripts/experiment-parallel-military.ts`; `--batch-only` verifies the final exact-cohort policy in a short candidate run.
+up. Reproduce with `STEWARD_BASELINE_COMMIT=99bc3b0 STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx retired-harness:experiment-parallel-military.ts`; `--batch-only` verifies the final exact-cohort policy in a short candidate run.
 
 Next measure live construction/training overlap, minute-batch utilisation, cavalry unlock costs,
 and actual defensive/raid outcomes. Keep producer payback and the level-20 new-upgrade ceiling.
@@ -253,7 +255,7 @@ live speed 1); metadata speed 5 did not advance time automatically. Both worlds 
 An earlier invalid fixture attempted Smithy before Hall 5; it was rejected and deleted, then
 corrected before the matched comparison. Raw comparison/receipts stay in
 `/var/lib/norm-steward-review/owner-spending-policy-20261116/`.
-Reproduce with `STEWARD_BASELINE_COMMIT=ccbd86a STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx scripts/experiment-spending-policy.ts`.
+Reproduce with `STEWARD_BASELINE_COMMIT=ccbd86a STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx retired-harness:experiment-spending-policy.ts`.
 
 The queue serialization limitation of this first spending version is superseded by the active
 queue policy above. Army sizing remains an
@@ -279,7 +281,7 @@ through the President and durable executor. Worlds were paused lockstep (metadat
 reported durations are ticks, equivalent to seconds in the live speed-1 world. No opponents or
 threats were tested. Both worlds were deleted. Raw receipts and comparison live outside Git in
 `/var/lib/norm-steward-review/owner-opening-policy-20261116/`. Reproduce with
-`STEWARD_BASELINE_COMMIT=0c01fe6fe89e4b5c9e243f19e25eeacc35f38faa STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx scripts/experiment-opening-policy.ts`.
+`STEWARD_BASELINE_COMMIT=0c01fe6fe89e4b5c9e243f19e25eeacc35f38faa STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx retired-harness:experiment-opening-policy.ts`.
 The separate production-only feasibility script reaches levels 5/7 in 196/520 ticks; its 520-tick
 result is not the new controller's measured milestone.
 
@@ -295,7 +297,7 @@ Do not justify expensive force acquisition using tests that start with a free pr
 - Round completion guard: with a fresh idle queue, reject builds whose earliest live-duration
   completion is AFTER round end. Real private experiments confirmed equality completes, so equality
   is allowed. Resource affordability and Council cooldown are included; queued Hall changes are
-  revalidated after completion. See scripts/experiment-completion.ts and docs/reviews.md.
+  revalidated after completion. See retired-harness:experiment-completion.ts and docs/reviews.md.
 - A managed owner-only sandbox helper and explicit work contract. Reviews must actively obtain
   evidence, implement a vertical step and test it. Repeated reporting is not gameplay delivery.
 
@@ -308,7 +310,7 @@ storage and population constraints cannot reserve the economy. The live completi
 leave a 300-tick use horizon, extended for a longer Council interval plus one recruit's training.
 It does not buy Hall prerequisites or upgrade existing military facilities. Recruitment is evaluated separately after completion.
 Reproduce the economic-only versus candidate server comparison with
-`node --import tsx scripts/experiment-military.ts` using the managed review environment.
+`node --import tsx retired-harness:experiment-military.ts` using the managed review environment.
 Activation and deployment verification remain the review wrapper's responsibility. Barracks completion alone is not a measured combat gain.
 
 ## Initial defensive recruitment candidate
@@ -324,7 +326,7 @@ The executor journals training action IDs before POST, tracks accepted batch IDs
 troops during completion reconciliation, and suppresses uncertain replay after observed troop or
 queue changes. Restarts retain the same action payload and ID; an expired uncertain idempotency
 window pauses execution. Reproduce baseline/candidate and lost-response recovery with
-`node --import tsx scripts/experiment-recruitment.ts`. This initial force is an enabling defensive
+`node --import tsx retired-harness:experiment-recruitment.ts`. This initial force is an enabling defensive
 capability, not evidence of fewer battle losses. Composition and combat effectiveness remain to test.
 
 Four matched owner-only server cases verified this candidate. From tick 86 to 166, the candidate
@@ -344,7 +346,7 @@ queue/order and full-batch round deadline checks apply. Lost Pikemen are repleni
 Shieldmen. A village without Smithy 1 continues its existing Pikeman/economic policy.
 
 Reproduce the private baseline/candidate executor comparison and controlled server combat probes
-with `node --import tsx scripts/experiment-composition.ts`. The extra troops cost resources and
+with `node --import tsx retired-harness:experiment-composition.ts`. The extra troops cost resources and
 population; distinguish isolated server simulations from battles containing a Warden's own defenders.
 This bounded complement is not a claim of improved live battle results or an optimal force size.
 
@@ -355,7 +357,7 @@ battles at tick 5255 lost zero of our defenders, so that fixture showed no casua
 Isolated authoritative server probes against ten Raiders left two Pikemen and one Shieldman alive,
 where ten or sixteen Pikemen were wiped out. Against four Lancers, sixteen Pikemen lost fewer
 resources than the mixed force. The twelve-case matrix, including the rejected five-and-five
-replacement, is reproduced by `node --import tsx scripts/experiment-composition-matrix.ts`.
+replacement, is reproduced by `node --import tsx retired-harness:experiment-composition-matrix.ts`.
 Aggregate resource totals are comparisons, not exchange rates between timber, stone and iron.
 
 ## Bounded defensive Smithy unlock
@@ -371,7 +373,7 @@ complement training and 60 ticks for use. The existing President/executor revali
 after construction, so this is a bounded enabling purchase rather than an irrevocable troop plan.
 
 Reproduce the matched baseline/candidate useful and too-late cases with
-`node --import tsx scripts/experiment-smithy.ts` in the managed review environment. The comparison
+`node --import tsx retired-harness:experiment-smithy.ts` in the managed review environment. The comparison
 allows two President decisions per policy, then observes at an equal clock tick. From tick 800
 to 894, the candidate built Smithy 1 and trained five Shieldmen for 395 timber, 330 stone and
 565 iron, using 25 population (54 to 79 of 200). The baseline instead built two Lumberyard levels
@@ -401,8 +403,8 @@ the entire remaining force, whose training plus Council intervals must leave 300
 The normal durable executor
 journals and reconciles construction and training. It sends no attacks.
 
-Run `node --import tsx scripts/experiment-raiding.ts` for matched useful/late private cases
-and restart reconciliation. `scripts/experiment-raiding-risk.ts` tests explicit scouting and
+Run `node --import tsx retired-harness:experiment-raiding.ts` for matched useful/late private cases
+and restart reconciliation. `retired-harness:experiment-raiding-risk.ts` tests explicit scouting and
 combat fixtures using the authoritative non-mutating server simulator. These fixtures are
 not current enemy intelligence and do not establish profitable live raids. Live rules require
 Hall 10, Barracks 5 and Smithy 5 for Stable 1; this policy does not buy that prerequisite chain.
@@ -467,8 +469,8 @@ must leave full-complement training, another Council interval and 600 ticks for 
 rechecks live state and also leaves 600 ticks. Unavailable paths never reserve the village budget.
 Both purchases use the existing President and durable build/train executor.
 
-Reproduce the matched policy and restart comparison with `scripts/experiment-scouting.ts`, and
-physical successful/failed scouting probes with `scripts/experiment-scouting-probes.ts`. These
+Reproduce the matched policy and restart comparison with `retired-harness:experiment-scouting.ts`, and
+physical successful/failed scouting probes with `retired-harness:experiment-scouting-probes.ts`. These
 probes are private test commands, not a second live executor. Bounded automatic dispatch and report-summary freshness checks are implemented below; full intelligence collection and risk-gated raids remain subsequent work. A retained success report
 is an observation at its report tick; it cannot establish current troops, resources or ownership.
 
@@ -500,7 +502,7 @@ successful attacker scouting report linked to the journalled command, matching o
 current account/server/world/epoch, age at most 300 ticks, and a map snapshot at most 30 ticks old.
 No report summary is treated as hidden troop/resource intelligence or evidence of a profitable raid.
 
-Reproduce with `node --import tsx scripts/experiment-scout-dispatch.ts`. The managed broker exposes
+Reproduce with `node --import tsx retired-harness:experiment-scout-dispatch.ts`. The managed broker exposes
 report summaries and authoritative command refs but no map or full report detail; the experiment
 explicitly supplies a public-map fixture derived from a server-returned support destination and the
 configured Warden identity. All policy sends and reports are real private server results. This scope
@@ -535,7 +537,7 @@ battle reports across paused restarts. A report authorizes one raid; each origin
 between attempts. Changed troops/commands suppress uncertain replay; expired uncertainty pauses
 execution. The gameplay pause is preserved. This candidate adds no other executor.
 
-`scripts/experiment-raids.ts --compare` uses managed owner-only worlds and the existing trusted
+`retired-harness:experiment-raids.ts --compare` uses managed owner-only worlds and the existing trusted
 read-only evidence helper for maps, full reports and non-mutating report-based simulations. The
 Warden scenario is deliberately a negative case: full intel reveals substantial defenders and a
 wall, and ten Raiders are predicted to die. The private unsafe alternative is tested separately
@@ -552,7 +554,7 @@ retrieved full intel, rejected the dangerous raid and preserved pause across res
 unsafe private attack actually lost all ten Raiders, agreeing with the server prediction. This
 negative comparison establishes rejection and its opportunity cost, not a profitable raid.
 
-`scripts/experiment-raids.ts --favorable` constructs identical defended origins against a Reaver,
+`retired-harness:experiment-raids.ts --favorable` constructs identical defended origins against a Reaver,
 times real scouting arrivals to authoritative public snapshots, and compares the first President
 decision and equal-tick outcome. Additional origin defenses are explicit test setup, not candidate
 military purchases. The script requires actual zero-loss loot, paused restart confirmation and
@@ -590,7 +592,7 @@ It did not establish a favorable raid target. Its second wave incorrectly reused
 counts and was rejected; the reproducer now uses observed survivors and preserves ten Raiders and
 two Scouts. Do not repeat this expensive clearing setup unchanged. The saved raid candidate remains
 unactivated until a genuine favorable President dispatch, returned loot and recovery pass. A matched
-Sovereign outpost comparison is available with `scripts/experiment-raids.ts --compare --sovereign`;
+Sovereign outpost comparison is available with `retired-harness:experiment-raids.ts --compare --sovereign`;
 it uses real map ownership and aligns scouting arrival to tick 6500, without changing intel dates.
 
 The matched Sovereign pair passed at ticks 6600–6660 with equal initial buildings, resources,
@@ -626,9 +628,9 @@ twelve Rams and twenty-four Trebuchets clear the observed buildings, losing two 
 and one Trebuchet. The four additional Rams and Trebuchets would cost 2,440 timber, 2,400 stone and
 1,240 iron and take 340 Workshop ticks from the prepared state. This does not predict future
 building levels, guarantee arrival conditions or demonstrate a profitable raid. Reproduce sizing
-with `scripts/experiment-raid-frontier.ts` using the run's retained rejected observation.
+with `retired-harness:experiment-raid-frontier.ts` using the run's retained rejected observation.
 
-`scripts/experiment-raid-window.ts` now preserves this smaller-Raider alternative, fresh prediction
+`retired-harness:experiment-raid-window.ts` now preserves this smaller-Raider alternative, fresh prediction
 checks, shared storage headroom before measuring returned loot, and a candidate-only probe option.
 Run its candidate probe before spending on a matched pair; revalidate actual outpost strength before
 any clearing action. A favorable President dispatch, credited returned loot, lost-response recovery
@@ -642,7 +644,7 @@ four Rams and eight Trebuchets, leaving Wall 1 and Barracks 3. No policy raid fo
 The window fixture now sends immediately after its prediction, selects the lowest-point acquired
 outpost from a current public snapshot, accepts `--seed=73422`, and uses observed home Scouts
 instead of assuming ten remain after enemy reconnaissance. A three-seed public geography survey
-is reproduced by `scripts/experiment-raid-distance.ts`; geography alone establishes no hidden
+is reproduced by `retired-harness:experiment-raid-distance.ts`; geography alone establishes no hidden
 strength. `--baseline-from=<same-run completed candidate JSON>` can complete a matched comparison
 without repeating a successful candidate probe; it still checks equal starting state and ticks.
 
@@ -700,7 +702,7 @@ report-based simulator. The assessment must match this arrival bound at the exac
 Zero predicted losses, the twofold margin, at least sixty loot, home defensive complement, storage
 headroom, round deadline, one combat command and durable recovery requirements still apply.
 Neutral scouting retains the same distance and deadline checks. No Lancer recruitment or siege
-purchase is automated. Reproduce with `node --import tsx scripts/experiment-raid-hamlet.ts`.
+purchase is automated. Reproduce with `node --import tsx retired-harness:experiment-raid-hamlet.ts`.
 Its common ordinary setup includes costly clearing troops; returned raid loot alone cannot establish
 payback of those setup purchases or the usefulness of buying this force live.
 
@@ -731,7 +733,7 @@ requires a new full intelligence report, a current authoritative arrival-defense
 predicted losses, home defence, storage headroom and the existing President/durable executor.
 This step buys no forces or prerequisites and preserves the gameplay execution preference.
 
-Reproduce with `node --import tsx scripts/experiment-repeatable-raids.ts` in the managed review
+Reproduce with `node --import tsx retired-harness:experiment-repeatable-raids.ts` in the managed review
 environment. It reconstructs the exact deployed baseline at
 cd1f087715e6596e016bd927e4b1367963f78a82 into private run artifacts. Both policies plan with status
 running while their private clocks are paused, receive the same 100-tick evaluations plus Scout
@@ -771,7 +773,7 @@ decisions. Lower scouting priority completed one raid versus four, returning 255
 resource. Earlier production increased retained timber/iron output, but final stocks differed by
 -2654.615 timber, -4984.020 stone and +230.980 iron. This tradeoff does not support automatic
 activation of that prototype. Scout dispatch retains score 72. Reproduce the isolated rejected
-prototype with `scripts/experiment-full-round-raids.ts`, which snapshots the deployed controller
+prototype with `retired-harness:experiment-full-round-raids.ts`, which snapshots the deployed controller
 at `b584d621302cb75862db1578ed13939a6b5707a7` and changes its scouting priority explicitly.
 The common expensive force and cleared target do not establish profitable live acquisition.
 
@@ -782,7 +784,7 @@ equality, the normal full-horizon policy, completion checks, President allocatio
 executor. Dashboard three-/five-minute forecasts retain their descriptive horizons. Raid loot
 headroom remains separately checked by the raid policy.
 
-`scripts/experiment-round-storage.ts` compares the deployed controller with the current candidate
+`retired-harness:experiment-round-storage.ts` compares the deployed controller with the current candidate
 in matched owner-only 1300- and 1600-tick rounds. Both plan as running while the private clock is
 paused, and use the President and journal-before-write executor. From tick 1200, the short case
 retained 76 timber, 63 stone and 51 iron by avoiding the Storehouse, without overflow. In the
@@ -799,7 +801,7 @@ the existing 60-tick raid margin. Exact equality remains usable. This only filte
 that cannot lead to a timely raid; priorities, force purchases, intelligence requirements and
 the President's durable executor remain the same.
 
-Run `scripts/experiment-raid-generalization.ts --prepare-deadline`, then `--deadline-case`
+Run `retired-harness:experiment-raid-generalization.ts --prepare-deadline`, then `--deadline-case`
 sequentially in the managed review environment for the narrow deadline comparison. Run
 `--seeds=73422` for another full-round existing-force comparison. Both controllers plan with
 running status while the owner-only clocks are paused. The harness records setup and force

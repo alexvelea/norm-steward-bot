@@ -76,56 +76,67 @@ No-change reviews are valid. Incomplete code is retained without activation. Lar
 span reviews. The wrapper rejects auto-deployment changes to scheduler, deployment, rules/contracts,
 AGENTS.md and dependency manifests; these need an owner-driven maintenance review.
 
-## Gameplay-led experiments (2026-11-16)
+## Single-version sandbox runs
 
-The former work contract biased tasks toward code delivery, and 15-minute agent deadlines repeatedly
-left long comparisons unfinished. Research now has its own delivery type and completion gate. A
-matched, verified negative result may close a research task without a gameplay change. Gameplay
-shipments remain separately classified. Backlog entries explicitly identify research/gameplay,
-acceptance criteria and required paths. Pinned implementation work is preserved, not silently discarded.
-
-`norm-steward-experiments.timer` checks the durable queue every two minutes. Its oneshot service runs
-one baseline/candidate pair using immutable source snapshots, real owner-only paused sandboxes,
-normal actions and the existing Controller/President. It makes no model calls and continues through
-Codex quota pauses. It shares the review lock to prevent sandbox contention; review ticks during a
-running experiment skip, then consume its results on a later tick. Live gameplay is independent.
+Run a committed policy immediately on the configured host:
 
 ```bash
-python3 scripts/experiments.py status
-python3 scripts/experiments.py submit --baseline HEAD --candidate "$PWD" --ticks 7200 \
-  --hypothesis "Delay Walls to improve production without losing much army" \
-  --metric "Production, delivered troops, spending and construction occupancy"
-systemctl start --no-block norm-steward-experiments.service
-journalctl -u norm-steward-experiments.service
+npm run sandbox -- --ref HEAD --hours 1 --snapshot-ticks 300 --seed 73430
+# For uncommitted policy edits in the current dedicated worktree:
+npm run sandbox -- --working-tree --hours 1
 ```
 
-Jobs live in `/var/lib/norm-steward-review/experiments/jobs/<id>/`: job.json, two source snapshots,
-private worker logs, full action traces and ten-minute checkpoint tables, then comparison.json.
-The dashboard's Strategic reviews panel shows job status and each case's latest checkpoint, even
-when Codex is budget-paused. Completion means equal requested endpoints, matched initial assets,
-rules versions and successful owned-world action/step/cleanup receipts; it does not declare a winner.
-Reviews must interpret benefits and costs. Existing queued/running jobs with the same source fingerprints, baseline,
-seed and horizon are reused instead of duplicated.
+The default ref is HEAD. The runner creates a detached Git worktree for a ref, links the existing
+node_modules, runs the real Controller with a sandbox-only transport, then removes that worktree.
+--working-tree uses the current directory as-is without creating/removing it; do not edit it during
+the run. No gameplay execution preference is changed.
 
-Each case has a 90-minute wall-clock bound, at most three automatic attempts with 30-minute backoff,
-and explicit 429 backoff. Stable request IDs preserve action retries. After an ambiguous step,
-the runner reads the actual clock before stepping further. Completed cases are retained; interrupted
-cases preserve their evidence, clean only their registered world, then restart that case from zero.
-The worker does not resume a half-written in-memory controller. One peaceful seed is a useful first
-comparison, not general combat validation.
+The printed directory under `$STEWARD_REVIEW_DIR/experiments/runs/<id>/` contains run.json
+(revision, policy fingerprint, seed, horizon and completion status), worker.log, result.json,
+controller.json, snapshots.jsonl, checkpoints.md and sandbox ownership/action/step/delete receipts.
+Every 300 ticks (five game-minutes) by default, including tick zero and the endpoint, the worker
+visits the exact snapshot boundary and appends/fsyncs every owned city's ID/name, buildings,
+home/away units, stationed/abroad support, resources, production, queues and commands.
+result.json contains the same checkpoints. --snapshot-ticks changes cadence; --hours supports
+600–10800 ticks (up to three game hours). Construction and arrival events still bound decisions.
 
-Pause reviews prevents new experiments from starting; a running measurement is allowed to finish.
-To pause experiment scheduling immediately, disable its timer and stop its service:
-`systemctl disable --now norm-steward-experiments.timer; systemctl stop norm-steward-experiments.service`.
-Resume with `systemctl enable --now norm-steward-experiments.timer`. Recovery cleans interrupted
-registered sandboxes before retrying. A failed job is visible; inspect its private log before enqueueing
-a new attempt. No queued experiment enables or disables gameplay automation.
+There is no paired runner, comparison.json, comparison.md, durable queue or experiment timer.
+To compare versions, run each independently with the same seed/horizon/cadence and read their
+snapshots. A peaceful seed is not survival evidence. Scheduled reviews invoke this same foreground
+runner within their bounded time budget; partial runs are retained but cannot authorize activation.
+A policy activation requires two completed runs with matching seed, horizon and rules, including
+the current candidate fingerprint, successful ordinary actions and a supports-change verdict.
+The reviewer—not generated comparison code—interprets the tradeoffs.
 
-For activation, a completed worker comparison may substitute for same-run receipts **only when the
-current candidate policy fingerprint exactly matches the immutable tested source**. Later policy edits
-invalidate that evidence. The tested rules version must also match the fresh gameplay evidence;
-upstream balance changes require a new comparison, and completed jobs are never silently reused by submit. The verdict must still support the change, all checks must pass, and normal
-push/health/rollback gates still apply. No-change research does not deploy runtime files.
+The experiment.lock serializes runs across manual commands and review children, independently
+of the review.lock already held by a scheduled review. The persisted review pause prevents new
+runs; a running measurement may finish. Broker calls use shared harness token buckets (dashboard
+10/s with burst 50, calls 50/s with burst 100, actions 62/s with burst 500), reserving at least
+half the account capacity for live gameplay. All worlds share the account's server buckets.
+Backoff prefers `retryAfterMs` over Retry-After; per-action `RATE_LIMITED` results are retried with
+the same journaled IDs, using the live executor's ten-second minimum backoff and server hint.
+Steps poll state after a ticks/2000-second initial wait, with quick bounded backoff.
+Cached in-process ownership verification is invalidated/rechecked on
+403/404 or mismatched ownership. One long-lived TypeScript broker handles newline-delimited JSON
+requests over stdin/stdout per run; only that child reads credentials. Child environments use an
+allowlist of runtime paths and STEWARD directory settings, never keys or NODE_OPTIONS. Shared pacing
+state persists across brokers. Pacing locks record their holder PID and acquisition time and recover
+automatically when the holder exits or the lock exceeds ten seconds. Locks cover only bucket
+read/update; throttle sleeps happen after release. Credentials stay in `$STEWARD_CONTROL_DIR/control.json`
+(default /var/lib/norm-steward-bot); review data defaults to /var/lib/norm-steward-review.
+The runner requires installed Node dependencies and a configured authorized connection.
+
+When upgrading an installation that had the retired queue, an operator should disable and remove
+the old units (this repository does not change running hosts):
+
+```bash
+systemctl disable --now norm-steward-experiments.timer
+systemctl stop norm-steward-experiments.service
+rm /etc/systemd/system/norm-steward-experiments.timer /etc/systemd/system/norm-steward-experiments.service
+systemctl daemon-reload
+```
+
+Existing queued jobs are not migrated or silently executed. Their old artifacts remain readable.
 
 ## Verified deployment and recovery
 
@@ -186,20 +197,18 @@ shows active work, attempts/stalls, the last gameplay shipment and recent review
 ### Credential-safe experiments
 
 The reviewer is authorized to create its own experiments. It uses `PrivateSandbox` from
-`src/review/sandbox-client.ts`, backed by trusted `scripts/sandbox.py`. The broker reads configured
+`src/review/sandbox-client.ts`, backed by trusted `scripts/sandbox-broker.mts`. The broker reads configured
 credentials internally; callers see no key and cannot write to a live or foreign world. Each run
-has a durable registry of worlds it created, ownership checks before operations, stable action IDs,
+has a durable registry of worlds it created, ownership checks at creation/first use with in-process caching and invalidation, stable action IDs,
 HTTP-429 backoff, and an fsynced `sandbox-events.jsonl`. At most eight worlds can be created per run
-(two may be active on the upstream account). Cleanup runs in the agent's finally and again in the
-wrapper's finally; cleanup errors are visible. Expired worlds can be inspected in their registry.
+(two may be active on the upstream account). Cleanup runs in the worker's finally and on broker stdin EOF; a credential-free Python recovery
+bridge invokes the same TS implementation only if registry entries remain undeleted. No Python
+sandbox API implementation remains. Cleanup errors are visible. Expired worlds can be inspected in their registry.
 
-The wrapper injects STEWARD_REVIEW_RUN and STEWARD_REVIEW_TOOLS. The pinned task/prompt includes
-an executable example, not merely a demand for results. A policy activation requires at least two
-created-and-stepped owner sandboxes, a successful ordinary action, a JSON baseline/candidate
-comparison referencing those worlds, and receipts matching the current advisor/executor code
-fingerprint. Changing policy after testing invalidates that evidence. New experiments belong in
-scripts/experiment-*.ts and can be committed; raw results stay under the private run directory.
-The broker and reviewer control scripts remain protected against unattended modifications.
+The wrapper supplies the trusted tool checkout and private artifact paths. Use the single-version
+runner above for sandbox evidence; no one-off comparison scripts are required. The broker and
+reviewer control scripts remain protected against unattended modifications. Testing later edits
+requires new run evidence matching the candidate fingerprint.
 
 `python3 scripts/review.py collect --output <run>/evidence --details` fetches up to five retained
 battle detail reports as well as snapshots; reading an owner's battle detail marks it read. Normal
@@ -219,16 +228,8 @@ Six managed private sandboxes compare the exact old evaluator at 03a2a89 with th
 completion end-1, end, and end+1. The engine confirmed that exact end-tick completion DOES complete,
 so equality is allowed. The old evaluator spent 160 resources on an end+1 Cellar which never
 completed; the new evaluator spent zero. Both still build successfully at end-1 and end. Results
-are in `/var/lib/norm-steward-review/repair-completion-equality/`. Reproduce with:
-
-```bash
-STEWARD_REVIEW_RUN=/var/lib/norm-steward-review/manual-experiment \
-  node --import tsx scripts/experiment-completion.ts
-```
-
-Use a fresh private run directory for each bounded experiment. The next pinned implementation step
-is military infrastructure through the shared President, followed by recruitment via the durable
-executor. A barracks is only an enabling step; no combat gain is claimed until usable troops exist.
+are in `/var/lib/norm-steward-review/repair-completion-equality/`. The one-off harness was retired;
+these are historical receipts, not a command to reproduce with the current runner.
 
 Implementation readiness and publication are separate protocol states. The model returns
 `implementationComplete` for code/tests/experiment acceptance; it does not wait for its own commit

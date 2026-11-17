@@ -85,7 +85,7 @@ def run_agent(args,prompt,run,timeout=RUN_SECONDS):
             process.wait();process.stdout.close();process.stderr.close()
     return reason or ('completed' if process.returncode==0 else 'failed'),usage
 
-FORBIDDEN=('src/review/sandbox-client.ts','scripts/sandbox.py','AGENTS.md','src/rules/','src/shared/','scripts/review','scripts/experiments.py','scripts/experiment-policy.mts','deploy/','package.json','package-lock.json','.github/')
+FORBIDDEN=('src/review/sandbox-client.ts','scripts/sandbox-broker.mts','AGENTS.md','src/rules/','src/shared/','scripts/review','scripts/experiments.py','scripts/sandbox-runner.mts','src/review/sandbox-read.ts','deploy/','package.json','package-lock.json','.github/')
 def allowed_changes(paths):return all(not any(p==prefix or p.startswith(prefix) for prefix in FORBIDDEN) and not p.startswith(('/', '..')) for p in paths)
 
 def validate_report(report):
@@ -140,7 +140,7 @@ def review(probe=False):
                 args=['codex','exec','--ignore-user-config','-s','read-only','--json','-C',str(WORK),'-o',str(attempt_dir/'last.txt'),'-']
             else:
                 correction='' if attempt==1 else f"\nCORRECTIVE RETRY: {assessment['error'] or 'No substantive implementation or managed sandbox experiment occurred.'} You own obtaining the missing evidence. Do not repeat offline snapshots or unchanged test suites. Execute the experiment or implement the bounded candidate now. Previous result: {run}/attempt-1/result.json."
-                prompt=(ROOT/'scripts/review/prompt.md').read_text()+f'\nPinned task: {DATA}/work.json; previous state {run}/previous-state.json; backlog {DATA}/backlog.json; previous report {state.get("latestReportPath","none")}; usage {run}/usage.json; gameplay evidence {run}/evidence; experiment artifacts {run}; persistent experiment jobs {DATA}/experiments/jobs (read job.json and completed comparison.json). Remaining total seconds: {max(0,int(deadline-time.monotonic()))}.\n'+correction
+                prompt=(ROOT/'scripts/review/prompt.md').read_text()+f'\nPinned task: {DATA}/work.json; previous state {run}/previous-state.json; backlog {DATA}/backlog.json; previous report {state.get("latestReportPath","none")}; usage {run}/usage.json; gameplay evidence {run}/evidence; experiment artifacts {run}; independent sandbox runs {DATA}/experiments/runs (read run.json, result.json and snapshots.jsonl). Remaining total seconds: {max(0,int(deadline-time.monotonic()))}.\n'+correction
                 args=['codex','exec','--ignore-user-config','-c','model_reasoning_effort="high"','--dangerously-bypass-approvals-and-sandbox','--json','-C',str(WORK),'--output-schema',str(ROOT/'scripts/review/result.schema.json'),'-o',str(attempt_dir/'result.json'),'-']
             update(status='running',retryAt=0,attempt=attempt)
             outcome,tokens=run_agent(args,prompt,attempt_dir,timeout=max(1,deadline-time.monotonic()))

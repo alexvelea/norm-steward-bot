@@ -1,5 +1,7 @@
 # First strategic review: Hall pipeline cutoff
 
+> Historical experiment commands marked `retired-harness:` are archival evidence, not executable commands. Use the single-version sandbox runner documented in docs/reviews.md for new runs.
+
 Observed 2026-11-15, Blitz round 7: Hall 6, lumberyard 19, quarry/mine 18, 5,194 round ticks
 remaining, 25k/23k/15k stock, no troops/training, two incoming attacks. The retained activity had
 104 entries and no per-action failures. Recent reports included 21 defensive losses out of 26.
@@ -22,7 +24,7 @@ without inventing military value when no recruitment plan exists. No Hall-to-Min
 ## Reproducible private-sandbox comparison
 
 ```bash
-STEWARD_BENCHMARK_BASE=96cabfa node --import tsx scripts/benchmark-hall.ts
+STEWARD_BENCHMARK_BASE=96cabfa node --import tsx retired-harness:benchmark-hall.ts
 ```
 
 This reads the existing owner's private connection, creates owner-only seeded sandboxes and deletes
