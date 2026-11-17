@@ -36,6 +36,19 @@ Accepted cohort complements still finish safely. Existing buildings and troops a
 this policy only changes new proposals. New producer upgrades retain the level-20 policy ceiling
 and round-end payback test. Farm retains its capacity/bundle population policy.
 
+For sustainable defensive recruitment, the President also considers population runway before
+committing to another building. If that build followed by a Farm would leave too few slots for
+future whole minute-long cohorts plus the usual population buffer, it offers the Farm first at
+score 95. Live construction durations, action intervals and the paid Barracks queue determine
+the runway; accepted work already counts in population used. Standing build or training orders,
+occupied construction, unsustainable income and other hard blockers prevent this promotion.
+The Farm must still leave time for a complete cohort and 60 useful ticks. The existing executor
+reranks on fresh state before writing and preserves the persisted operator pause.
+
+The matched peaceful full-round test delivered 11% more infantry at a cost of 5.9% less retained
+production and later fortification/producer-15 readiness. This policy targets continuous defensive
+recruitment; its effect on survival and the proposed conquest phase remains unmeasured.
+
 Stable/cavalry development requires income for both the defensive mix and cavalry with the same
 construction allowance. Finite cavalry recruitment remains independently bounded; movement risk
 checks are separate from training quotas. Historical starter policies live only under
@@ -66,7 +79,7 @@ Scores are deterministic integers:
 
 | Candidate | Importance policy |
 |---|---|
-| Farm | 100 if no free population, otherwise 95 **only** below max(50, 20% of capacity); sufficient buffer = not-needed (20) |
+| Farm | 100 if no free population; 95 for the max(50, 20% of capacity) buffer, the next whole cohort, or sustainable recruitment runway before another selected build; otherwise not-needed (20) |
 | Storehouse | 90–99 **only** if current stock + production over min(300, remaining round ticks) exceeds capacity for any resource; otherwise not-needed (25) |
 | Cellar | 80 **only** if protection per resource is below the largest 60-tick production amount (one minute); otherwise not-needed (25) |
 | First Barracks | 79 when unlocked and usable, below capacity/protection and ahead of discretionary Hall/production investment (ties prefer Barracks); no further military levels |

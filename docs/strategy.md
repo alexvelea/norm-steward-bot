@@ -67,7 +67,9 @@ experiment worker outside the 15-minute Codex budget. A negative result can comp
 implementation tasks remain subject to exact tested-code evidence, checks and deployment gates.
 Next measure: observe the approved hybrid in the next live world, including production, delivered
 troops, Wall timing, spending and building-queue occupancy. Later test threats and the upstream training-speed changes only
-after live rules actually expose them. The verified Farm deadline candidate below is ready for wrapper activation.
+after live rules actually expose them. The Farm deadline guard below is deployed. Population-runway
+research and the Farm runway implementation review are complete; the unchanged tested policy is
+ready for wrapper activation. Gameplay execution preference remains unchanged.
 
 ## Sandbox-tested expansion proposal (2026-11-16)
 
@@ -87,7 +89,7 @@ designing an integrated phase; do not infer combat safety or optimal thresholds 
 
 ## Verified recruitment-Farm deadline (2026-11-17)
 
-The pinned `saved-farm-deadline` candidate has passed its exact-source worker comparison
+The `saved-farm-deadline` guard was deployed as `3977d0d` after its exact-source worker comparison
 and late-round regression. A Farm bought solely for
 recruitment must leave time for the full minute-long 3Pi1Sh cohort and 60 useful ticks,
 including its live construction funding/cooldown boundary and existing Barracks work.
@@ -114,21 +116,94 @@ All 13 checkpoints match. Both finish with 526 Pikemen / 174 Shieldmen, producer
 Farm 13 and Wall 12; production and exact final stocks match. Each spends 155837 resources
 on non-Wall construction, 9815 on Walls and 73455 on training. Construction occupies 6010
 ticks and is idle for 1190; paid Barracks queues occupy 4722 ticks. All 219 policy actions
-succeed in each world, and both worlds are deleted. Current policy source matches the worker
-fingerprint; worker and fresh live rules are version 3. Required checks pass (200 tests).
+succeed in each world, and both worlds are deleted. The deployed guard matched the worker
+fingerprint; worker and fresh live rules were version 3. Required checks passed (200 tests).
 
 The opening result is neutral. Combined with the late-round saving of 195 resources and
 16 otherwise unusable construction ticks, it supports this narrow guard, not a whole-round
 economic or survival gain. Baseline's additional 42 population capacity is the measured
-tradeoff; the candidate's freed construction time stays idle. The preserved implementation
-is ready for wrapper activation; deployment and gameplay pause remain wrapper responsibilities.
+tradeoff; the candidate's freed construction time stays idle. The guard is deployed;
+gameplay pause remains unchanged.
 Assessment and reproducible receipt/source audit:
 `/var/lib/norm-steward-review/runs/20261117T000021Z/farm-deadline-assessment.json`.
 
-Next research should explain the 1037 Barracks-idle ticks after training first starts at
-tick 1441, separating population, funding and executor cadence before selecting an intervention.
-Compare any resulting candidate over a matched full round; do not count the opening's
-1441 economy-only ticks as recruitment starvation or infer combat benefit from peaceful evidence.
+## Completed recruitment population runway research (2026-11-17)
+
+Research task: `hybrid-recruitment-idle-economics`. An owner-only server replay of all 219
+paid actions matched the previous experiment at all 13 checkpoints through tick 7200.
+After recruitment starts at 1441, the 1037 idle ticks comprise 848 population-blocked ticks,
+184 funding-only ticks and 5 ready-but-not-yet-executed ticks. Population and funding overlap
+for 55 of the 848 ticks; these categories prioritize population and do not promise that all
+848 ticks can be recovered. The initial 1441 economy-only ticks are excluded.
+
+Long producer and Wall builds sometimes occupy construction before a Farm becomes necessary.
+For example, Lumberyard 19 runs 6464–6672; Barracks becomes population-blocked at 6510,
+and Farm 13 only finishes at 6770. This suggests anticipating capacity before committing
+construction time, rather than tightening a cadence responsible for only five ticks here.
+Further funding protection addresses a smaller measured cause and competes with growth.
+
+The saved candidate offers a Farm through the existing President when its selected build
+plus a subsequent Farm would exhaust population reserved for future whole cohorts. It uses
+live build durations, paid training completion and population already booked by accepted work;
+it preserves sustainable income, external-order and whole-cohort/use-deadline checks.
+Earlier Farm spending and queue use can delay production and fortification. More troops also
+consume resources. The candidate is **ready for wrapper activation**, with deployment still owned
+by the wrapper.
+
+A matched paid-prefix test at ticks 4266–4866 supports the mechanism: candidate delivers
+89 infantry versus 67, with zero Barracks idle ticks versus 151. Final production matches;
+retained timber production is 5.7 lower. Training spends 2490 additional resources, Farm
+finishes at 11 versus 10, Storehouse at 7 versus 8, and Wall 10 starts 56 ticks later.
+Both worlds are deleted. This ten-minute result cannot establish full-round superiority.
+
+The completed matched peaceful worker comparison against deployed `3977d0d` supports the
+continuous-defence hypothesis: seed 73430, rules v3, a full 10800-tick private round and 19
+600-tick checkpoints. Both start training at 1441; the candidate never trails in delivered
+infantry at a checkpoint. Server action costs and queue intervals give these final results:
+
+| Metric | Baseline | Earlier Farm candidate |
+|---|---:|---:|
+| Delivered Pikemen / Shieldmen | 900 / 300 | 999 / 333 |
+| Barracks busy ticks | 8100 | 8991 |
+| Barracks idle ticks after training starts | 1259 | 368 |
+| Construction busy / idle ticks | 8322 / 2478 | 8299 / 2501 |
+| Training resource spend | 124500 | 138195 |
+| Non-Wall construction / Wall spend | 193904 / 20289 | 193175 / 20289 |
+| Final stock total | 250847 | 203400 |
+| Retained production total | 586542.1 | 552060.4 |
+| Final production total per game minute | 4830.8 | 4789.9 |
+| Final Farm / Wall / Storehouse | 15 / 15 / 18 | 16 / 15 / 17 |
+
+The 11% extra infantry costs 5.9% retained production and 18.9% final stocks; final production
+is 0.85% lower. Final timber/stone production falls 14.2% each while iron rises 35.7%; resource
+totals do not imply equal strategic value. Retained production is final milli-stocks plus paid
+spending minus initial stocks, excluding overflow; it is separate from army and buildings.
+Idle time includes the final recruitment/use-window tail, and is not a full-round attribution
+of population blockers. The initial 1441 economy-only ticks are excluded from Barracks idle.
+
+The first Wall submission moves from 3142 to 3413; at minute 60, Walls are 6 versus 3, though
+both finish at 15. All producers reach 15 at 5507 versus 6400, a 893-tick delay relevant to
+the owner's future expansion phase. Both tested policies continue defensive recruitment and
+omit that phase. Earlier Farms support the measured continuous-defence objective; conquest
+needs a matched comparison of its own. No survival or combat benefit was measured.
+
+Research is complete with `supports-change`. Gameplay delivery review
+(`farm-runway-gameplay-delivery`) verified the unchanged President/executor integration and added
+regressions for journal-before-write, paused restart/reconciliation, fresh external orders,
+income/population changes and per-action rejection. The implementation is ready for wrapper
+activation; no reviewer live writes or preference changes are needed. The current policy
+fingerprint exactly matches the tested candidate; policy edits require another comparison.
+Next compare the owner-requested conquest transition, including the 893-tick delay in producer-15
+readiness. It has greater strategic scope and a successful peaceful capture prototype. Extra
+funding protection has less measured upside (184 funding-only ticks in the prior two-hour replay)
+and competes with growth; defer it behind conquest research.
+All 313 baseline and 334 candidate actions succeeded; both worlds were deleted. Source,
+receipt and fresh-rules audits, per-resource accounting and checkpoints:
+`/var/lib/norm-steward-review/runs/20261117T020001Z/farm-runway-full-round-assessment.json`.
+Worker evidence:
+`/var/lib/norm-steward-review/experiments/jobs/20261117T003859Z-ad4d13/comparison.json`.
+Earlier bottleneck attribution and the focused mechanism test remain under
+`/var/lib/norm-steward-review/runs/20261117T003007Z/`.
 
 ## Scouting during paid construction (2026-11-16)
 

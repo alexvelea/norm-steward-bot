@@ -25,6 +25,7 @@ import { militaryAdvisor } from "../advisors/military.js";
 import { evaluateScoutDispatch, usableScoutObservation, type ScoutingContext, type ScoutObservation } from "../advisors/scout-dispatch.js";
 import { evaluateRaidExecution, hamletArrivalDefense, usableRaidIntel, type RaidContext, type RaidAttempt } from "../advisors/raid-execution.js";
 import { selectProposal } from "../advisors/president.js";
+import { prioritizeFarmRunway } from "../advisors/farm-runway.js";
 import type { AdvisorContext, Proposal } from "../advisors/types.js";
 import type { ControlStorage } from "./storage.js";
 import {
@@ -536,6 +537,7 @@ export class Controller {
         proposal.status = "waiting"; proposal.blockers.push("EXECUTOR_QUEUE_BUSY");
       }
     }
+    prioritizeFarmRunway(context, this.view.proposals);
     this.view.selection = selectProposal(this.saved.pending ? this.view.proposals.filter(p => p.id === this.saved.pending!.proposal.id) : this.view.proposals);
     if (!this.view.selection.selected && this.saved.active?.length) {
       this.view.selection.reason += ` Tracking ${this.saved.active.length} accepted operation(s) across independent construction/training/command queues.`;
