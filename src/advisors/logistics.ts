@@ -1,28 +1,35 @@
-import { createHash } from "node:crypto";
 import type { Action, BuildingId, Resources, VillageState } from "../shared/api.js";
+import { RESOURCE_IDS, type ResourceId } from "./balance.js";
 import { economicCitySetupDone } from "./economic-city.js";
 import { cityRoles } from "../bot/strategy/roles.js";
 import type { Advisor, AdvisorContext, Proposal } from "./types.js";
 import type { TaskKey } from "../bot/plan/graph.js";
 
-const resources = ["timber", "stone", "iron"] as const;
-type Amounts = Resources;
+const resources = RESOURCE_IDS;
+const producers = ["lumberyard", "quarry", "mine"] as const;
 
 interface Request {
   village: VillageState;
-  amounts: Amounts;
-  merchants: number;
+  resource: ResourceId;
+  amount: number;
   score: number;
 }
 
-function requestScore(village: VillageState): number {
-  if (!economicCitySetupDone(village)) return 90;
-  if (Math.min(village.buildings.lumberyard, village.buildings.quarry, village.buildings.mine) < 5 ||
-      village.buildings.market < 1) return 65;
-  return 40;
+function requestStage(village: VillageState): {
+  trigger: number;
+  topUp: number;
+  score: number;
+} {
+  if (!economicCitySetupDone(village)) {
+    return { trigger: 1000, topUp: 2000, score: 95 };
+  }
+  if (Math.min(...producers.map((building) => village.buildings[building])) < 10) {
+    return { trigger: 2000, topUp: 4000, score: 85 };
+  }
+  return { trigger: 2000, topUp: 4000, score: 40 };
 }
 
-function incomingTo(context: AdvisorContext, villageId: string): Amounts {
+function incomingTo(context: AdvisorContext, villageId: string): Resources {
   return context.state.trades.incoming
     .filter(trade => trade.to.id === villageId)
     .reduce((sum, trade) => ({
@@ -32,30 +39,38 @@ function incomingTo(context: AdvisorContext, villageId: string): Amounts {
     }), { timber: 0, stone: 0, iron: 0 });
 }
 
-function openRequest(
+function requestsFor(
   context: AdvisorContext,
   capital: VillageState,
   village: VillageState,
-  hasJournalTrade: boolean,
-): Request | null {
-  const hasOutgoing = context.state.trades.outgoing.some(trade =>
-    !trade.returning && trade.from.id === capital.id && trade.to.id === village.id
-  );
-  if (hasOutgoing || hasJournalTrade ||
-      !resources.some(resource => village.resources[resource] < 1000)) return null;
+): Request[] {
+  const stage = requestStage(village);
   const incoming = incomingTo(context, village.id);
-  const amounts = Object.fromEntries(resources.map(resource => [
-    resource,
-    Math.max(0, Math.min(2000, village.storage) - village.resources[resource] - incoming[resource]),
-  ])) as Amounts;
-  const sum = resources.reduce((total, resource) => total + amounts[resource], 0);
-  if (!sum) return null;
-  return {
-    village,
-    amounts,
-    merchants: Math.ceil(sum / 1000),
-    score: requestScore(village),
-  };
+  return resources.flatMap((resource) => {
+    if (village.resources[resource] >= stage.trigger) return [];
+    const hasOutgoing = context.state.trades.outgoing.some((trade) =>
+      !trade.returning &&
+      trade.from.id === capital.id &&
+      trade.to.id === village.id &&
+      (trade.resources[resource] ?? 0) > 0
+    );
+    const hasJournalTrade = (context.activeProposals ?? []).some((proposal) =>
+      proposal.action.type === "trade" &&
+      proposal.action.village === capital.id &&
+      proposal.action.target === village.id &&
+      (proposal.action.resources[resource] ?? 0) > 0
+    );
+    if (hasOutgoing || hasJournalTrade) return [];
+    const amount = Math.max(
+      0,
+      Math.min(stage.topUp, village.storage) -
+        village.resources[resource] -
+        incoming[resource],
+    );
+    return amount > 0
+      ? [{ village, resource, amount, score: stage.score }]
+      : [];
+  });
 }
 
 function tradeProposal(
@@ -65,17 +80,17 @@ function tradeProposal(
   requestRank: number,
 ): Proposal<Extract<Action, { type: "trade" }>> {
   const blockers: string[] = [];
-  if (resources.some(resource =>
-    capital.resourcesMilli[resource] < request.amounts[resource] * 1000
-  )) blockers.push("INSUFFICIENT_RESOURCES");
-  if (request.merchants > capital.merchants.available) blockers.push("NOT_ENOUGH_MERCHANTS");
+  if (capital.resourcesMilli[request.resource] < request.amount * 1000) {
+    blockers.push("INSUFFICIENT_RESOURCES");
+  }
+  if (Math.ceil(request.amount / 1000) > capital.merchants.available) {
+    blockers.push("NOT_ENOUGH_MERCHANTS");
+  }
   if ((context.state.player.nextActTick ?? 0) > context.state.world.tick) {
     blockers.push("COUNCIL_COOLDOWN");
   }
-  const digest = createHash("sha256").update(JSON.stringify(request.amounts)).digest("hex");
-  const amounts = `${request.amounts.timber}/${request.amounts.stone}/${request.amounts.iron}`;
   return {
-    id: `${context.state.world.epoch}:${capital.id}:trade:${request.village.id}:${digest}`,
+    id: `${context.state.world.epoch}:${capital.id}:trade:${request.village.id}:${request.resource}:${request.amount}`,
     task: "logistics.fulfil",
     advisor: "logistics",
     villageId: capital.id,
@@ -84,14 +99,18 @@ function tradeProposal(
       type: "trade",
       village: capital.id,
       target: request.village.id,
-      resources: request.amounts,
+      resources: { [request.resource]: request.amount },
     },
-    buildingName: `Trade to ${request.village.name}`,
+    buildingName: `Trade ${request.resource} to ${request.village.name}`,
     currentLevel: 0,
     targetLevel: 0,
     importance: request.score,
-    reason: `Fulfil the economic-city resource request (${amounts}).`,
-    requirements: request.amounts,
+    reason: `Fulfil the economic-city ${request.resource} request (${request.amount}).`,
+    requirements: {
+      timber: request.resource === "timber" ? request.amount : 0,
+      stone: request.resource === "stone" ? request.amount : 0,
+      iron: request.resource === "iron" ? request.amount : 0,
+    },
     blockers,
     status: blockers.length ? "waiting" : "ready",
     affordableAtTick: null,
@@ -149,22 +168,17 @@ export function evaluateLogistics(context: AdvisorContext): Proposal[] {
   if (!capital) return [];
   const requests = context.state.villages
     .filter(village => roles.get(village.id)?.role === "economic")
-    .map(village => {
-      const hasJournalTrade = (context.activeProposals ?? []).some(proposal =>
-        proposal.action.type === "trade" &&
-        proposal.action.village === capital.id &&
-        proposal.action.target === village.id
-      );
-      return openRequest(context, capital, village, hasJournalTrade);
-    })
-    .filter((request): request is Request => request !== null)
-    .sort((a, b) => b.score - a.score || a.village.points - b.village.points);
+    .flatMap(village => requestsFor(context, capital, village))
+    .sort((a, b) =>
+      b.score - a.score ||
+      a.village.points - b.village.points ||
+      resources.indexOf(a.resource) - resources.indexOf(b.resource)
+    );
   if (!requests.length) return [];
   const proposals: Proposal[] = requests.map((request, index) =>
     tradeProposal(context, capital, request, index)
   );
-  const totalDemand = requests.reduce((total, request) =>
-    total + resources.reduce((sum, resource) => sum + request.amounts[resource], 0), 0);
+  const totalDemand = requests.reduce((total, request) => total + request.amount, 0);
   const totalMerchants = Math.ceil(totalDemand / 1000);
   if (totalMerchants > capital.merchants.total) {
     const proposal = marketProposal(context, capital, Math.max(...requests.map(request => request.score)));

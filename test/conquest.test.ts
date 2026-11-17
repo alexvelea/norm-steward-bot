@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {applyConquest, conquestCaptureTick, conquestScope, type ConquestContext} from '../src/advisors/conquest.js';
 import {selectProposal} from '../src/advisors/president.js';
 import {allocateWithPresident} from '../src/bot/allocation/president.js';
+import {economicAdvisor} from '../src/advisors/economic.js';
 import type {AdvisorContext, Proposal} from '../src/advisors/types.js';
 import {developedContext} from './control-fixtures.js';
 import {Controller} from '../src/control/controller.js';
@@ -26,7 +27,7 @@ function fixture(){
 test('conquest retains paid defence, requires fresh neutral ownership and a surviving Envoy',()=>{
  const {context,v,c}=fixture();
  let p=selectProposal(applyConquest(context,[],c)).selected;
- assert.equal(p?.action.type,'send');if(p?.action.type==='send')assert.deepEqual(p.action.units,{raider:140,envoy:1});
+ assert.equal(p?.action.type,'send');assert.equal(p?.importance,94);if(p?.action.type==='send')assert.deepEqual(p.action.units,{raider:140,envoy:1});
  c.map!.tick--;assert.equal(applyConquest(context,[],c).length,0);c.map!.tick++;
  c.map!.villages[0].ownerId='enemy';assert.equal(applyConquest(context,[],c).length,0);c.map!.villages[0].ownerId=null;
  c.assessment!.battle.attackerSurvivors.envoy=0;assert.equal(applyConquest(context,[],c).length,0);
@@ -46,6 +47,31 @@ test('an impossible capture deadline, external orders and six waves prevent disp
  v.orders.build=[{building:'wall',toLevel:2}];assert.equal(applyConquest(context,[],c).length,0);v.orders.build=[];
 
 });
+test('standing orders, scheduled actions and a non-running world preserve proposals unchanged',()=>{
+ for(const block of [
+  (x:ReturnType<typeof fixture>)=>{x.v.orders.build=[{building:'wall',toLevel:2}];},
+  (x:ReturnType<typeof fixture>)=>{x.context.state.scheduled=[{} as any];},
+  (x:ReturnType<typeof fixture>)=>{x.context.state.world.status='ended';},
+ ]){
+  const x=fixture(),proposals=[{id:'normal',task:'economy.storehouse',villageId:x.v.id,
+   action:{type:'build',village:x.v.id,building:'storehouse'},importance:91} as Proposal];
+  block(x);
+  assert.strictEqual(applyConquest(x.context,proposals,x.c),proposals);
+ }
+});
+test('conquest keeps only the more important proposal for a duplicate village build',()=>{
+ const {context,v,c}=fixture();v.buildings.hall=12;
+ const economyHall=economicAdvisor.evaluate(context).find(p=>p.villageId===v.id&&
+  p.action.type==='build'&&p.action.building==='hall')!;
+ economyHall.importance=95;
+ let halls=applyConquest(context,[economyHall],c).filter(p=>p.villageId===v.id&&
+  p.action.type==='build'&&p.action.building==='hall');
+ assert.equal(halls.length,1);assert.equal(halls[0],economyHall);
+ economyHall.importance=80;
+ halls=applyConquest(context,[economyHall],c).filter(p=>p.villageId===v.id&&
+  p.action.type==='build'&&p.action.building==='hall');
+ assert.equal(halls.length,1);assert.equal(halls[0].advisor,'conquest');assert.equal(halls[0].importance,88);
+});
 test('transition funds producer 15 before the Court path and saves through the President',()=>{
  const {context,v,c}=fixture();v.buildings.mine=14;
  const o=v.options.build.find(o=>o.building==='mine')!;o.level=15;o.cost={timber:500,stone:500,iron:500};o.ok=false;o.blockers=['INSUFFICIENT_RESOURCES'];
@@ -55,14 +81,21 @@ test('transition funds producer 15 before the Court path and saves through the P
  assert.equal(proposals[0].action.type,'build');if(proposals[0].action.type==='build')assert.equal(proposals[0].action.building,'mine');
  assert.ok(!proposals.some(p=>p.action.type==='train'));
 });
-test('transition keeps an already-paid cohort complement, suppressing discretionary origin spending',()=>{
+test('transition keeps normal proposals alongside an already-paid cohort complement',()=>{
  const {context,c}=fixture();
  const paid={id:'paid',task:'defense.cohort',villageId:'v1',action:{type:'train',village:'v1',unit:'shieldman',count:3},defenseBatch:{pikemen:9,shieldmen:3}} as Proposal;
  const routine={...paid,id:'new',action:{type:'train',village:'v1',unit:'pikeman',count:9}} as Proposal;
  context.activeProposals=[paid];
  const result=applyConquest(context,[paid,routine],c);
- assert.ok(result.includes(paid));assert.ok(!result.includes(routine));
+ assert.ok(result.includes(paid));assert.ok(result.includes(routine));
  c.plan.status='captured';assert.deepEqual(applyConquest(context,[routine],c),[routine]);
+});
+test('first conquest Raider and Envoy proposals keep their existing importance',()=>{
+ const {context,v,c}=fixture();v.units.home.raider=0;v.units.home.envoy=0;
+ const proposals=applyConquest(context,[],c);
+ const raider=proposals.find(p=>p.action.type==='train'&&p.action.unit==='raider');
+ const envoy=proposals.find(p=>p.action.type==='train'&&p.action.unit==='envoy');
+ assert.equal(raider?.importance,90);assert.equal(envoy?.importance,90);
 });
 
 /** Exercise the production Controller, including its second state read and durable journal. */
@@ -214,19 +247,26 @@ test('repeated cycles retain one first-conquest mission instance',async()=>{
  assert.equal(x.saved().missions?.[0]?.sequence,1);
 });
 
-test('recurring conquest reuses the home escort and remaps Envoy and dispatch tasks',()=>{
+test('recurring conquest tops up the surviving escort before dispatch',()=>{
  const {context,v,c}=fixture();
- c.plan.sequence=2;c.plan.escort=200;
- v.units.home.raider=150;v.units.home.envoy=0;
+ c.plan.sequence=2;c.plan.escort=140;
+ v.units.home.raider=110;v.units.home.envoy=0;
+ v.options.train.find(option=>option.unit==='raider')!.ticksEach=2;
  let proposals=applyConquest(context,[],c);
- assert.ok(!proposals.some(p=>p.action.type==='train'&&p.action.unit==='raider'));
+ const escort=proposals.find(p=>p.action.type==='train'&&p.action.unit==='raider');
+ assert.equal(escort?.task,'expansion.escort');
+ if(escort?.action.type==='train')assert.equal(escort.action.count,30);
+ else assert.fail('Missing Raider escort top-up');
  assert.ok(proposals.some(p=>p.task==='expansion.envoy'&&p.action.type==='train'&&p.action.unit==='envoy'));
- assert.ok(!proposals.some(p=>p.task==='expansion.dispatch'));
- v.units.home.raider=200;v.units.home.envoy=1;c.assessment!.raiders=200;
+ assert.ok(!proposals.some(p=>p.action.type==='send'));
+ v.units.home.raider=140;v.units.home.envoy=1;
+ c.assessment={tick:context.state.world.tick,raiders:140,battle:{winner:'attacker',attackerSurvivors:{raider:114,envoy:1},attackerLost:{}} as any};
  proposals=applyConquest(context,[],c);
  const dispatch=proposals.find(p=>p.action.type==='send');
- assert.equal(dispatch?.task,'expansion.dispatch');
+ assert.equal(dispatch?.task,'expansion.dispatch');assert.equal(dispatch?.importance,94);
  assert.ok(!proposals.some(p=>p.action.type==='train'&&p.action.unit==='raider'));
+ c.plan.waves=1;v.units.home.raider=110;c.assessment.raiders=110;
+ assert.ok(!applyConquest(context,[],c).some(p=>p.action.type==='train'&&p.action.unit==='raider'));
 });
 
 test('recurring conquest starts only after every capital and economic-city gate is met',async()=>{
@@ -274,6 +314,20 @@ test('a recurring mission leaves capital economy selectable while waiting for it
   proposal.villageId===x.v.id&&proposal.advisor==='economic'&&proposal.status==='ready');
  assert.ok(economy.length>0);
  assert.ok(allocateWithPresident(economy).selection.selected);
+ assert.equal(view.planning.reservations.some(reservation=>reservation.kind==='exclusiveSpending'),false);
+ assert.equal(x.writes.length,0);
+});
+test('a preparing first conquest keeps an overflowing capital Storehouse selectable',async()=>{
+ const x=await executor();
+ x.v.resourcesMilli.timber=x.v.storage*1000;
+ const controller=await x.create();await controller.setAutomatic(false);await controller.cycle();
+ const view=controller.snapshot();
+ const economy=view.proposals.filter(proposal=>
+  proposal.villageId===x.v.id&&proposal.advisor==='economic'&&proposal.status==='ready');
+ const storehouse=economy.find(proposal=>
+  proposal.action.type==='build'&&proposal.action.building==='storehouse');
+ assert.ok(storehouse);
+ assert.equal(allocateWithPresident(economy).selection.selected?.id,storehouse.id);
  assert.equal(view.planning.reservations.some(reservation=>reservation.kind==='exclusiveSpending'),false);
  assert.equal(x.writes.length,0);
 });

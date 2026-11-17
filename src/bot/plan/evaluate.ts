@@ -374,6 +374,7 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
         .filter(edge => edge.kind === "contains" && edge.from === parentOf.get(node.key) && edge.to !== node.key)
         .map(edge => states.get(edge.to));
       state.progress = { observed: steps.filter(step => step?.progress.goal !== null && step !== undefined && step.progress.observed !== null && step.progress.observed >= step.progress.goal!).length, goal: steps.length };
+      if (steps.length > 0 && state.progress.observed === steps.length) { state.status = "satisfied"; state.primaryBlocker = null; }
     }
     for (const state of states.values()) {
       const applies = effectiveRoles(state.key)?.includes(role) ?? true;

@@ -598,13 +598,16 @@ export class Controller {
     this.view.proposals = [economicAdvisor, militaryAdvisor, economicCityAdvisor, logisticsAdvisor].flatMap(
       (advisor) => advisor.evaluate(context),
     );
-    if(this.conquest?.plan.status!=='preparing')prioritizeFarmRunway(context, this.view.proposals);
+    // Role filter first: deduplication must never let a role-excluded proposal displace an allowed one.
+    this.view.proposals=filterProposalsByRole(this.view.proposals,roles,effectiveRoles);
+    prioritizeFarmRunway(context, this.view.proposals);
     this.view.proposals=applyConquest(context,this.view.proposals,this.conquest);
     const eligible=context.state.villages.filter(v=>earlyBuildWindow(context.state,v));
     if(eligible.length){
       const future=constructionContext(context);
       let builds=[economicAdvisor,militaryAdvisor,economicCityAdvisor,logisticsAdvisor].flatMap(a=>a.evaluate(future));
-      if(this.conquest?.plan.status!=='preparing')prioritizeFarmRunway(future,builds);
+      builds=filterProposalsByRole(builds,roles,effectiveRoles);
+      prioritizeFarmRunway(future,builds);
       builds=applyConquest(future,builds,this.conquest).filter(p=>p.action.type==='build'&&eligible.some(v=>v.id===p.villageId));
       for(const p of builds){
         const actual=eligible.find(v=>v.id===p.villageId)!;
@@ -618,7 +621,17 @@ export class Controller {
       !this.view.proposals.some(proposal=>proposal.id===pendingTrade.proposal.id))
       this.view.proposals.push(pendingTrade.proposal);
     this.view.proposals=filterProposalsByRole(this.view.proposals,roles,effectiveRoles);
-    const lane = (a: Proposal["action"]) => a.type === "build" ? `${a.village}:build` : a.type === "send" ? "combat" : a.type === "trade" ? `${a.village}:trade` : `${a.village}:train:${(context.rules.rules.UNITS as Record<string,{building:string}>)[a.unit].building}`;
+    const lane = (a: Proposal["action"]) => {
+      if (a.type === "build") return `${a.village}:build`;
+      if (a.type === "send") return "combat";
+      if (a.type === "trade") {
+        const resource = (["timber", "stone", "iron"] as const).find(
+          (value) => (a.resources[value] ?? 0) > 0,
+        );
+        return `${a.village}:trade:${a.target}:${resource ?? "none"}`;
+      }
+      return `${a.village}:train:${(context.rules.rules.UNITS as Record<string,{building:string}>)[a.unit].building}`;
+    };
     for (const proposal of this.view.proposals) {
       const occupied = (this.saved.active ?? []).filter(p => lane(p.action) === lane(proposal.action));
       // A recorded 3Pi1Sh cohort may add its second unit type to the same Barracks queue.
@@ -631,32 +644,7 @@ export class Controller {
         proposal.status = "waiting"; proposal.blockers.push("EXECUTOR_QUEUE_BUSY");
       }
     }
-    const mission=missions.filter(value=>value.status==='active').sort((a,b)=>a.startedTick-b.startedTick).at(-1);
     const allocation=allocateWithPresident(this.view.proposals,{
-      ...(this.conquest?.plan.status==='preparing'&&mission&&(mission.sequence??1)===1?{
-        activeConquest:{
-          id:mission.id,
-          villageId:mission.villageId,
-          allowedTasks:[
-            "defense.cohort",
-            "conquest.producer-investment",
-            "conquest.hall13",
-            "conquest.barracks10",
-            "conquest.smithy10",
-            "conquest.market5",
-            "conquest.court",
-            "conquest.capacity",
-            "conquest.escort",
-            "conquest.envoy",
-            "conquest.dispatch",
-            "expansion.escort",
-            "expansion.envoy",
-            "expansion.dispatch",
-            "logistics.fulfil",
-            "logistics.market-growth",
-          ],
-        },
-      }:{}),
       pending:this.saved.pending?.proposal??null,
     });
     this.view.selection = allocation.selection;

@@ -347,11 +347,18 @@ test("economic-city setup builds its next step, Farm or Storehouse unblocker, th
   ));
   Object.assign(economic.buildings, { lumberyard: 4, quarry: 4, mine: 4 });
   economic.resourcesMilli = { timber: 10000000, stone: 10000000, iron: 10000000 };
+  economic.production = { timber: 100, stone: 100, iron: 100 };
+  economic.resources = { timber: 500, stone: 5000, iron: 5000 };
   const producerWork = evaluateEconomicCities(c).filter(proposal =>
     ["econ.lumberyard", "econ.quarry", "econ.mine"].includes(proposal.task)
   );
   assert.ok(producerWork.length > 0);
-  assert.ok(producerWork.every(proposal => proposal.advisor === "economic-city" && proposal.importance <= 65));
+  assert.ok(producerWork.every(proposal => proposal.advisor === "economic-city"));
+  assert.ok(producerWork.some(proposal =>
+    proposal.action.type === "build" &&
+    proposal.action.building === "lumberyard" &&
+    proposal.importance > 65
+  ));
 
   economic.storage = 10000;
   economic.productionPerTickMilli = { timber: 30000, stone: 30000, iron: 30000 };
@@ -394,76 +401,290 @@ test("economic-city build options preserve queue, affordability and round-end bl
   assert.ok(proposal.blockers.includes("ROUND_END_TOO_SOON"));
 });
 
-test("logistics requests top up resources, rank by score and points, and suppress in-flight work", () => {
+test("economic-city Storehouse overflow survives conquest deduplication", () => {
+  const c = context();
+  const economic = structuredClone(c.state.villages[0]!);
+  economic.id = "v2";
+  economic.name = "Harbor";
+  economic.storage = 5000;
+  economic.resources = { timber: 10000, stone: 10000, iron: 10000 };
+  economic.resourcesMilli = { timber: 10000000, stone: 10000000, iron: 10000000 };
+  Object.assign(economic.buildings, {
+    cellar: 10,
+    hall: 13,
+    storehouse: 3,
+    lumberyard: 5,
+    quarry: 5,
+    mine: 5,
+  });
+  c.state.villages.push(economic);
+  c.state.world.villages = 2;
+  const roles = cityRoles(c, []);
+  (c as AdvisorContext).cityRoles = roles;
+  const proposals = [
+    ...economicAdvisor.evaluate(c),
+    ...evaluateEconomicCities(c),
+  ];
+  const capitalStorehouse = proposals.find(
+    (proposal) =>
+      proposal.villageId === economic.id &&
+      proposal.task === "economy.storehouse" &&
+      proposal.action.type === "build" &&
+      proposal.action.building === "storehouse",
+  );
+  const economicStorehouse = proposals.find(
+    (proposal) =>
+      proposal.villageId === economic.id &&
+      proposal.task === "econ.storehouse" &&
+      proposal.action.type === "build" &&
+      proposal.action.building === "storehouse",
+  );
+  assert.ok(capitalStorehouse);
+  assert.ok(economicStorehouse);
+  assert.ok(capitalStorehouse.importance > economicStorehouse.importance);
+
+  const conquest = {
+    plan: {
+      scope: conquestScope("https://sandbox.invalid", "p1", c),
+      villageId: "v1",
+      startedTick: c.state.world.tick,
+      status: "preparing" as const,
+      waves: 0,
+    },
+  };
+  const filteredAfterConquest = filterProposalsByRole(
+    applyConquest(c, [...proposals], conquest),
+    roles,
+    effectiveRoles,
+  );
+  assert.ok(!filteredAfterConquest.some((proposal) => proposal.id === economicStorehouse.id));
+
+  const allowed = filterProposalsByRole(proposals, roles, effectiveRoles);
+  const afterConquest = applyConquest(c, allowed, conquest);
+  assert.ok(afterConquest.some((proposal) => proposal.id === economicStorehouse.id));
+  assert.ok(!afterConquest.some((proposal) => proposal.id === capitalStorehouse.id));
+});
+
+function economicCity(
+  c: ReturnType<typeof context>,
+  id: string,
+  name: string,
+  points: number,
+) {
+  const city = structuredClone(c.state.villages[0]!);
+  city.id = id;
+  city.name = name;
+  city.points = points;
+  city.storage = 5000;
+  c.state.villages.push(city);
+  return city;
+}
+
+function assignLogisticsRoles(
+  c: ReturnType<typeof context>,
+  cities: ReturnType<typeof economicCity>[],
+) {
+  const roles = new Map<
+    string,
+    { role: "capital" | "economic"; reason: string }
+  >();
+  roles.set(c.state.villages[0]!.id, { role: "capital", reason: "test" });
+  for (const city of cities) {
+    roles.set(city.id, { role: "economic", reason: "test" });
+  }
+  (c as AdvisorContext).cityRoles = roles;
+}
+
+test("logistics splits staged top-ups by resource and preserves request order", () => {
   const c = context();
   const capital = c.state.villages[0]!;
-  const city = structuredClone(capital);
-  city.id = "v2";
-  city.name = "Harbor";
-  city.points = 200;
-  city.storage = 1500;
-  city.resources = { timber: 500, stone: 1100, iron: 900 };
-  city.resourcesMilli = { timber: 500000, stone: 1100000, iron: 900000 };
-  const lowerPoints = structuredClone(city);
-  lowerPoints.id = "v3";
-  lowerPoints.name = "Low Point";
-  lowerPoints.points = 10;
-  c.state.villages.push(city, lowerPoints);
-  c.state.world.villages = 3;
-  (c as AdvisorContext).cityRoles = cityRoles(c, []);
-  capital.resourcesMilli = { timber: 10000000, stone: 10000000, iron: 10000000 };
-  capital.merchants = { total: 1, available: 0 };
-  c.state.player.nextActTick = c.state.world.tick + 1;
-  const proposals = logisticsAdvisor.evaluate(c);
-  const request = proposals.find(proposal =>
-    proposal.action.type === "trade" && proposal.action.target === "v2"
-  )!;
-  assert.deepEqual(request.action.type === "trade" ? request.action.resources : null, {
-    timber: 1000, stone: 400, iron: 600,
+  const setup = economicCity(c, "v2", "Setup", 100);
+  const growth = economicCity(c, "v3", "Growth", 200);
+  const developed = economicCity(c, "v4", "Developed", 300);
+  const lowerPointDeveloped = economicCity(c, "v5", "Lower Point Developed", 250);
+  c.state.world.villages = 5;
+  Object.assign(setup, {
+    storage: 5000,
+    resources: { timber: 500, stone: 1500, iron: 5000 },
   });
-  assert.equal(request.importance, 90);
-  assert.ok(request.blockers.includes("NOT_ENOUGH_MERCHANTS"));
-  assert.ok(request.blockers.includes("COUNCIL_COOLDOWN"));
-  capital.resourcesMilli.timber = 0;
-  assert.ok(logisticsAdvisor.evaluate(c).find(proposal =>
-    proposal.action.type === "trade" && proposal.action.target === "v2"
-  )?.blockers.includes("INSUFFICIENT_RESOURCES"));
-  capital.resourcesMilli.timber = 10000000;
+  Object.assign(growth.buildings, {
+    cellar: 10,
+    hall: 13,
+    storehouse: 3,
+    lumberyard: 4,
+    quarry: 4,
+    mine: 4,
+  });
+  growth.resources = { timber: 1999, stone: 2000, iron: 4000 };
+  Object.assign(developed.buildings, {
+    cellar: 10,
+    hall: 13,
+    storehouse: 3,
+    lumberyard: 10,
+    quarry: 10,
+    mine: 10,
+  });
+  developed.resources = { timber: 1999, stone: 1999, iron: 4000 };
+  Object.assign(lowerPointDeveloped.buildings, {
+    cellar: 10,
+    hall: 13,
+    storehouse: 3,
+    lumberyard: 10,
+    quarry: 10,
+    mine: 10,
+  });
+  lowerPointDeveloped.resources = { timber: 1999, stone: 1999, iron: 4000 };
+  assignLogisticsRoles(c, [setup, growth, developed, lowerPointDeveloped]);
+  capital.resourcesMilli = { timber: 10000000, stone: 10000000, iron: 10000000 };
+  capital.merchants = { total: 1, available: 10 };
   c.state.trades.incoming.push({
-    id: "inbound", seq: 1, from: { id: "v1" }, to: { id: "v2" },
-    resources: { timber: 200, stone: 0, iron: 0 }, merchants: 1,
-    sentTick: 100, arrivalTick: 110, returning: false,
+    id: "inbound",
+    seq: 1,
+    from: { id: "v1" },
+    to: { id: setup.id },
+    resources: { timber: 200, stone: 0, iron: 0 },
+    merchants: 1,
+    sentTick: 100,
+    arrivalTick: 110,
+    returning: false,
   } as any);
-  const inboundRequest = logisticsAdvisor.evaluate(c).find(proposal =>
-    proposal.action.type === "trade" && proposal.action.target === "v2"
-  )!;
-  assert.equal(inboundRequest.action.type === "trade" ? inboundRequest.action.resources.timber : null, 800);
-  assert.equal(proposals.find(proposal =>
-    proposal.action.type === "trade" && proposal.action.target === "v3"
-  )?.requestRank, 0);
-  assert.ok(proposals.some(proposal => proposal.task === "logistics.market-growth"));
 
+  const proposals = logisticsAdvisor.evaluate(c);
+  const trades = proposals.filter((proposal) => proposal.action.type === "trade");
+  const findTrade = (target: string, resource: string) =>
+    trades.find((proposal) =>
+      proposal.action.type === "trade" &&
+      proposal.action.target === target &&
+      Object.keys(proposal.action.resources).join() === resource,
+    )!;
+
+  const setupTimber = findTrade("v2", "timber");
+  assert.equal(setupTimber.importance, 95);
+  assert.equal(setupTimber.id, "r1:v1:trade:v2:timber:1300");
+  assert.equal(setupTimber.buildingName, "Trade timber to Setup");
+  assert.deepEqual(
+    setupTimber.action.type === "trade" ? setupTimber.action.resources : null,
+    { timber: 1300 },
+  );
+  const growthTimber = findTrade("v3", "timber");
+  assert.equal(growthTimber.importance, 85);
+  assert.deepEqual(
+    growthTimber.action.type === "trade" ? growthTimber.action.resources : null,
+    { timber: 2001 },
+  );
+  const developedTimber = findTrade("v4", "timber");
+  assert.equal(developedTimber.importance, 40);
+  assert.deepEqual(
+    developedTimber.action.type === "trade" ? developedTimber.action.resources : null,
+    { timber: 2001 },
+  );
+  assert.deepEqual(
+    trades.map((proposal) => proposal.requestRank),
+    trades.map((_, index) => index),
+  );
+  assert.deepEqual(
+    trades.map((proposal) =>
+      proposal.action.type === "trade"
+        ? `${proposal.action.target}:${Object.keys(proposal.action.resources).join()}`
+        : "",
+    ),
+    [
+      "v2:timber",
+      "v3:timber",
+      "v5:timber",
+      "v5:stone",
+      "v4:timber",
+      "v4:stone",
+    ],
+  );
+  assert.ok(proposals.some((proposal) => proposal.task === "logistics.market-growth"));
+});
+
+test("a capital short on stone can still request timber and iron", () => {
+  const c = context();
+  const capital = c.state.villages[0]!;
+  const city = economicCity(c, "v2", "Harbor", 100);
+  city.resources = { timber: 500, stone: 500, iron: 500 };
+  assignLogisticsRoles(c, [city]);
+  capital.resourcesMilli = { timber: 10000000, stone: 1000000, iron: 10000000 };
   capital.merchants = { total: 10, available: 10 };
-  c.state.player.nextActTick = null;
-  Object.assign(city.buildings, { cellar: 10, hall: 13, storehouse: 3, lumberyard: 4, quarry: 4, mine: 4 });
-  const mid = logisticsAdvisor.evaluate(c).find(proposal => proposal.action.type === "trade" && proposal.action.target === "v2");
-  assert.equal(mid?.importance, 65);
-  Object.assign(city.buildings, { lumberyard: 5, quarry: 5, mine: 5, market: 1 });
-  const developed = logisticsAdvisor.evaluate(c).find(proposal => proposal.action.type === "trade" && proposal.action.target === "v2");
-  assert.equal(developed?.importance, 40);
 
-  (c as AdvisorContext).activeProposals = [developed!];
-  assert.ok(!logisticsAdvisor.evaluate(c).some(proposal =>
-    proposal.action.type === "trade" && proposal.action.target === "v2"
-  ));
-  (c as AdvisorContext).activeProposals = [];
+  const proposals = logisticsAdvisor.evaluate(c).filter((proposal) =>
+    proposal.action.type === "trade",
+  );
+  const tradeFor = (resource: string) =>
+    proposals.find((proposal) =>
+      proposal.action.type === "trade" &&
+      Object.keys(proposal.action.resources).join() === resource,
+    )!;
+  assert.equal(tradeFor("timber").status, "ready");
+  assert.equal(tradeFor("iron").status, "ready");
+  assert.equal(tradeFor("stone").status, "waiting");
+  assert.deepEqual(tradeFor("stone").blockers, ["INSUFFICIENT_RESOURCES"]);
+
+  capital.merchants.available = 1;
+  const shortMerchants = logisticsAdvisor.evaluate(c).find((proposal) =>
+    proposal.action.type === "trade" &&
+    proposal.action.target === city.id &&
+    proposal.action.resources.timber,
+  )!;
+  assert.ok(shortMerchants.blockers.includes("NOT_ENOUGH_MERCHANTS"));
+  capital.merchants.available = 10;
+  c.state.player.nextActTick = c.state.world.tick + 1;
+  const cooldown = logisticsAdvisor.evaluate(c).find((proposal) =>
+    proposal.action.type === "trade" &&
+    proposal.action.target === city.id &&
+    proposal.action.resources.timber,
+  )!;
+  assert.ok(cooldown.blockers.includes("COUNCIL_COOLDOWN"));
+});
+
+test("outgoing and journal trades suppress only the matching resource request", () => {
+  const c = context();
+  const capital = c.state.villages[0]!;
+  const city = economicCity(c, "v2", "Harbor", 100);
+  city.resources = { timber: 500, stone: 500, iron: 500 };
+  assignLogisticsRoles(c, [city]);
+  capital.resourcesMilli = { timber: 10000000, stone: 10000000, iron: 10000000 };
+  capital.merchants = { total: 10, available: 10 };
   c.state.trades.outgoing.push({
-    id: "in-flight", seq: 1, from: { id: capital.id }, to: { id: city.id },
-    resources: { timber: 1, stone: 0, iron: 0 }, merchants: 1,
-    sentTick: c.state.world.tick, arrivalTick: c.state.world.tick + 10, returning: false,
+    id: "in-flight",
+    seq: 1,
+    from: { id: capital.id },
+    to: { id: city.id },
+    resources: { timber: 1, stone: 0, iron: 0 },
+    merchants: 1,
+    sentTick: c.state.world.tick,
+    arrivalTick: c.state.world.tick + 10,
+    returning: false,
   } as any);
-  assert.ok(!logisticsAdvisor.evaluate(c).some(proposal =>
-    proposal.action.type === "trade" && proposal.action.target === "v2"
+
+  const outgoing = logisticsAdvisor.evaluate(c).filter((proposal) =>
+    proposal.action.type === "trade",
+  );
+  assert.ok(!outgoing.some((proposal) =>
+    proposal.action.type === "trade" && proposal.action.target === city.id &&
+    proposal.action.resources.timber,
+  ));
+  assert.ok(outgoing.some((proposal) =>
+    proposal.action.type === "trade" && proposal.action.resources.stone,
+  ));
+  const stoneTrade = outgoing.find((proposal) =>
+    proposal.action.type === "trade" && proposal.action.resources.stone,
+  )!;
+  (c as AdvisorContext).activeProposals = [stoneTrade];
+  c.state.trades.outgoing[0]!.returning = true;
+  const journal = logisticsAdvisor.evaluate(c).filter((proposal) =>
+    proposal.action.type === "trade",
+  );
+  assert.ok(journal.some((proposal) =>
+    proposal.action.type === "trade" && proposal.action.resources.timber,
+  ));
+  assert.ok(!journal.some((proposal) =>
+    proposal.action.type === "trade" && proposal.action.resources.stone,
+  ));
+  assert.ok(journal.some((proposal) =>
+    proposal.action.type === "trade" && proposal.action.resources.iron,
   ));
 });
 

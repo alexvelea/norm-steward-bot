@@ -12,6 +12,7 @@ import { formatResources } from "../lib/format";
 import { Link } from "./common";
 import { WorldPage } from "./WorldPage";
 import { BotPage } from "./bot/BotPage";
+import { humanize, setQuery, useQuery } from "./bot/query";
 
 type Proposal = ControlView["proposals"][number];
 
@@ -197,6 +198,26 @@ function AdvisorPage({
   view: ControlView;
   onChange(view: ControlView): void;
 }) {
+  const query = useQuery();
+  const villages = view.planning.villages;
+  const villageId =
+    villages.find((village) => village.id === query.get("village"))?.id ??
+    villages.find((village) => village.role === "capital")?.id ??
+    villages[0]?.id ??
+    view.villages[0]?.id ??
+    null;
+  const selectedVillage = villages.find((village) => village.id === villageId);
+  const proposals = view.proposals.filter(
+    (proposal) => proposal.villageId === villageId,
+  );
+  const forecasts = view.economicForecasts.filter(
+    (forecast) => forecast.villageId === villageId,
+  );
+  const pending =
+    view.pending?.proposal.villageId === villageId ? view.pending : null;
+  const active = (view.active ?? []).filter(
+    (operation) => operation.proposal.villageId === villageId,
+  );
   const [error, setError] = useState(""),
     [inspected, setInspected] = useState(false);
   return (
@@ -242,15 +263,29 @@ function AdvisorPage({
           </small>
         </div>
       </section>
+      <div className="bp-plan-bar">
+        <div className="bp-villages" role="group" aria-label="Village">
+          {villages.map((village) => (
+            <button
+              key={village.id}
+              className={`btn btn-small ${village.id === villageId ? "is-active" : ""}`}
+              aria-pressed={village.id === villageId}
+              onClick={() => setQuery({ village: village.id })}
+            >
+              {village.name} · {humanize(village.role)}
+            </button>
+          ))}
+        </div>
+      </div>
       <section className="cc-card cc-president">
         <div>
-          <p className="eyebrow">President · coordinator</p>
+          <p className="eyebrow">President · coordinator · All cities</p>
           <h2>
             {view.selection.selected
               ? proposalTitle(view.selection.selected)
               : "Wait & preserve resources"}
           </h2>
-          <p>{view.selection.reason}</p>
+          <p><strong>All cities:</strong> {view.selection.reason}</p>
           {view.nextAttemptAt && (
             <p className="warn-line small">
               Retry/backoff until{" "}
@@ -293,7 +328,7 @@ function AdvisorPage({
         ))}
       </div>
       <section className="cc-card cc-production">
-        <h2>Total production</h2>
+        <h2>Total production · All cities</h2>
         {view.production ? (
           <>
             <p>
@@ -318,7 +353,7 @@ function AdvisorPage({
         ) : (
           <p className="muted">Waiting for production samples.</p>
         )}
-        {view.economicForecasts.map((f) => (
+        {forecasts.map((f) => (
           <details key={f.villageId} open>
             <summary>{f.villageName} · {f.strategyPhase ?? "projected resources"}</summary>
             <p className="small muted">Military budget reserves full-time 3Pi1Sh only when sustainable, leaving at least 20% of each resource’s income for construction. Rates below are per game minute.</p>
@@ -366,7 +401,9 @@ function AdvisorPage({
       <div className="cc-columns">
         <section>
           <div className="cc-section-heading">
-            <h2>Ranked recommendations</h2>
+            <h2>
+              Ranked recommendations{selectedVillage ? ` · ${selectedVillage.name}` : ""}
+            </h2>
             <button
               className="btn btn-small"
               onClick={async () => {
@@ -387,7 +424,7 @@ function AdvisorPage({
             Not-needed upgrades are never built. Ties are deterministic.
           </p>
           <div className="cc-proposals">
-            {[...view.proposals].sort(compareProposals).map((p, i) => (
+            {[...proposals].sort(compareProposals).map((p, i) => (
               <article
                 key={p.id}
                 className={`cc-proposal ${view.selection.selected?.id === p.id ? "is-selected" : ""}`}
@@ -444,7 +481,7 @@ function AdvisorPage({
                 )}
               </article>
             ))}
-            {!view.proposals.length && (
+            {!proposals.length && (
               <p className="cc-card muted">
                 No proposals yet. Check the connection and selected world in
                 Settings.
@@ -453,7 +490,7 @@ function AdvisorPage({
           </div>
         </section>
         <aside>
-          <h2>Recent decisions</h2>
+          <h2>Recent decisions · All cities</h2>
           <p className="small muted">Submitted ≠ accepted ≠ confirmed built.</p>
           <div className="cc-decisions">
             {view.decisions.map((d) => (
@@ -475,18 +512,18 @@ function AdvisorPage({
               </article>
             ))}
           </div>
-          {view.pending && (
+          {pending && (
             <div className="cc-card">
               <h3>Tracked operation</h3>
               <p>
-                {proposalTitle(view.pending.proposal)}
+                {proposalTitle(pending.proposal)}
               </p>
-              <span className="cc-status">{view.pending.phase}</span>
+              <span className="cc-status">{pending.phase}</span>
               <p className="small muted">
                 Tracked until the game confirms completion. Retries reuse the
                 original request ID.
               </p>
-              {view.pending.phase !== "accepted" && !view.automatic && (
+              {pending.phase !== "accepted" && !view.automatic && (
                 <>
                   <label className="cc-check">
                     <input
@@ -519,6 +556,19 @@ function AdvisorPage({
                   </button>
                 </>
               )}
+            </div>
+          )}
+          {active.length > 0 && (
+            <div className="cc-card">
+              <h3>Active operations</h3>
+              <ul className="bp-ops">
+                {active.map((operation) => (
+                  <li key={operation.action.clientId ?? operation.proposal.id}>
+                    <span className="cc-status">{operation.phase}</span>{" "}
+                    {proposalTitle(operation.proposal)}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           <div className="cc-card cc-policy">

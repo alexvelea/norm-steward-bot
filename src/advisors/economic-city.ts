@@ -1,10 +1,16 @@
 import type { Action, BuildingId, Resources, VillageState } from "../shared/api.js";
 import { evaluateEconomy } from "./economic.js";
+import { balanceLags, balanceScore } from "./balance.js";
 import type { Advisor, AdvisorContext, Proposal } from "./types.js";
 import type { TaskKey } from "../bot/plan/graph.js";
 
 const resources = ["timber", "stone", "iron"] as const;
 const producers = ["lumberyard", "quarry", "mine"] as const;
+const producerResources = {
+  lumberyard: "timber",
+  quarry: "stone",
+  mine: "iron",
+} as const;
 const buildOrder = [
   { task: "econ.cellar3", building: "cellar", level: 3 },
   { task: "econ.hall5", building: "hall", level: 5 },
@@ -119,6 +125,7 @@ function afterSetup(
   village: VillageState,
 ): Proposal[] {
   const proposals: Proposal[] = [];
+  const balance = balanceLags(village);
   const incoming = context.state.trades.incoming
     .filter(trade => trade.to.id === village.id)
     .reduce((sum, trade) => ({
@@ -145,11 +152,18 @@ function afterSetup(
     const option=village.options.build.find(value=>value.building===proposal.action.building);
     const capacity=option?unblocker(context,village,option):null;
     if(capacity){proposals.push(capacity);continue;}
+    const resource =
+      producerResources[
+        proposal.action.building as keyof typeof producerResources
+      ];
+    const lag = balance[resource];
+    const score = lag === undefined ? null : balanceScore(lag);
     proposals.push({
       ...proposal,
       task: `econ.${proposal.action.building}` as TaskKey,
       advisor: "economic-city",
-      importance: Math.min(65, proposal.importance),
+      importance:
+        score !== null ? score : Math.min(65, proposal.importance),
     });
   }
   if (Math.min(...producers.map(building => village.buildings[building])) >= 5 &&

@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Controller, acquireExecutorLease } from "../src/control/controller.js";
 import { RemoteError, type Remote } from "../src/control/remote.js";
-import type { SavedControl, Settings } from "../src/control/types.js";
+import type { Proposal } from "../src/advisors/types.js";
+import type { Pending, SavedControl, Settings } from "../src/control/types.js";
 import type { ControlStorage } from "../src/control/storage.js";
 import type { Action, BuildQueueItem } from "../src/shared/api.js";
 import { context, completeOpening } from "./control-fixtures.js";
@@ -82,7 +83,11 @@ async function setup() {
         seq: 1,
         from: { id: action.village },
         to: { id: action.target },
-        resources: action.resources,
+        resources: {
+          timber: action.resources.timber ?? 0,
+          stone: action.resources.stone ?? 0,
+          iron: action.resources.iron ?? 0,
+        },
         merchants: 1,
         sentTick: c.state.world.tick,
         arrivalTick: c.state.world.tick + 10,
@@ -208,6 +213,103 @@ test("trade execution journals before submit and confirms delivery from fresh st
   assert.ok(x.controller.snapshot().decisions.some(decision =>
     decision.kind === "confirmed" && decision.text === "Trade to Harbor delivered."
   ));
+});
+
+test("trade executor lanes are independent by target and resource", async () => {
+  const x = await setup();
+  const capital = x.c.state.villages[0]!;
+  capital.points = 5000;
+  capital.resourcesMilli = { timber: 10000000, stone: 10000000, iron: 10000000 };
+  capital.merchants = { total: 10, available: 10 };
+  const harbor = structuredClone(capital);
+  harbor.id = "v2";
+  harbor.name = "Harbor";
+  harbor.points = 10;
+  harbor.storage = 5000;
+  harbor.resources = { timber: 500, stone: 500, iron: 500 };
+  const cove = structuredClone(harbor);
+  cove.id = "v3";
+  cove.name = "Cove";
+  x.c.state.villages.push(harbor, cove);
+  x.c.state.world.villages = 3;
+
+  await x.controller.cycle();
+  const tradeAction: Extract<Action, { type: "trade" }> = {
+    type: "trade",
+    clientId: "client-active-trade",
+    village: capital.id,
+    target: harbor.id,
+    resources: { timber: 500 },
+  };
+  const proposal: Proposal = {
+    id: "active-harbor-timber",
+    task: "logistics.fulfil",
+    advisor: "logistics",
+    villageId: capital.id,
+    villageName: capital.name,
+    action: tradeAction,
+    buildingName: "Trade timber to Harbor",
+    currentLevel: 0,
+    targetLevel: 0,
+    importance: 95,
+    reason: "Existing shipment.",
+    requirements: { timber: 500, stone: 0, iron: 0 },
+    blockers: [],
+    status: "ready",
+    affordableAtTick: null,
+  };
+  const operation: Pending = {
+    proposal,
+    action: tradeAction,
+    accountId: "a1",
+    worldId: "test",
+    epoch: "r1",
+    serverUrl: settings.serverUrl,
+    createdTick: 100,
+    expiresTick: 10000,
+    phase: "accepted",
+    itemId: "active-harbor-timber",
+  };
+  x.storage.value!.active = [operation];
+  x.c.state.trades.outgoing.push({
+    id: operation.itemId,
+    seq: 1,
+    from: { id: capital.id },
+    to: { id: harbor.id },
+    resources: { timber: 500, stone: 0, iron: 0 },
+    merchants: 1,
+    sentTick: 100,
+    arrivalTick: 110,
+    returning: false,
+  } as any);
+
+  const resumed = await Controller.create(
+    x.storage,
+    settings,
+    x.request,
+    () => 20000,
+    { execute: false },
+  );
+  await resumed.cycle();
+  const trades = resumed.snapshot().proposals.filter(
+    (candidate) => candidate.action.type === "trade",
+  );
+  const harborStone = trades.find(
+    (candidate) =>
+      candidate.action.type === "trade" &&
+      candidate.action.target === harbor.id &&
+      candidate.action.resources.stone,
+  )!;
+  const coveTimber = trades.find(
+    (candidate) =>
+      candidate.action.type === "trade" &&
+      candidate.action.target === cove.id &&
+      candidate.action.resources.timber,
+  )!;
+  assert.equal(harborStone.status, "ready");
+  assert.equal(coveTimber.status, "ready");
+  assert.ok(!harborStone.blockers.includes("EXECUTOR_QUEUE_BUSY"));
+  assert.ok(!coveTimber.blockers.includes("EXECUTOR_QUEUE_BUSY"));
 });
 
 test("uncertain trade submissions retry with the same idempotent action", async () => {

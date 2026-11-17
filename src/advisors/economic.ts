@@ -3,6 +3,7 @@ import { productionPayback } from "./payback.js";
 import { completionWindow } from "./completion.js";
 import { estimateHall } from "./hall.js";
 import type { Action, BuildingId, Resources, VillageState } from "../shared/api.js";
+import { balanceLags, balanceScore, type ResourceId } from "./balance.js";
 import {
   compareProposals,
   type Advisor,
@@ -133,8 +134,13 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
       let importance = 0,
         reason = "",
         needed = true;
+      let balance: { resource: ResourceId; lag: number; score: number } | null =
+        null;
       if (building in producers) {
         const r = producers[building as keyof typeof producers];
+        const lag = balanceLags(v)[r];
+        const score = lag === undefined ? null : balanceScore(lag);
+        if (lag !== undefined && score !== null) balance = { resource: r, lag, score };
         const rank = producerCoverages.filter(
           (n) => n < f.coverage[r] - 1e-9,
         ).length;
@@ -194,6 +200,10 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
       if (tooLate && needed) {
         needed = false;
         reason += ` Earliest snapshot completion is tick ${window!.completionTick}; the round ends at ${window!.endsAtTick}. Save these resources rather than buy construction that cannot finish by round end.`;
+      }
+      if (needed && balance) {
+        importance = Math.max(importance, balance.score);
+        reason += ` Resource balance: ${balance.resource} stock is ${round(balance.lag)} minutes behind the other two.`;
       }
       const blockers: string[] = queued
         ? ["ALREADY_QUEUED"]

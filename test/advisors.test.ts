@@ -1,8 +1,26 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { balanceLags, balanceScore, stockMinutes } from "../src/advisors/balance.js";
 import { evaluateEconomy } from "../src/advisors/economic.js";
 import { selectProposal } from "../src/advisors/president.js";
 import { context } from "./control-fixtures.js";
+
+test("resource balance scores lag boundaries and skips zero-production resources", () => {
+  assert.equal(balanceScore(4), null);
+  assert.equal(balanceScore(5), 90);
+  assert.equal(balanceScore(17), 92);
+  assert.equal(balanceScore(60), 99);
+
+  const v = context().state.villages[0]!;
+  v.production = { timber: 1, stone: 0, iron: 1 };
+  v.resources = { timber: 5, stone: 123, iron: 10 };
+  const zeroRateStock = 123 / 1e-9;
+  assert.equal(stockMinutes(v, "timber"), 5);
+  assert.equal(stockMinutes(v, "stone"), zeroRateStock);
+  assert.equal(balanceLags(v).timber, (zeroRateStock + 10) / 2 - 5);
+  assert.equal(balanceLags(v).iron, (zeroRateStock + 5) / 2 - 10);
+  assert.equal(balanceLags(v).stone, undefined);
+});
 
 test("economic scores are deterministic, explain production bottlenecks and cover exactly seven buildings", () => {
   const c = context();
@@ -18,8 +36,8 @@ test("economic scores are deterministic, explain production bottlenecks and cove
     ),
   );
   assert.ok(
-    first.find((p) => p.action.building === "mine")!.importance >
-      first.find((p) => p.action.building === "lumberyard")!.importance,
+    first.find((p) => p.action.building === "lumberyard")!.importance >
+      first.find((p) => p.action.building === "mine")!.importance,
   );
   assert.match(
     first.find((p) => p.action.building === "mine")!.reason,
@@ -99,6 +117,37 @@ test("President saves for important affordable-in-principle work instead of spen
     independent.id,
   );
 });
+test("President trade reasons omit the target level", () => {
+  const base = evaluateEconomy(context())[0]!;
+  const trade = {
+    ...base,
+    id: "trade",
+    task: "logistics.fulfil" as const,
+    advisor: "logistics",
+    action: {
+      type: "trade" as const,
+      village: base.villageId,
+      target: "v2",
+      resources: { timber: 100 },
+    },
+    buildingName: "Trade to Coldby",
+    targetLevel: 0,
+    status: "ready" as const,
+    blockers: [],
+  };
+
+  const selected = selectProposal([trade]);
+  assert.match(selected.reason, /^Trade to Coldby in .+ is the highest-priority/);
+  assert.doesNotMatch(selected.reason, /Trade to Coldby 0/);
+
+  const waiting = selectProposal([{
+    ...trade,
+    status: "waiting" as const,
+    blockers: ["INSUFFICIENT_RESOURCES"],
+  }]);
+  assert.match(waiting.reservations[0]!.reason, /^Save for Trade to Coldby in /);
+  assert.doesNotMatch(waiting.reservations[0]!.reason, /Trade to Coldby 0/);
+});
 test("maximum levels are omitted and mismatched live rule versions stop evaluation", () => {
   const c = context();
   c.state.villages[0].buildings.cellar = 10;
@@ -159,6 +208,27 @@ test("producer priority weights projected stock by the next producer upgrade bas
   assert.ok(
     proposal(c, "quarry").importance > proposal(c, "lumberyard").importance,
   );
+});
+test("resource balance boosts only needed capital producers", () => {
+  const c = context();
+  const v = c.state.villages[0]!;
+  v.resources = { timber: 500, stone: 1000, iron: 1000 };
+  v.production = { timber: 100, stone: 100, iron: 100 };
+  const lumberyard = evaluateEconomy(c).find(
+    (proposal) => proposal.action.building === "lumberyard",
+  )!;
+  assert.equal(lumberyard.importance, 90);
+  assert.match(
+    lumberyard.reason,
+    /Resource balance: timber stock is 5 minutes behind the other two\./,
+  );
+
+  c.state.world.endsAtTick = c.state.world.tick + 1;
+  const tooLate = evaluateEconomy(c).find(
+    (proposal) => proposal.action.building === "lumberyard",
+  )!;
+  assert.equal(tooLate.status, "not-needed");
+  assert.ok(tooLate.importance < 90);
 });
 test("Bramwell regression: abundant farm and storage never become cheap filler upgrades", () => {
   const c = context(),

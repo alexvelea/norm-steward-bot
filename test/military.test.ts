@@ -47,7 +47,8 @@ test("locked prerequisites, capacity and hard server blockers never reserve the 
 test("only a feasible resource wait reserves for the bounded first level", () => {
   const c = ready(), v = c.state.villages[0];
   const o = v.options.build.find((o) => o.building === "barracks")!;
-  v.resources.timber = 0; v.resourcesMilli.timber = 0;
+  v.resources = { timber: 0, stone: 0, iron: 0 };
+  v.resourcesMilli = { timber: 0, stone: 0, iron: 0 };
   o.ok = false; o.blockers = ["INSUFFICIENT_RESOURCES"]; o.affordableAtTick = 250;
   assert.equal(evaluateMilitary(c)[0].status, "waiting");
   assert.equal(selectProposal([...evaluateEconomy(c), ...evaluateMilitary(c)]).reservations[0]?.proposalId, evaluateMilitary(c)[0].id);

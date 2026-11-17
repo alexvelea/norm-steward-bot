@@ -43,18 +43,27 @@ export function conquestCaptureTick(context: AdvisorContext,c: ConquestContext,s
  return hit<0?null:arrivals[hit];
 }
 
-/** Replace discretionary origin spending during the transition, preserving paid complements. */
+/** Add bounded conquest work without excluding normal proposals. */
 export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: ConquestContext): Proposal[] {
  if(!c||c.plan.status!=='preparing')return proposals;
  const {state,rules}=context,plan=c.plan,v=state.villages.find(v=>v.id===plan.villageId);
  if(!v)return proposals;
  const sequence=plan.sequence??1;
- const retained=sequence>=2?proposals:proposals.filter(p=>p.villageId!==v.id ||
-   p.task.startsWith('logistics.') ||
-   (p.action.type==='train'&&p.action.unit==='shieldman'&&p.defenseBatch&&
-    (context.activeProposals??[]).some(a=>a.villageId===v.id&&a.defenseBatch)));
+ const retained=proposals;
+ function deduplicateBuilds(candidates: Proposal[]): Proposal[] {
+  const result: Proposal[]=[];
+  const positions=new Map<string,number>();
+  for(const proposal of candidates){
+   if(proposal.action.type!=='build'){result.push(proposal);continue;}
+   const key=`${proposal.villageId}:${proposal.action.building}`;
+   const position=positions.get(key);
+   if(position===undefined){positions.set(key,result.length);result.push(proposal);}
+   else if(proposal.importance>result[position].importance)result[position]=proposal;
+  }
+  return result;
+ }
  if(state.world.status!=='running'||rules.version!==state.world.rulesVersion||
-   Object.values(v.orders).some(o=>o.length)||state.scheduled.length)return retained;
+   Object.values(v.orders).some(o=>o.length)||state.scheduled.length)return proposals;
  const metadata=rules.rules.BUILDINGS as Record<BuildingId,{name:string}>;
  const blockers=()=> (state.player.nextActTick??0)>state.world.tick?['COUNCIL_COOLDOWN']:[];
  const buffer=Math.max(50,Math.ceil(v.population.max*.2));
@@ -102,7 +111,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
  }
  const producers=['lumberyard','quarry','mine'] as const;
  const deficient=producers.filter(b=>v.buildings[b]<15).sort((a,b)=>v.buildings[a]-v.buildings[b]||a.localeCompare(b));
- if(deficient.length){const p=build(deficient[0]);if(p)retained.push(p);return retained;}
+ if(deficient.length){const p=build(deficient[0]);if(p)retained.push(p);return deduplicateBuilds(retained);}
  let next=nextConquestBuilding(v.buildings,rules);
  let construction=next?build(next):null;
  // Saved prototype's funding fallback: compare paying for a producer with saving for this bill.
@@ -117,7 +126,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   if(best)construction=best.p;
  }
  if(construction)retained.push(construction);
- if(sequence<2&&plan.escort&&plan.waves===0&&v.buildings.barracks>=10){const p=train('raider',plan.escort);if(p)retained.push(p);}
+ if(plan.escort&&plan.waves===0&&v.buildings.barracks>=10){const p=train('raider',plan.escort);if(p)retained.push(p);}
  if(!next){const p=train('envoy',1);if(p)retained.push(p);}
  const raiders=v.units.home.raider??0;
  const escortReady=sequence<2||(plan.escort!==undefined&&raiders>=plan.escort);
@@ -132,5 +141,5 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
    action:{type:'send',village:v.id,target:plan.targetId!,kind:'attack',units:{raider:raiders,envoy:1}},buildingName:'Conquest attack',currentLevel:raiders,targetLevel:plan.waves+1,
    importance:94,reason:'Fresh unowned target, server-simulated surviving Envoy and retained 150 Pikemen. Confirm each battle before reusing the Envoy; stop after capture or six waves.',requirements:{timber:0,stone:0,iron:0},blockers:b,status:b.length?'waiting':'ready',affordableAtTick:state.world.tick});
  }
- return retained;
+ return deduplicateBuilds(retained);
 }

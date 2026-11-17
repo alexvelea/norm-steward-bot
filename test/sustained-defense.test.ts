@@ -64,7 +64,8 @@ test("Barracks 5 queues exactly 9 Pikemen plus 3 Shieldmen, independent of the p
 
 test("whole-cohort resource waits reserve discretionary spending but release impossible or late batches",()=>{
  const c=ready(),v=c.state.villages[0];v.storage=100000;
- v.resourcesMilli.timber=200000;v.resources.timber=200;
+ v.resourcesMilli={timber:200000,stone:200000,iron:200000};
+ v.resources={timber:200,stone:200,iron:200};
  let p=evaluateSustainedDefense(c)[0];
  assert.equal(p.status,"waiting");assert.deepEqual(p.blockers,["INSUFFICIENT_RESOURCES"]);
  assert.equal(p.affordableAtTick,c.state.world.tick+14);

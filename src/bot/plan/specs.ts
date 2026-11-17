@@ -17,6 +17,14 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
       "82 minus rank when the 3Pi1Sh cohort needs more of this resource than 80% of production.",
     ],
   },
+  "economy.balance": {
+    intent: "Keep the three resources balanced so one shortage does not stall every build.",
+    eligible: [
+      "For each resource: stock minutes = stock / production per minute.",
+      "A resource lags when its stock minutes are 5 or more below the average of the other two.",
+    ],
+    priority: ["The lagging resource's producer scores 90, plus 1 per further 5 minutes of lag, up to 99 (the higher of this and its normal score)."],
+  },
   "economy.farm": {
     intent: "Keep enough free population for queued work and the defence cohort.",
     eligible: ["Free population below max(50, 20% of the limit), or a cohort would not fit after the Farm completes."],
@@ -49,6 +57,8 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
   "first-conquest": {
     intent: "Meet every building requirement for conquest in the capital.",
     eligible: ["Producers at level 15."],
+    priority: ["Mission tasks compete with every other task through the President (88 to 96); the capital saves for them when they are its top need."],
+    never: ["Never pause or exclude the capital's other tasks; conquest is an operation on top of normal production."],
   },
   "conquest.enabled": {
     intent: "Hall 13, Barracks 10, Smithy 10, Market 5 and Court all built; the Envoy can be trained.",
@@ -72,8 +82,8 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     eligible: ["Capital has Market 5 (13 merchants of 1,000 each)."],
   },
   "logistics.fulfil": {
-    intent: "Turn the highest-priority open request into one trade action.",
-    eligible: ["An open request from an economic city.", "No trade from the capital already in flight to that city."],
+    intent: "Turn open requests into trades, one resource per trade, so a shortage of one resource never blocks the others.",
+    eligible: ["An open request for that resource.", "No trade from the capital to that city already carrying that resource."],
     priority: [
       "Uses the request's own score.",
       "Competes with the capital's builds through the President: if the capital's top need scores higher and is short on resources, the capital saves and the request waits.",
@@ -120,6 +130,10 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     eligible: ["The open requests together need more merchants than the Market has in total."],
     priority: ["Scored like the highest open request it unblocks."],
   },
+  "econ.balance": {
+    intent: "Same balance rule as the capital, once setup is done.",
+    priority: ["The boost (90 to 99) is not capped by the economic-city producer score of 65."],
+  },
   "econ.setup-done": {
     intent: "Marks the end of the build order; producers, storage growth and Market growth start here.",
     eligible: ["Every build-order step has reached its level."],
@@ -146,13 +160,20 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     never: ["A request never submits an action by itself."],
   },
   "econ.request-resources": {
-    intent: "Request L1: ask for a top-up of every resource to 2,000. It fits Storehouse 1 and covers every Hall level up to 13 (at most 1,441 of one resource).",
-    eligible: ["Nothing in flight from the capital to this city.", "Any resource below 1,000."],
-    priority: ["Scored by this city's stage: 90 during the build order, 65 during producers, 40 after its milestones.", "With several economic cities, the youngest wins."],
+    intent: "Ask the capital for each resource separately, with a buffer that grows with the city's stage.",
+    eligible: [
+      "Setup (build order not done): a resource below 1,000 is topped up to 2,000.",
+      "Growth (setup done, producers below 10): a resource below 2,000 is topped up to 4,000.",
+      "Developed (producers 10 or more): same buffer as growth.",
+      "Top-ups never exceed storage; nothing is requested for a resource already in flight from the capital.",
+    ],
+    priority: ["Setup 95 (as soon as possible).", "Growth 85.", "Developed 40: only when the capital has nothing more important.", "With several economic cities, the youngest wins."],
   },
+
   expansion: {
     intent: "Conquer cities one at a time: first the nearest unowned village, then the next ones once existing cities are developed.",
     eligible: ["Conquest enabled.", "No other conquest in progress."],
+    never: ["Never hold the capital's production while waves are prepared or in flight."],
   },
   "expansion.next": {
     intent: "Repeat the capture for the next city.",
@@ -168,7 +189,7 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     never: ["Never train an Envoy for the next city before these hold."],
   },
   "expansion.escort": {
-    intent: "The escort army must be at home; it is required, not trained by this mission.",
+    intent: "The simulated escort must be at home; before the first wave, train only the missing Raiders (survivors from earlier conquests count).",
     never: ["Never send troops the defence cohort counts as home defence."],
   },
   "expansion.dispatch": {

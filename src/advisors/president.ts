@@ -1,5 +1,11 @@
 import { compareProposals, type Proposal, type Selection } from "./types.js";
 
+function proposalName(proposal: Proposal): string {
+  return proposal.action.type === "trade"
+    ? proposal.buildingName
+    : `${proposal.buildingName} ${proposal.targetLevel}`;
+}
+
 /** Keep each village's budget for its highest-priority needed action, including production. */
 export function selectProposal<P extends Proposal>(proposals: P[]): Selection<P["action"]> {
   const ranked = [...proposals].sort(compareProposals);
@@ -22,7 +28,7 @@ export function selectProposal<P extends Proposal>(proposals: P[]): Selection<P[
       reservations.push({
         villageId,
         proposalId: top.id,
-        reason: `Save for ${top.buildingName} ${top.targetLevel} in ${top.villageName} (score ${top.importance}). Keep the budget for this needed action instead of spending on a lower priority.`,
+        reason: `Save for ${proposalName(top)} in ${top.villageName} (score ${top.importance}). Keep the budget for this needed action instead of spending on a lower priority.`,
       });
   }
   const selected = candidates.sort(compareProposals)[0] ?? null;
@@ -31,7 +37,7 @@ export function selectProposal<P extends Proposal>(proposals: P[]): Selection<P[
     selected,
     reservations,
     reason: selected
-      ? `${selected.buildingName} in ${selected.villageName} is the highest-priority needed action and is affordable now (score ${selected.importance}).`
+      ? `${proposalName(selected)} in ${selected.villageName} is the highest-priority needed action and is affordable now (score ${selected.importance}).`
       : reservations.length
         ? reservations.map((r) => r.reason).join(" ")
         : blocked
