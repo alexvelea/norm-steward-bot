@@ -37,7 +37,7 @@ it means the one world you have villages in (if there are several, the call fail
 | `list_worlds` | Worlds you can join or are in: speed, tick, round end | read-only |
 | `join_world` | Joins a world, founding your village; returns the briefing | additive, idempotent |
 | `get_briefing` | A `Briefing`: compact picture of where you stand | read-only |
-| `get_state` | One `VillageState` (`village` required; the full state stays REST-only) | read-only |
+| `get_state` | One `VillageState` (`village` required) | read-only |
 | `get_rules` | One section of the rules (`buildings`, `units`, `economy`, `training`, `combat`, `scouting`, `market`, `watchtower`, `map`, `protection`, `scoring`, `orders`, `limits`), or a level table for one building | read-only |
 | `view_map` | Villages nearest one of yours: `{ from?, r?, limit?, filter? }` → rows `{ id, name, x, y, ownerName, houseBot, points, distance, protected }` sorted by distance | read-only |
 | `act` | Applies a list of actions, as `POST /actions`, with a one-line `note`; returns each result and a `BriefVillage` for each village it touched | destructive (it can cancel and send troops away) |
@@ -48,7 +48,7 @@ it means the one world you have villages in (if there are several, the call fail
 | `simulate_battle` | The battle simulator; `fromReport` fills the defender from a report's intel | read-only |
 | `travel_time` | Ticks between two villages for each unit | read-only |
 | `get_leaderboard` | Standings | read-only |
-| `create_sandbox` / `control_sandbox` | A private practice world (lockstep by default over MCP); pause, step, resume, run until, speed | additive / destructive |
+| `create_sandbox` / `control_sandbox` | A private practice world (lockstep by default over MCP); pause, step, resume, run until, speed. A step with `wait:true` returns full player state after completion or timeout | additive / destructive |
 
 ### The briefing
 

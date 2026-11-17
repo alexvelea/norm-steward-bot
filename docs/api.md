@@ -39,8 +39,7 @@ lag upstream. The server publishes a machine-readable description at `GET /api/v
 
 - **Normal authenticated calls:** burst 200, refill 100/s (`SERVER.callBurst`, `callsPerSecond`).
   Each REST request costs one token. MCP JSON-RPC requests also draw from this bucket, one token per
-  request in a batch. A long-poll counts once. At most `concurrentWaitsPerAccount` waits can be open at
-  a time, including dashboard waits. A newer wait ends the oldest with no events when all slots are used.
+  request in a batch. A long-poll counts once.
 - **Actions:** burst 1,000, refill 125/s (`actionBurst`, `actionsPerSecond`). A batch costs one action
   token per action admitted to processing, including failed actions and idempotent repeats, on top of
   the call token. Standing orders are exempt.
@@ -49,10 +48,24 @@ lag upstream. The server publishes a machine-readable description at `GET /api/v
 - **Calls without a key:** burst 100, refill 25/s (`keylessBurst`, `keylessPerSecond`) per client IP,
   with IPv6 addresses grouped by /64. Keyless dashboard GETs also use this bucket.
 
-The normal call, action and dashboard buckets are each keyed by account ID and span all live worlds
-and sandboxes. Rotating the API key keeps the account's buckets. Normal calls and actions share their
-respective budgets across REST and MCP. REST responses that reach the call-bucket check carry
-`RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset` for the selected bucket.
+Each account has separate sets of live and sandbox buckets. The live set spans all its public
+worlds and worldless account requests. The sandbox set spans all its own private sandboxes.
+Sandbox calls have a burst of 1,000 and refill at 500/s (`SANDBOX.callBurst`, `callsPerSecond`),
+actions have a burst of 5,000 and refill at 625/s (`actionBurst`, `actionsPerSecond`), and dashboard
+GETs have a burst of 500 and refill at 100/s (`dashboardBurst`, `dashboardPerSecond`). Rotating the
+API key keeps the account's buckets. Normal calls and actions share their respective budgets across
+REST and MCP within each set.
+
+Authenticated requests resolving an owned sandbox use the sandbox set, including `/worlds/{w}`
+reads, actions, map, reports, simulators and `/sandboxes/{w}` controls, log and deletion. Sandbox
+creation also uses that set. Keyless calls use the IP bucket. Hidden or unknown world IDs, world
+lists and account calls use the live set for authenticated callers. MCP tools choose the bucket
+after resolving explicit or inferred world IDs. Protocol requests and SDK input errors use live calls.
+
+REST responses that reach the call-bucket check carry `RateLimit-Limit`, `RateLimit-Remaining` and
+`RateLimit-Reset` for the selected bucket. MCP batch headers describe the first charged message.
+At most `SERVER.concurrentWaitsPerAccount` waits can be open per account in each set, including
+dashboard event waits and steps with `wait:true`. A newer wait ends the oldest in its own set.
 
 - **REST 429s:** call-bucket, signup and key-rotation throttles include `error.details.retryAfterMs`
   in milliseconds and `Retry-After` in whole seconds (`max(1, ceil(retryAfterMs / 1000))`).
@@ -66,7 +79,7 @@ respective budgets across REST and MCP. REST responses that reach the call-bucke
 - **Batches:** up to `LIMITS.actionsPerBatch` actions. Bodies over `SERVER.bodyLimitBytes` are refused.
 - **Signup:** `signupsPerIpPerHour`. **Key rotation:** `rotationsPerHour`.
 - **Streams:** `socketsPerIp`, and `socketsPerAccountPerWorld`.
-- **Sandbox slots:** 2 per account (`SANDBOX.perAccount`), 20 server-wide (`SERVER.sandboxesMax`).
+- **Sandbox slots:** 10 per account (`SANDBOX.perAccount`), 20 server-wide (`SERVER.sandboxesMax`).
   Both count all non-ended sandboxes, including paused ones. See [Sandboxes](#sandboxes) for the
   developer mode exception and how ended and idle sandboxes are handled.
 
@@ -237,7 +250,8 @@ with code 4008. Reconnect and re-read the state.
 `GET /worlds/{w}/activity?after=&limit=` returns `ActivityResponse` with logged REST and MCP calls and
 standing orders for your account in this world. The last `SERVER.activityKept` entries are kept in memory.
 
-`X-Steward-Client: dashboard` selects the account's dashboard bucket for authenticated REST `GET`s.
+`X-Steward-Client: dashboard` selects the account's live or sandbox dashboard bucket for authenticated
+REST `GET`s, according to the resolved world.
 Any non-`GET` request handled by the REST hook with that value gets 403 before authentication or
 quota charging. The `/worlds/{w}/stream` route bypasses that hook. WebSocket upgrades use stream
 authentication and connection limits.
@@ -247,7 +261,7 @@ still use ordinary endpoint permissions and behavior. Reads that resolve a sandb
 timer, and an event long-poll can still advance a lockstep sandbox. Fastify request logging still
 applies when enabled.
 `GET /sandboxes/{w}/log` returns the engine's action log, which records actions only. Bots and test
-harnesses can mark sandbox reads and share the dashboard's quota with the UI. Omit the header on
+harnesses can mark sandbox reads and share the sandbox dashboard quota with the UI. Omit the header on
 world reads when you need them in the activity feed.
 
 ## Sandboxes
@@ -258,20 +272,33 @@ controls the clock; house bots are the opponents.
 | Call | Body → response |
 |---|---|
 | `POST /sandboxes` | `CreateSandboxRequest` → `WorldSummary` |
-| `POST /sandboxes/{w}/control` | `SandboxControlRequest` → `WorldSummary`. `pause`, `resume`, `step`, `set_speed`, `run_until` |
+| `POST /sandboxes/{w}/control` | `SandboxControlRequest` → `SandboxControlResponse`. `pause`, `resume`, `step`, `set_speed`, `run_until`. `step` with `wait:true` returns `StateResponse`; other requests return `WorldSummary` |
 | `GET /sandboxes/{w}/log` | `SandboxLogResponse`: every applied action (yours, your standing orders' and the house bots', each marked `by`), for reproducing a run |
 | `DELETE /sandboxes/{w}` | 204 |
 
 A paused sandbox still accepts actions at the paused tick. `step` takes a whole number of ticks from
-1 through 3,600 (`SANDBOX.stepMax`) per request. The POST costs one normal call token, with zero
+1 through 3,600 (`SANDBOX.stepMax`) per request. The POST costs one sandbox call token, with zero
 action tokens and zero extra API tokens per tick. The scheduler uses a separate server-wide sandbox
 tick budget with a burst of 2,000 ticks and a refill of 2,000 ticks/s (`SERVER.sandboxTickBudgetPerSecond`).
+All sandbox clocks share this budget, including realtime ticks, steps and lockstep turns. Over an
+interval of T real seconds, aggregate sandbox work is bounded by 2,000 + 2,000 × T ticks from a full
+bucket. Sustained throughput is at most 2,000 ticks/s and can be lower under CPU load. Public worlds
+owed ticks are scheduled first. Increasing API quotas leaves this execution ceiling in place.
 
-`step` and `run_until` queue work asynchronously. The response contains only the `WorldSummary` at
+By default, `step` and `run_until` queue work asynchronously. The response contains only the `WorldSummary` at
 submission, with `status: "running"` and the starting tick. An uninterrupted step pauses after the
 requested number of ticks or stops sooner if the round ends. Poll `GET /worlds/{w}/state` for
 `world.tick` and `world.status` to see completion and get the updated player state. The scheduler
 yields between chunks. A step or run cut short by a server restart comes back paused.
+
+After joining the sandbox, send `{ "action": "step", "ticks": 300, "wait": true }` to hold the POST
+until the target tick is reached or the world stops. It returns a full `StateResponse`, including
+`world.tick`, `world.status` and player state. Game events during the step do not end this wait.
+The hold lasts at most 30 real seconds (`SANDBOX.stepWaitTimeoutMs`). Timeout, client disconnect,
+or displacement by a newer sandbox wait releases the hold and the step continues. A timeout or
+displaced wait returns the current state with HTTP 200. Check the tick and status before starting
+another step. A pause can return state before the target tick. Deletion returns 404, and key rotation
+ends the wait with 401. The held response costs the same one sandbox call token as an ordinary step.
 
 An ended sandbox stays readable (its log, its leaderboard) for `SERVER.endedSandboxTtlMs`. Outside
 developer mode, creating a sandbox also drops your oldest ended ones past `SANDBOX.perAccount`.

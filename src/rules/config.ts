@@ -509,7 +509,16 @@ export const SANDBOX = {
   /** House bots a sandbox seats when its creator doesn't say. */
   houseBotsDefault: { warden: 1, reaver: 1, sovereign: 1 },
   stepMax: 3600,
-  perAccount: 2,
+  perAccount: 10,
+  /** Per-account API buckets shared by that account's private sandboxes, across REST and MCP. */
+  callBurst: 1000,
+  callsPerSecond: 500,
+  actionBurst: 5000,
+  actionsPerSecond: 625,
+  dashboardBurst: 500,
+  dashboardPerSecond: 100,
+  /** Maximum real time to hold a step with wait:true before returning its current state. */
+  stepWaitTimeoutMs: 30_000,
   /** Lockstep sandboxes: a creator's wait advances at most this many ticks (default ticksPerTurn). */
   ticksPerTurnMax: 300,
   ticksPerTurnDefault: 10,

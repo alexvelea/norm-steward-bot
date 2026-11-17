@@ -135,11 +135,14 @@ export interface CreateSandboxRequest {
 export type SandboxControlRequest =
   | { action: "pause" }
   | { action: "resume" }
-  /** Advance N ticks (1..SANDBOX.stepMax) then stay paused. */
-  | { action: "step"; ticks: number }
+  /** Advance N ticks (1..SANDBOX.stepMax) then stay paused. wait:true returns StateResponse after completion or timeout. */
+  | { action: "step"; ticks: number; wait?: boolean }
   | { action: "set_speed"; speed: number }
   /** Advance until `tick`, or until your next event when untilEvent is true (both: whichever comes first), then pause. */
   | { action: "run_until"; tick?: number; untilEvent?: boolean };
+
+/** StateResponse for step with wait:true; WorldSummary for all other control requests. */
+export type SandboxControlResponse = WorldSummary | StateResponse;
 
 export interface SandboxLogEntry {
   tick: number;
