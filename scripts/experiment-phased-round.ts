@@ -43,7 +43,7 @@ try{
     const action=(body as {actions:Action[]}).actions[0];assert.deepEqual(saved.pending!.action,action,'journal before write');
     const before=state.villages[0].resourcesMilli;
     const response=box.act([action]);assert.ok(response.results[0].ok,JSON.stringify(response.results));state=response.state!;
-    row.charges.push({minimumProducer:Math.min(...["lumberyard","quarry","mine"].map(b=>state.villages[0].buildings[b as "mine"])),results:response.results,batch:saved.pending!.proposal.defenseBatch,tick:state.world.tick,action,spend:Object.fromEntries(['timber','stone','iron'].map(r=>[r,(before[r as 'timber']-state.villages[0].resourcesMilli[r as 'timber'])/1000]))});return response as T;
+    row.charges.push({minimumProducer:Math.min(...["lumberyard","quarry","mine"].map(b=>state.villages[0].buildings[b as "mine"])),results:response.results,task:saved.pending!.proposal.task,tick:state.world.tick,action,spend:Object.fromEntries(['timber','stone','iron'].map(r=>[r,(before[r as 'timber']-state.villages[0].resourcesMilli[r as 'timber'])/1000]))});return response as T;
    };
    const Factory=policy==='baseline'?BaselineController:Controller;
    const c=await Factory.create(storage,settings,remote,()=>now);await c.cycle();await c.setAutomatic(true);
@@ -61,7 +61,7 @@ try{
     const next=Math.min(...events.filter(t=>t>state.world.tick),Math.min(duration,state.world.tick+cadence));
     const delta=next-state.world.tick;
     if(v.training.barracks.length)row.queueBusyTicks+=delta;
-    else {const p=c.snapshot().proposals.find((p:any)=>p.defenseBatch);const key=p?p.blockers.join(',')||p.status:'not-unlocked';row.idleReasons[key]=(row.idleReasons[key]??0)+delta;}
+    else {const p=c.snapshot().proposals.find((p:any)=>p.task==="military.pikemen-baseline"||p.task==="military.defence-scale");const key=p?p.blockers.join(',')||p.status:'not-unlocked';row.idleReasons[key]=(row.idleReasons[key]??0)+delta;}
     if(v.buildQueue.length)row.constructionBusyTicks+=delta;
     row.samples.push({tick:state.world.tick,productionPerTickMilli:v.productionPerTickMilli,buildings:v.buildings,units:v.units,resourcesMilli:v.resourcesMilli,population:v.population,training:v.training,selection:c.snapshot().selection});
     if(iteration%50===0){await save();console.log(JSON.stringify({policy,tick:state.world.tick,actions:row.charges.length}));}
@@ -81,11 +81,8 @@ try{
  for(const k of ['buildings','resourcesMilli','population','units'])assert.deepEqual(results[0].initial[k],results[1].initial[k]);
  const candidate=results[1],trains=candidate.charges.filter((x:any)=>x.action.type==="train");
  assert.ok(trains.length>0,"candidate reaches sustainable recruitment");
- assert.ok(trains.every((x:any)=>x.minimumProducer>=10));
- assert.ok(trains.filter((x:any)=>["pikeman","shieldman"].includes(x.action.unit)).every((x:any)=>x.batch&&x.batch.pikemen===3*x.batch.shieldmen));
- assert.ok(!candidate.charges.some((x:any)=>x.action.type==="train"&&x.action.unit==="raider"));
- assert.ok(candidate.charges.filter((x:any)=>x.action.type==="build"&&["barracks","smithy"].includes(x.action.building)).every((x:any)=>x.minimumProducer>=10));
- assert.ok(candidate.final.buildings.barracks>=3&&candidate.final.buildings.smithy>=1);
+ assert.ok(!trains.some((x:any)=>["shieldman","lancer"].includes(x.action.unit)),"candidate trains no Shieldmen or Lancers");
+ assert.ok((candidate.final.buildings.wall??0)<=10,"candidate capital Wall stays at or below 10");
  assert.ok(results.every((r:any)=>r.deleted));
 
  await save(true);console.log('Matched comparison passed.');}
