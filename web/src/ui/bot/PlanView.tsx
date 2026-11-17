@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { PLAN } from "../../../../src/bot/plan/graph";
 import type { PlanNode } from "../../../../src/bot/plan/graph";
+import { effectiveRoles, isPlanned } from "../../../../src/bot/plan/evaluate";
+import { SPECS, type NodeSpec } from "../../../../src/bot/plan/specs";
 import type { Proposal } from "../../../../src/advisors/types";
 import type { ControlView, PlanningNodeState, TaskState } from "../../lib/control";
 import { formatResources } from "../../lib/format";
@@ -41,6 +43,7 @@ export function PlanView({ view }: { view: ControlView }) {
     villages.find((v) => v.id === query.get("village"))?.id ?? villages[0]?.id ?? null;
   const selectedKey = byKey.has(query.get("node") ?? "") ? query.get("node")! : root;
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const [allRoles, setAllRoles] = useState(false);
   const states = useMemo(() => {
     const map = new Map<string, PlanningNodeState>();
     for (const state of planning?.nodes ?? [])
@@ -57,6 +60,14 @@ export function PlanView({ view }: { view: ControlView }) {
       return next;
     });
   const select = (key: string) => setQuery({ node: key });
+  const mismatches = [...states.values()]
+    .filter(
+      (st) =>
+        st.applies === false &&
+        (st.kind === "task" || st.kind === "milestone") &&
+        (st.candidates.length > 0 || st.operations.length > 0),
+    )
+    .map((st) => st.key);
   return (
     <div className="bp-plan">
       <div className="bp-plan-bar">
@@ -68,9 +79,13 @@ export function PlanView({ view }: { view: ControlView }) {
               aria-pressed={v.id === villageId}
               onClick={() => setQuery({ village: v.id })}
             >
-              {v.name}
+              {v.name} · {humanize(v.role)}
             </button>
           ))}
+          <label className="small muted bp-roles-toggle">
+            <input type="checkbox" checked={allRoles} onChange={(e) => setAllRoles(e.target.checked)} />{" "}
+            Show other roles' branches
+          </label>
         </div>
         <p className="small muted">
           Decision revision {planning.revision} · observed tick {planning.observedTick} · rules v
@@ -80,6 +95,25 @@ export function PlanView({ view }: { view: ControlView }) {
       </div>
       <div className="bp-plan-grid">
         <section className="bp-tree" aria-label="Plan tree">
+          {!allRoles && mismatches.length > 0 && (
+            <div className="bp-mismatch" role="note">
+              <strong>Plan mismatches</strong>
+              <span className="small muted">
+                {" "}
+                · today's code acts on these here, but they are not in this city's role
+              </span>
+              <ul>
+                {mismatches.map((key) => (
+                  <li key={key}>
+                    <button className="linkish" onClick={() => select(key)}>
+                      {byKey.get(key)!.title}
+                    </button>{" "}
+                    <span className="small muted">in {byKey.get(parent.get(key) ?? root)!.title}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <ul role="tree">
             <TreeRow
               nodeKey={root}
@@ -87,13 +121,16 @@ export function PlanView({ view }: { view: ControlView }) {
               states={states}
               selected={selectedKey}
               collapsed={collapsed}
+              allRoles={allRoles}
               onToggle={toggle}
               onSelect={select}
             />
           </ul>
           <p className="small muted bp-legend">
-            Tree = contains. “Needs” lists unmet prerequisites (requires edges). Several tasks can be
-            ready at once; the bot still submits one action per cycle.
+            Tree = contains. “Needs” lists unmet prerequisites (requires edges). Only branches for
+            the selected city's role are shown. “Planned” nodes are designed but not codified yet;
+            the bot never acts on them. Several tasks can be ready at once; the bot still submits
+            one action per cycle.
           </p>
         </section>
         <Inspector
@@ -114,6 +151,7 @@ function TreeRow({
   states,
   selected,
   collapsed,
+  allRoles,
   onToggle,
   onSelect,
 }: {
@@ -122,6 +160,7 @@ function TreeRow({
   states: Map<string, PlanningNodeState>;
   selected: string;
   collapsed: Set<string>;
+  allRoles: boolean;
   onToggle(key: string): void;
   onSelect(key: string): void;
 }) {
@@ -130,6 +169,9 @@ function TreeRow({
   const kids = children.get(nodeKey) ?? [];
   const open = !collapsed.has(nodeKey);
   const unmet = prerequisites(nodeKey).filter((key) => states.get(key)?.status !== "satisfied");
+  const offRole = state?.applies === false;
+  const activeOffRole = offRole && !!state && (state.candidates.length > 0 || state.operations.length > 0);
+  if (offRole && !allRoles) return null;
   return (
     <li
       role="treeitem"
@@ -167,7 +209,8 @@ function TreeRow({
           {state?.primaryBlocker && state.status !== "unavailable" && (
             <span className="bp-blocker">{humanize(state.primaryBlocker.reasonCode)}</span>
           )}
-          {state && <StatusPill status={state.status} />}
+          {activeOffRole && <span className="bp-warn">acts here today; not in this role's plan</span>}
+          {state && <StatusPill state={state} />}
         </button>
       </div>
       {kids.length > 0 && open && (
@@ -180,6 +223,7 @@ function TreeRow({
               states={states}
               selected={selected}
               collapsed={collapsed}
+              allRoles={allRoles}
               onToggle={onToggle}
               onSelect={onSelect}
             />
@@ -190,8 +234,11 @@ function TreeRow({
   );
 }
 
-function StatusPill({ status }: { status: TaskState }) {
-  return <span className={`bp-status status-${status}`}>{STATUS_LABEL[status]}</span>;
+function StatusPill({ state }: { state: PlanningNodeState }) {
+  const reason = state.primaryBlocker?.reasonCode;
+  if (state.status === "unavailable" && (reason === "PLANNED" || reason === "NOT_FOR_ROLE"))
+    return <span className="bp-status status-planned">Planned</span>;
+  return <span className={`bp-status status-${state.status}`}>{STATUS_LABEL[state.status]}</span>;
 }
 
 function NodeLink({
@@ -209,7 +256,7 @@ function NodeLink({
       <button className="linkish" onClick={() => onSelect(nodeKey)}>
         {byKey.get(nodeKey)!.title}
       </button>{" "}
-      {state && <StatusPill status={state.status} />}
+      {state && <StatusPill state={state} />}
     </li>
   );
 }
@@ -263,15 +310,37 @@ function Inspector({
           <h2>{node.title}</h2>
           <code className="small">{node.key}</code>
         </div>
-        {state && <StatusPill status={state.status} />}
+        {state && <StatusPill state={state} />}
       </div>
       <p>{node.summary}</p>
+      {nodeKey === "roles" && (
+        <section>
+          <h3>Assigned roles</h3>
+          <dl className="bp-facts">
+            {planning.villages.map((v) => (
+              <Fragment key={v.id}>
+                <dt>{v.name}</dt>
+                <dd>
+                  <strong>{humanize(v.role)}</strong> · {v.roleReason}
+                </dd>
+              </Fragment>
+            ))}
+          </dl>
+        </section>
+      )}
+      {SPECS[nodeKey] && <SpecView spec={SPECS[nodeKey]} />}
       <dl className="bp-facts">
         <dt>Scope</dt>
         <dd>
           {node.scope === "village"
             ? `Per village · showing ${planning.villages.find((v) => v.id === villageId)?.name ?? "—"}`
             : "Account"}
+        </dd>
+        <dt>Roles</dt>
+        <dd>
+          {effectiveRoles(nodeKey)?.map(humanize).join(", ") ?? "All cities"}
+          {state?.applies === false ? " · not this city's role" : ""}
+          {isPlanned(nodeKey) ? " · planned, not codified yet" : ""}
         </dd>
         {node.advisor && (
           <>
@@ -434,7 +503,7 @@ function Inspector({
               <article key={c.id} className={`bp-candidate ${selected ? "is-selected" : ""}`}>
                 <div className="bp-candidate-top">
                   <strong>
-                    {p ? `${p.buildingName} → ${p.targetLevel}` : humanize(c.action.type)}
+                    {p ? p.action.type === "trade" ? p.buildingName : `${p.buildingName} → ${p.targetLevel}` : humanize(c.action.type)}
                   </strong>
                   <span className="small">importance {c.importance}</span>
                   <span className={`cc-status status-${c.status}`}>{c.status}</span>
@@ -483,5 +552,33 @@ function Inspector({
         </section>
       )}
     </aside>
+  );
+}
+
+function SpecView({ spec }: { spec: NodeSpec }) {
+  const list = (title: string, items?: readonly string[]) =>
+    items && items.length > 0 ? (
+      <>
+        <dt>{title}</dt>
+        <dd>
+          <ul className="bp-spec-list">
+            {items.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </dd>
+      </>
+    ) : null;
+  return (
+    <section className="bp-spec">
+      <h3>Spec</h3>
+      <dl className="bp-facts">
+        <dt>Intent</dt>
+        <dd>{spec.intent}</dd>
+        {list("Eligible when", spec.eligible)}
+        {list("Priority", spec.priority)}
+        {list("Never", spec.never)}
+      </dl>
+    </section>
   );
 }

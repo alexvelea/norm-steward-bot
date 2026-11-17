@@ -5,13 +5,17 @@ import type {
   StateResponse,
 } from "../shared/api.js";
 import type { TaskKey } from "../bot/plan/graph.js";
+import type { CityRole } from "../bot/plan/graph.js";
+
+export type CityRoles = ReadonlyMap<string, { role: CityRole; reason: string }>;
 
 export interface AdvisorContext {
   state: StateResponse;
   rules: RulesResponse;
   activeProposals?: Proposal[];
+  cityRoles?: CityRoles;
 }
-export type AdvisorAction = Extract<Action, { type: "build" | "train" | "send" }>;
+export type AdvisorAction = Extract<Action, { type: "build" | "train" | "send" | "trade" }>;
 export interface Proposal<A extends AdvisorAction = AdvisorAction> {
   id: string;
   task: TaskKey;
@@ -29,6 +33,7 @@ export interface Proposal<A extends AdvisorAction = AdvisorAction> {
   blockers: string[];
   status: "ready" | "waiting" | "queued" | "not-needed";
   affordableAtTick: number | null;
+  requestRank?: number;
   defenseBatch?: { pikemen: number; shieldmen: number; baselinePikemen: number; baselineShieldmen: number; ticks: number };
 }
 export interface Advisor {
@@ -45,6 +50,7 @@ export function compareProposals(a: Proposal, b: Proposal): number {
   return (
     Number(a.status === "not-needed") - Number(b.status === "not-needed") ||
     b.importance - a.importance ||
+    (a.requestRank !== undefined && b.requestRank !== undefined ? a.requestRank - b.requestRank : 0) ||
     a.villageId.localeCompare(b.villageId) ||
     (a.action.type === "build" ? a.action.building : a.action.type === "train" ? a.action.unit : a.action.target).localeCompare(
       b.action.type === "build" ? b.action.building : b.action.type === "train" ? b.action.unit : b.action.target

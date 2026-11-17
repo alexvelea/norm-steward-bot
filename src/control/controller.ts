@@ -10,6 +10,7 @@ import type {
   MapResponse,
   ReportsResponse,
   Report,
+  Resources,
   SimulateBattleResponse,
   MeResponse,
   RulesResponse,
@@ -22,6 +23,8 @@ import {
   trackProduction,
 } from "./production.js";
 import { economicAdvisor, forecastEconomy } from "../advisors/economic.js";
+import { economicCityAdvisor } from "../advisors/economic-city.js";
+import { logisticsAdvisor } from "../advisors/logistics.js";
 import { militaryAdvisor } from "../advisors/military.js";
 import { prioritizeFarmRunway } from "../advisors/farm-runway.js";
 import {applyConquest, conquestScope, conquestTravel, type ConquestContext} from "../advisors/conquest.js";
@@ -29,12 +32,13 @@ import {safeEnvoyAttack} from "../review/conquest-plan.js";
 import type { AdvisorContext, Proposal } from "../advisors/types.js";
 import type { ControlStorage } from "./storage.js";
 import { allocateWithPresident } from "../bot/allocation/president.js";
-import { evaluatePlanning } from "../bot/plan/evaluate.js";
+import { effectiveRoles, evaluatePlanning } from "../bot/plan/evaluate.js";
 import { PLAN } from "../bot/plan/graph.js";
 import { BotRunner } from "../bot/runner/runner.js";
 import { prepareJournalEntry } from "../bot/execution/journal.js";
 import { commitmentFromPending, reconcileCommitments } from "../bot/strategy/commitments.js";
 import { conquestMission, conquestPlan, type MissionInstance } from "../bot/strategy/missions/conquest.js";
+import { cityRoles, filterProposalsByRole } from "../bot/strategy/roles.js";
 import {
   remoteRequest,
   RemoteError,
@@ -48,6 +52,18 @@ import type {
   SavedControl,
   Settings,
 } from "./types.js";
+
+function proposalDescription(proposal: Proposal): string {
+  return proposal.action.type === "trade"
+    ? proposal.buildingName
+    : `${proposal.buildingName} target ${proposal.targetLevel}`;
+}
+
+function tradeResourcesMatch(expected: Partial<Resources>, actual: Resources): boolean {
+  return (["timber", "stone", "iron"] as const).every(resource =>
+    (expected[resource] ?? 0) === actual[resource]
+  );
+}
 
 /** A kernel-owned loopback listener is a process lease, automatically released even after a crash. */
 export async function acquireExecutorLease(port = 8790): Promise<LeaseServer> {
@@ -435,13 +451,43 @@ export class Controller {
   private async readConquest(context: AdvisorContext): Promise<void> {
     const {state,rules}=context;
     const scope=conquestScope(this.settings.serverUrl,this.view.account!.id,context);
-    let mission=this.saved.missions?.find(value=>value.scope===scope&&value.definition==='firstConquest');
+    const scopedMissions=(this.saved.missions??[]).filter(value=>value.scope===scope)
+      .sort((a,b)=>a.startedTick-b.startedTick);
+    const latest=scopedMissions.at(-1);
+    let mission=latest;
+    let newlyStarted=false;
     if(!mission&&state.villages.length===1&&state.world.status==='running'){
       const v=state.villages[0];
-      if((v.units.home.pikeman??0)>=150&&!Object.values(v.orders).some(q=>q.length))
+      if((v.units.home.pikeman??0)>=150&&!Object.values(v.orders).some(q=>q.length)){
         mission=conquestMission({scope,villageId:v.id,startedTick:state.world.tick,status:'preparing',waves:0});
+        newlyStarted=true;
+      }
+    }
+    if(!scopedMissions.some(value=>value.status==='active')&&latest&&
+      (latest.status==='completed'||latest.status==='failed')&&state.villages.length>=2&&
+      state.world.status==='running'){
+      const roles=cityRoles(context,scopedMissions);
+      const capital=state.villages.find(village=>roles.get(village.id)?.role==='capital');
+      const economicCities=state.villages.filter(village=>roles.get(village.id)?.role==='economic');
+      if(capital&&capital.buildings.court>=1&&(capital.units.home.pikeman??0)>=150&&
+        !Object.values(capital.orders).some(order=>order.length)&&
+        economicCities.every(village=>village.buildings.hall>=10)){
+        mission=conquestMission({
+          scope,
+          villageId:capital.id,
+          startedTick:state.world.tick,
+          status:'preparing',
+          waves:0,
+          sequence:(latest.sequence??1)+1,
+        });
+        newlyStarted=true;
+      }
     }
     if(!mission){this.conquest=undefined;this.conquestReports={reports:[],next:null};return;}
+    if(newlyStarted){
+      this.saveConquestPlan(conquestPlan(mission));
+      await this.persist();
+    }
     const plan=conquestPlan(mission);
     const hasPendingWave=[this.saved.pending,...(this.saved.active??[])].some(p=>p?.missionId===mission!.id&&p.action.type==='send');
     this.conquestReports=hasPendingWave
@@ -473,7 +519,9 @@ export class Controller {
       }
       if(!plan.escort){plan.status='stopped';plan.reason='No bounded surviving-Envoy escort';savePlan();return;}
     }
-    if((v.units.home.envoy??0)<1||(v.units.home.raider??0)<1||state.commands.outgoing.some(c=>c.from.id===v.id)){savePlan();return;}
+    const requiredEscort=(plan.sequence??1)>=2?(plan.escort??Infinity):1;
+    if((v.units.home.envoy??0)<1||(v.units.home.raider??0)<requiredEscort||
+      state.commands.outgoing.some(c=>c.from.id===v.id)){savePlan();return;}
     const travel=conquestTravel(context,this.conquest)!;
     const last=plan.lastBattle;
     // Only a journal-linked own victory may reset militia. Otherwise use the maximum.
@@ -486,13 +534,12 @@ export class Controller {
   }
   private saveConquestPlan(plan: ConquestContext["plan"]): MissionInstance {
     const mission=conquestMission(plan);
-    this.saved.missions=[...(this.saved.missions??[]).filter(value=>
-      value.definition!==mission.definition||value.scope!==mission.scope),mission];
+    this.saved.missions=[...(this.saved.missions??[]).filter(value=>value.id!==mission.id),mission];
     return mission;
   }
   private async reconcileConquest(context: AdvisorContext,p: Pending): Promise<void> {
     const state=context.state;
-    const mission=this.saved.missions?.find(value=>value.id===p.missionId&&value.definition==='firstConquest');
+    const mission=this.saved.missions?.find(value=>value.id===p.missionId);
     if(!mission||mission.scope!==conquestScope(this.settings.serverUrl,this.view.account!.id,context)){
       this.clearOperation(p);await this.persist();return;
     }
@@ -537,7 +584,10 @@ export class Controller {
     // Do not use that memory to append to an unrelated/manual Barracks queue.
     const complements = (this.saved.commitments ?? []).filter(commitment =>
       !context.state.villages.find(v => v.id === commitment.villageId)?.training.barracks.length);
-    context = {...context, activeProposals:[...(this.saved.active ?? []), ...complements].map(p => p.proposal)};
+    const missionScope=conquestScope(this.settings.serverUrl,this.view.account!.id,context);
+    const missions=(this.saved.missions??[]).filter(value=>value.scope===missionScope);
+    const roles=cityRoles(context,missions);
+    context = {...context, cityRoles:roles, activeProposals:[...(this.saved.active ?? []), ...(this.saved.pending?[this.saved.pending]:[]), ...complements].map(p => p.proposal)};
     this.view.world = context.state.world;
     this.view.villages = context.state.villages.map((v) => ({
       id: v.id,
@@ -545,7 +595,7 @@ export class Controller {
       points: v.points,
     }));
     this.view.economicForecasts = context.state.villages.map(forecastEconomy);
-    this.view.proposals = [economicAdvisor, militaryAdvisor].flatMap(
+    this.view.proposals = [economicAdvisor, militaryAdvisor, economicCityAdvisor, logisticsAdvisor].flatMap(
       (advisor) => advisor.evaluate(context),
     );
     if(this.conquest?.plan.status!=='preparing')prioritizeFarmRunway(context, this.view.proposals);
@@ -553,7 +603,7 @@ export class Controller {
     const eligible=context.state.villages.filter(v=>earlyBuildWindow(context.state,v));
     if(eligible.length){
       const future=constructionContext(context);
-      let builds=[economicAdvisor,militaryAdvisor].flatMap(a=>a.evaluate(future));
+      let builds=[economicAdvisor,militaryAdvisor,economicCityAdvisor,logisticsAdvisor].flatMap(a=>a.evaluate(future));
       if(this.conquest?.plan.status!=='preparing')prioritizeFarmRunway(future,builds);
       builds=applyConquest(future,builds,this.conquest).filter(p=>p.action.type==='build'&&eligible.some(v=>v.id===p.villageId));
       for(const p of builds){
@@ -563,7 +613,12 @@ export class Controller {
       }
       this.view.proposals=this.view.proposals.filter(p=>p.action.type!=='build'||!eligible.some(v=>v.id===p.villageId)).concat(builds);
     }
-    const lane = (a: Proposal["action"]) => a.type === "build" ? `${a.village}:build` : a.type === "send" ? "combat" : `${a.village}:train:${(context.rules.rules.UNITS as Record<string,{building:string}>)[a.unit].building}`;
+    const pendingTrade=this.saved.pending;
+    if(pendingTrade&&pendingTrade.action.type==='trade'&&pendingTrade.phase!=='accepted'&&
+      !this.view.proposals.some(proposal=>proposal.id===pendingTrade.proposal.id))
+      this.view.proposals.push(pendingTrade.proposal);
+    this.view.proposals=filterProposalsByRole(this.view.proposals,roles,effectiveRoles);
+    const lane = (a: Proposal["action"]) => a.type === "build" ? `${a.village}:build` : a.type === "send" ? "combat" : a.type === "trade" ? `${a.village}:trade` : `${a.village}:train:${(context.rules.rules.UNITS as Record<string,{building:string}>)[a.unit].building}`;
     for (const proposal of this.view.proposals) {
       const occupied = (this.saved.active ?? []).filter(p => lane(p.action) === lane(proposal.action));
       // A recorded 3Pi1Sh cohort may add its second unit type to the same Barracks queue.
@@ -576,11 +631,9 @@ export class Controller {
         proposal.status = "waiting"; proposal.blockers.push("EXECUTOR_QUEUE_BUSY");
       }
     }
-    const missionScope=conquestScope(this.settings.serverUrl,this.view.account!.id,context);
-    const mission=this.saved.missions?.find(value=>
-      value.definition==='firstConquest'&&value.status==='active'&&value.scope===missionScope);
+    const mission=missions.filter(value=>value.status==='active').sort((a,b)=>a.startedTick-b.startedTick).at(-1);
     const allocation=allocateWithPresident(this.view.proposals,{
-      ...(this.conquest?.plan.status==='preparing'&&mission?{
+      ...(this.conquest?.plan.status==='preparing'&&mission&&(mission.sequence??1)===1?{
         activeConquest:{
           id:mission.id,
           villageId:mission.villageId,
@@ -596,6 +649,11 @@ export class Controller {
             "conquest.escort",
             "conquest.envoy",
             "conquest.dispatch",
+            "expansion.escort",
+            "expansion.envoy",
+            "expansion.dispatch",
+            "logistics.fulfil",
+            "logistics.market-growth",
           ],
         },
       }:{}),
@@ -606,7 +664,7 @@ export class Controller {
     const journal=[...(this.saved.active??[]),...(this.saved.pending?[this.saved.pending]:[])];
     this.view.planning=evaluatePlanning({
       context,
-      memory:{missions:this.saved.missions??[],commitments:this.saved.commitments??[],scope},
+      memory:{missions,commitments:this.saved.commitments??[],scope},
       candidates:this.view.proposals,
       journal,
       evaluatedAt:new Date(this.now()).toISOString(),
@@ -703,6 +761,10 @@ export class Controller {
       await this.reconcileTraining(context, p);
       return;
     }
+    if (p.action.type === "trade") {
+      await this.reconcileTrade(context, p);
+      return;
+    }
     const building = p.action.building;
     const item = p.itemId
       ? v.buildQueue.find((q) => q.id === p.itemId)
@@ -752,6 +814,26 @@ export class Controller {
       await this.persist();
     }
   }
+  private async reconcileTrade(context: AdvisorContext, p: Pending): Promise<void> {
+    if (p.action.type !== "trade") return;
+    const action=p.action as Extract<Pending["action"],{type:"trade"}>;
+    const state=context.state;
+    const trade=p.itemId?state.trades.outgoing.find(value=>value.id===p.itemId):undefined;
+    if(p.phase==="accepted"){
+      if(!trade||trade.returning){
+        const destination=state.villages.find(value=>value.id===action.target)?.name??action.target;
+        this.record("confirmed",`Trade to ${destination} delivered.`,p.proposal,p.action.clientId,state.world.tick);
+        this.clearOperation(p);
+        await this.persist();
+      }
+      return;
+    }
+    if(state.world.tick>=p.expiresTick){
+      this.automatic=false;
+      this.record("uncertain","Trade idempotency window expired; automatic execution is paused. Inspect activity before clearing this operation.",p.proposal,p.action.clientId,state.world.tick);
+      await this.persist();
+    }
+  }
   /** Counts include away troops; marching a batch must never trigger replacement spending. */
   private async reconcileTraining(
     context: AdvisorContext,
@@ -777,9 +859,11 @@ export class Controller {
         context.state.world.tick,
       );
       if (complete && unit === "pikeman" && p.proposal.defenseBatch) {
-        const commitment=commitmentFromPending(p,productionScope(
+        const missionScope=conquestScope(this.settings.serverUrl,this.view.account!.id,context);
+        const role=cityRoles(context,(this.saved.missions??[]).filter(value=>value.scope===missionScope)).get(v.id)?.role;
+        const commitment=role==="capital"?commitmentFromPending(p,productionScope(
           this.settings.serverUrl,this.view.account!.id,context.state,
-        ));
+        )):null;
         if(commitment)this.saved.commitments=[
           ...(this.saved.commitments??[]).filter(value=>value.villageId!==commitment.villageId),
           commitment,
@@ -909,7 +993,7 @@ export class Controller {
         this.saved.pending = pending;
         this.record(
           "prepared",
-          `${selected.buildingName} target ${selected.targetLevel} prepared; journalling its request ID before any network write.`,
+          `${proposalDescription(selected)} prepared; journalling its request ID before any network write.`,
           selected,
           pending.action.clientId,
           fresh.state.world.tick,
@@ -921,7 +1005,7 @@ export class Controller {
         pending.phase = "submitted";
         this.record(
           "submitted",
-          `${pending.proposal.buildingName} target ${pending.proposal.targetLevel} handed to the API; awaiting its result.`,
+          `${proposalDescription(pending.proposal)} handed to the API; awaiting its result.`,
           pending.proposal,
           pending.action.clientId,
           fresh.state.world.tick,
@@ -965,6 +1049,17 @@ export class Controller {
           if(!mission)throw new RemoteError(0,5000,'Conquest mission disappeared before command acceptance was recorded.');
           mission.memory.waves++;
           this.record('accepted',`Conquest wave ${mission.memory.waves} dispatched; arrival tick ${command.arrivalTick}.`,selected,pending.action.clientId,response.tick);
+        } else if (pending.action.type === "trade" && "trade" in result.data) {
+          const tradeAction=pending.action as Extract<Pending["action"],{type:"trade"}>;
+          const trade=result.data.trade;
+          if(trade.from.id!==tradeAction.village||trade.to.id!==tradeAction.target||
+            !tradeResourcesMatch(tradeAction.resources,trade.resources)||
+            trade.returning)
+            throw new RemoteError(0,5000,"Unexpected trade result; inspect activity.");
+          pending.phase="accepted";
+          pending.itemId=trade.id;
+          const destination=fresh.state.villages.find(value=>value.id===tradeAction.target)?.name??tradeAction.target;
+          this.record("accepted",`Trade to ${destination} accepted: ${trade.resources.timber}/${trade.resources.stone}/${trade.resources.iron}; arrival tick ${trade.arrivalTick}.`,selected,pending.action.clientId,response.tick);
         } else if (
           (pending.action.type === "build" && "item" in result.data) ||
           (pending.action.type === "train" && "batch" in result.data)

@@ -74,6 +74,26 @@ async function setup() {
         results: [{ ok: true, type: "train", data: { batch } }],
       } as T;
     }
+    if (action.type === "trade") {
+      assert.deepEqual(storage.value?.pending?.action, action);
+      assert.ok(storage.value?.pending?.phase === "prepared" || storage.value?.pending?.phase === "uncertain");
+      const trade = {
+        id: "trade-accepted",
+        seq: 1,
+        from: { id: action.village },
+        to: { id: action.target },
+        resources: action.resources,
+        merchants: 1,
+        sentTick: c.state.world.tick,
+        arrivalTick: c.state.world.tick + 10,
+        returning: false,
+      };
+      c.state.trades.outgoing.push(trade as any);
+      return {
+        tick: c.state.world.tick,
+        results: [{ ok: true, type: "trade", clientId: action.clientId, data: { trade } }],
+      } as T;
+    }
     if (action.type !== "build") throw new Error("Unexpected action");
     const level = v.buildings[action.building] + 1;
     const item: BuildQueueItem = {
@@ -131,6 +151,95 @@ test("recommendation mode never writes, even when many tabs refresh", async () =
   assert.ok(x.controller.snapshot().proposals.length);
   await x.controller.setAutomatic(true);
   assert.equal(x.controller.snapshot().automatic, true);
+});
+
+test("trade execution journals before submit and confirms delivery from fresh state", async () => {
+  const x = await setup();
+  const capital = x.c.state.villages[0]!;
+  const economic = structuredClone(capital);
+  economic.id = "v2";
+  economic.name = "Harbor";
+  economic.storage = 5000;
+  economic.resources = { timber: 0, stone: 0, iron: 0 };
+  economic.resourcesMilli = { timber: 0, stone: 0, iron: 0 };
+  x.c.state.villages.push(economic);
+  x.c.state.world.villages = 2;
+  capital.storage = 100000;
+  capital.resources = { timber: 10000, stone: 10000, iron: 10000 };
+  capital.resourcesMilli = { timber: 10000000, stone: 10000000, iron: 10000000 };
+  capital.merchants = { total: 10, available: 10 };
+  for (const option of capital.options.build) {
+    option.ok = false;
+    option.blockers = ["MAX_LEVEL"];
+  }
+  await x.controller.cycle();
+  await x.controller.setAutomatic(true);
+  await x.controller.cycle();
+  const selected = x.controller.snapshot().selection.selected;
+  assert.equal(selected?.task, "logistics.fulfil", JSON.stringify({
+    selected: selected?.task,
+    proposals: x.controller.snapshot().proposals.map(proposal => ({
+      task: proposal.task,
+      status: proposal.status,
+      blockers: proposal.blockers,
+      importance: proposal.importance,
+    })),
+  }));
+  assert.equal(x.writes.length, 1);
+  assert.equal(x.writes[0]?.[0]?.type, "trade");
+  const acceptedTrade = [
+    ...(x.storage.value?.active ?? []),
+    ...(x.storage.value?.pending ? [x.storage.value.pending] : []),
+  ].find(operation => operation.action.type === "trade");
+  assert.equal(acceptedTrade?.phase, "accepted");
+  assert.equal(acceptedTrade?.itemId, "trade-accepted");
+  assert.ok(x.controller.snapshot().decisions.some(decision =>
+    decision.kind === "accepted" && decision.text.includes("Trade to Harbor accepted")
+  ));
+
+  await x.controller.setAutomatic(false);
+  x.c.state.trades.outgoing = [];
+  economic.resources = { timber: 2000, stone: 2000, iron: 2000 };
+  economic.resourcesMilli = { timber: 2000000, stone: 2000000, iron: 2000000 };
+  x.advance();
+  await x.controller.cycle();
+  assert.ok(!(x.storage.value?.active ?? []).some(operation => operation.action.type === "trade"));
+  assert.notEqual(x.storage.value?.pending?.action.type, "trade");
+  assert.ok(x.controller.snapshot().decisions.some(decision =>
+    decision.kind === "confirmed" && decision.text === "Trade to Harbor delivered."
+  ));
+});
+
+test("uncertain trade submissions retry with the same idempotent action", async () => {
+  const x = await setup();
+  const capital = x.c.state.villages[0]!;
+  const economic = structuredClone(capital);
+  economic.id = "v2";
+  economic.name = "Harbor";
+  economic.storage = 5000;
+  economic.resources = { timber: 0, stone: 0, iron: 0 };
+  economic.resourcesMilli = { timber: 0, stone: 0, iron: 0 };
+  x.c.state.villages.push(economic);
+  x.c.state.world.villages = 2;
+  capital.storage = 100000;
+  capital.resources = { timber: 10000, stone: 10000, iron: 10000 };
+  capital.resourcesMilli = { timber: 10000000, stone: 10000000, iron: 10000000 };
+  capital.merchants = { total: 10, available: 10 };
+  for (const option of capital.options.build) {
+    option.ok = false;
+    option.blockers = ["MAX_LEVEL"];
+  }
+  await x.controller.cycle();
+  await x.controller.setAutomatic(true);
+  x.failNext();
+  await x.controller.cycle();
+  const first = structuredClone(x.writes[0]?.[0]);
+  assert.equal(first?.type, "trade");
+  assert.equal(x.storage.value?.pending?.phase, "uncertain");
+  x.advance();
+  await x.controller.cycle();
+  assert.equal(x.writes.length, 2);
+  assert.deepEqual(x.writes[1]?.[0], first);
 });
 
 test("a pre-submit journal persistence failure prevents the write",async()=>{

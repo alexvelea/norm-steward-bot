@@ -25,6 +25,8 @@ export interface PlanningNodeState {
   candidates: string[];
   operations: string[];
   wake: number | null;
+  /** False when the village's role is outside this node's roles. */
+  applies?: false;
 }
 
 export interface PlanningCandidate {
@@ -56,6 +58,8 @@ export interface PlanningVillage {
   id: string;
   name: string;
   scope: string;
+  role: "capital" | "economic";
+  roleReason: string;
 }
 
 export interface PlanningAllocation {

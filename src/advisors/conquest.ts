@@ -9,6 +9,7 @@ import {nextConquestBuilding, fundingUpgrade, conquestLoyalty} from '../review/c
 export interface ConquestPlan {
  scope: string;
  villageId: string;
+ sequence?: number;
  startedTick: number;
  status: 'preparing' | 'captured' | 'stopped';
  targetId?: string;
@@ -47,7 +48,9 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
  if(!c||c.plan.status!=='preparing')return proposals;
  const {state,rules}=context,plan=c.plan,v=state.villages.find(v=>v.id===plan.villageId);
  if(!v)return proposals;
- const retained=proposals.filter(p=>p.villageId!==v.id ||
+ const sequence=plan.sequence??1;
+ const retained=sequence>=2?proposals:proposals.filter(p=>p.villageId!==v.id ||
+   p.task.startsWith('logistics.') ||
    (p.action.type==='train'&&p.action.unit==='shieldman'&&p.defenseBatch&&
     (context.activeProposals??[]).some(a=>a.villageId===v.id&&a.defenseBatch)));
  if(state.world.status!=='running'||rules.version!==state.world.rulesVersion||
@@ -89,7 +92,10 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   const capture=conquestCaptureTick(context,c!,funded+o.ticksEach*(unit==='raider'?remaining:count));
   if(capture===null||capture+60>state.world.endsAtTick)b.push('ROUND_END_TOO_SOON');
   if(count>(rules.rules.ECONOMY as {trainBatchMax:number}).trainBatchMax)b.push('BATCH_CAPACITY');
-  return {id:`${state.world.epoch}:${v!.id}:conquest:train:${unit}:${goal}`,task:proposalTask('conquest',{type:'train',unit},goal),advisor:'conquest',villageId:v!.id,villageName:v!.name,
+ const task=sequence>=2
+  ? unit==='envoy'?'expansion.envoy' as const:'expansion.escort' as const
+  : proposalTask('conquest',{type:'train',unit},goal);
+ return {id:`${state.world.epoch}:${v!.id}:conquest:train:${unit}:${goal}`,task,advisor:'conquest',villageId:v!.id,villageName:v!.name,
    action:{type:'train',village:v!.id,unit,count},buildingName:`Conquest ${unit}`,currentLevel:owned,targetLevel:owned+count,
    importance:90,reason:'Fund the bounded escort in minute-long Raider batches and one reusable Envoy; no recurring Raider stream. Paid defensive troops remain at home.',requirements:cost,
    blockers:[...new Set(b)],status:b.length?'waiting':'ready',affordableAtTick:funded};
@@ -111,17 +117,18 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   if(best)construction=best.p;
  }
  if(construction)retained.push(construction);
- if(plan.escort&&plan.waves===0&&v.buildings.barracks>=10){const p=train('raider',plan.escort);if(p)retained.push(p);}
+ if(sequence<2&&plan.escort&&plan.waves===0&&v.buildings.barracks>=10){const p=train('raider',plan.escort);if(p)retained.push(p);}
  if(!next){const p=train('envoy',1);if(p)retained.push(p);}
  const raiders=v.units.home.raider??0;
- if(!next&&(v.units.home.envoy??0)>=1&&raiders>0&&!Object.values(v.training).some(q=>q.length)&&
+ const escortReady=sequence<2||(plan.escort!==undefined&&raiders>=plan.escort);
+ if(!next&&(v.units.home.envoy??0)>=1&&raiders>0&&escortReady&&!Object.values(v.training).some(q=>q.length)&&
    !state.commands.outgoing.some(cmd=>cmd.from.id===v.id)&&c.map?.tick===state.world.tick&&
    c.map.villages.find(t=>t.id===plan.targetId)?.ownerId===null&&c.assessment?.tick===state.world.tick&&
    c.assessment.raiders===raiders&&c.assessment.battle.winner==='attacker'&&(c.assessment.battle.attackerSurvivors.envoy??0)>=1){
   const capture=conquestCaptureTick(context,c),b=blockers();
   if(plan.waves>=6||capture===null||capture+60>state.world.endsAtTick)b.push('ROUND_END_TOO_SOON');
   if((v.units.home.pikeman??0)<150)b.push('HOME_DEFENCE_CHANGED');
-  retained.push({id:`${state.world.epoch}:${v.id}:conquest:send:${plan.waves}`,task:proposalTask('conquest',{type:'send'},plan.waves+1),advisor:'conquest',villageId:v.id,villageName:v.name,
+  retained.push({id:`${state.world.epoch}:${v.id}:conquest:send:${plan.waves}`,task:sequence>=2?'expansion.dispatch':proposalTask('conquest',{type:'send'},plan.waves+1),advisor:'conquest',villageId:v.id,villageName:v.name,
    action:{type:'send',village:v.id,target:plan.targetId!,kind:'attack',units:{raider:raiders,envoy:1}},buildingName:'Conquest attack',currentLevel:raiders,targetLevel:plan.waves+1,
    importance:94,reason:'Fresh unowned target, server-simulated surviving Envoy and retained 150 Pikemen. Confirm each battle before reusing the Envoy; stop after capture or six waves.',requirements:{timber:0,stone:0,iron:0},blockers:b,status:b.length?'waiting':'ready',affordableAtTick:state.world.tick});
  }

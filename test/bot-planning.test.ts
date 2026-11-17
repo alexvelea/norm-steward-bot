@@ -2,14 +2,17 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { applyConquest, conquestScope } from "../src/advisors/conquest.js";
 import { economicAdvisor, evaluateEconomy } from "../src/advisors/economic.js";
+import { evaluateEconomicCities } from "../src/advisors/economic-city.js";
+import { logisticsAdvisor } from "../src/advisors/logistics.js";
 import { militaryAdvisor } from "../src/advisors/military.js";
 import { allocateWithPresident } from "../src/bot/allocation/president.js";
 import type { PlanningMemory } from "../src/bot/plan/evaluate.js";
-import { evaluatePlanning } from "../src/bot/plan/evaluate.js";
+import { effectiveRoles, evaluatePlanning } from "../src/bot/plan/evaluate.js";
 import { PLAN, type TaskKey } from "../src/bot/plan/graph.js";
 import type { StrategicCommitment } from "../src/bot/strategy/commitments.js";
 import type { MissionInstance } from "../src/bot/strategy/missions/conquest.js";
-import type { Proposal } from "../src/advisors/types.js";
+import { cityRoles, filterProposalsByRole } from "../src/bot/strategy/roles.js";
+import type { AdvisorContext, Proposal } from "../src/advisors/types.js";
 import type { Pending } from "../src/control/types.js";
 import type { PlanningNodeState, PlanningProjection } from "../src/bot/diagnostics/planning.js";
 import { completeOpening, context } from "./control-fixtures.js";
@@ -208,24 +211,260 @@ test("e: rollups honor status precedence, descendant blockers, and goals", () =>
   });
 });
 
-test("f: first-conquest reflects mission start, completion, failure, cancellation, and active rollup", () => {
-  const notStarted = node(project(), "first-conquest");
+test("f: expansion reflects mission start, completion, failure, cancellation, and active rollup", () => {
+  const notStarted = node(project(), "expansion");
   assert.equal(notStarted.status, "idle");
   assert.deepEqual(notStarted.primaryBlocker, { reasonCode: "MISSION_NOT_STARTED" });
 
-  const completed = node(project(context(), { memory: { missions: [mission("completed")] } }), "first-conquest");
-  assert.equal(completed.status, "satisfied");
+  const completedProjection = project(context(), { memory: { missions: [mission("completed")] } });
+  assert.equal(node(completedProjection, "conquest.first-achieved").status, "satisfied");
+  assert.notEqual(node(completedProjection, "expansion").status, "invalid");
 
-  const failed = node(project(context(), { memory: { missions: [mission("failed", "MISSION_STOPPED", "stopped")] } }), "first-conquest");
+  const failed = node(project(context(), { memory: { missions: [mission("failed", "MISSION_STOPPED", "stopped")] } }), "expansion");
   assert.equal(failed.status, "invalid");
   assert.deepEqual(failed.primaryBlocker, { reasonCode: "MISSION_STOPPED", message: "MISSION_STOPPED" });
 
-  const cancelled = node(project(context(), { memory: { missions: [mission("cancelled", "OWNER_CANCELLED", "cancelled")] } }), "first-conquest");
+  const cancelled = node(project(context(), { memory: { missions: [mission("cancelled", "OWNER_CANCELLED", "cancelled")] } }), "expansion");
   assert.equal(cancelled.status, "invalid");
   assert.equal(cancelled.primaryBlocker?.reasonCode, "OWNER_CANCELLED");
 
-  const active = node(project(context(), { memory: { missions: [mission()] } }), "first-conquest");
+  const active = node(project(context(), { memory: { missions: [mission()] } }), "expansion");
   assert.equal(active.status, "running");
+  assert.equal(node(project(context(), {
+    memory: { missions: [{ ...mission(), definition: "conquest", sequence: 2 }] },
+  }), "expansion.captured").status, "running");
+  assert.equal(node(project(context(), {
+    memory: { missions: [{ ...mission("completed"), definition: "conquest", sequence: 2 }] },
+  }), "expansion.captured").status, "satisfied");
+  const captured = node(project(context(), {
+    memory: { missions: [{ ...mission("completed"), definition: "conquest", sequence: 2 }] },
+  }), "expansion.captured");
+  assert.equal(captured.progress.observed, 1);
+  assert.equal(captured.progress.goal, null);
+  assert.equal(node(project(context(), {
+    memory: { missions: [mission("completed")] },
+  }), "expansion.captured").status, "idle");
+  const later = {
+    ...mission("active"),
+    id: "mission-2",
+    definition: "conquest" as const,
+    sequence: 2,
+    startedTick: 80,
+  };
+  const history = project(context(), { memory: { missions: [mission("completed"), later] } });
+  assert.equal(node(history, "conquest.first-achieved").status, "satisfied");
+  assert.equal(node(history, "expansion").status, "running");
+});
+
+test("roles use the earliest owned conquest origin and fall back to the first village", () => {
+  const c = context();
+  const second = structuredClone(c.state.villages[0]!);
+  second.id = "v2";
+  second.resources = { timber: 500, stone: 500, iron: 500 };
+  c.state.villages.push(second);
+  const fallback = cityRoles(c, []);
+  assert.equal(fallback.get("v1")?.role, "capital");
+  assert.equal(fallback.get("v2")?.role, "economic");
+  const roles = cityRoles(c, [
+    { ...mission(), villageId: "v1", startedTick: 20 },
+    { ...mission(), id: "later", villageId: "v2", startedTick: 30 },
+  ]);
+  assert.equal(roles.get("v1")?.role, "capital");
+  c.state.villages = c.state.villages.filter(village => village.id !== "v1");
+  assert.equal(cityRoles(c, [mission()]).get("v2")?.role, "capital");
+});
+
+test("role filtering keeps capital policy at the capital and economic-city work elsewhere", () => {
+  const c = context();
+  const second = structuredClone(c.state.villages[0]!);
+  second.id = "v2";
+  second.resources = { timber: 500, stone: 500, iron: 500 };
+  c.state.villages.push(second);
+  c.state.world.villages = 2;
+  const roles = cityRoles(c, [mission()]);
+  (c as AdvisorContext).cityRoles = roles;
+  const proposals = [
+    ...economicAdvisor.evaluate(c),
+    ...militaryAdvisor.evaluate(c),
+    ...evaluateEconomicCities(c),
+    ...logisticsAdvisor.evaluate(c),
+    candidate("conquest.court", { id: "economic-conquest", villageId: "v2" }),
+  ];
+  const filtered = filterProposalsByRole(proposals, roles, effectiveRoles);
+  assert.ok(filtered.some(proposal => proposal.villageId === "v1"));
+  assert.ok(filtered.some(proposal => proposal.villageId === "v2" && proposal.task.startsWith("econ.")));
+  assert.ok(filtered.some(proposal => proposal.villageId === "v1" && proposal.task === "logistics.fulfil"));
+  assert.ok(!filtered.some(proposal => proposal.villageId === "v1" && proposal.task.startsWith("econ.")));
+  assert.ok(!filtered.some(proposal => proposal.villageId === "v2" &&
+    (proposal.task.startsWith("economy.") || proposal.task.startsWith("defense.") || proposal.task.startsWith("conquest."))
+  ));
+  assert.ok(filtered.every(proposal =>
+    !effectiveRoles(proposal.task) ||
+    effectiveRoles(proposal.task)!.includes(roles.get(proposal.villageId)!.role)
+  ));
+  const projection = project(c, { memory: { missions: [mission()] } });
+  assert.equal(node(projection, "defense.walls", "v2").applies, false);
+  assert.equal(node(projection, "economy.hall", "v2").applies, false);
+  assert.equal(node(projection, "expansion.next", "v2").applies, false);
+  assert.notEqual(node(projection, "econ.cellar3", "v2").applies, false);
+});
+
+test("economic-city setup builds its next step, Farm or Storehouse unblocker, then only economic work", () => {
+  const c = context();
+  const economic = structuredClone(c.state.villages[0]!);
+  economic.id = "v2";
+  economic.name = "Harbor";
+  c.state.villages.push(economic);
+  c.state.world.villages = 2;
+  (c as AdvisorContext).cityRoles = cityRoles(c, []);
+  assert.equal(evaluateEconomicCities(c).length, 1);
+  const first = evaluateEconomicCities(c)[0]!;
+  assert.equal(first.task, "econ.cellar3");
+  assert.equal(first.action.type, "build");
+  assert.equal(first.importance, 85);
+
+  economic.population = { used: 190, max: 200 };
+  const farm = evaluateEconomicCities(c)[0]!;
+  assert.equal(farm.task, "econ.farm");
+  assert.equal(farm.importance, 95);
+  economic.population = { used: 30, max: 200 };
+  economic.storage = 1000;
+  const storehouse = evaluateEconomicCities(c)[0]!;
+  assert.equal(storehouse.task, "econ.storehouse");
+
+  economic.storage = 10000;
+  Object.assign(economic.buildings, { cellar: 10, hall: 13, storehouse: 3, lumberyard: 5, quarry: 5, mine: 5 });
+  economic.options.build.find(option => option.building === "cellar")!.level = 11;
+  economic.hidden = 100;
+  economic.resources = { timber: 2000, stone: 1000, iron: 1500 };
+  economic.resourcesMilli = { timber: 2000000, stone: 1000000, iron: 1500000 };
+  const mature = evaluateEconomicCities(c);
+  assert.ok(mature.some(proposal => proposal.task === "econ.cellar" && proposal.importance === 80));
+  assert.ok(mature.some(proposal => proposal.task === "econ.market" && proposal.importance === 60));
+  assert.ok(mature.every(proposal =>
+    proposal.action.type === "build" &&
+    !["barracks", "smithy", "stable", "wall"].includes(proposal.action.building)
+  ));
+  Object.assign(economic.buildings, { lumberyard: 4, quarry: 4, mine: 4 });
+  economic.resourcesMilli = { timber: 10000000, stone: 10000000, iron: 10000000 };
+  const producerWork = evaluateEconomicCities(c).filter(proposal =>
+    ["econ.lumberyard", "econ.quarry", "econ.mine"].includes(proposal.task)
+  );
+  assert.ok(producerWork.length > 0);
+  assert.ok(producerWork.every(proposal => proposal.advisor === "economic-city" && proposal.importance <= 65));
+
+  economic.storage = 10000;
+  economic.productionPerTickMilli = { timber: 30000, stone: 30000, iron: 30000 };
+  c.state.trades.incoming.push({
+    id: "incoming", seq: 1, from: { id: "v1" }, to: { id: "v2" },
+    resources: { timber: 1000, stone: 0, iron: 0 }, merchants: 1,
+    sentTick: 100, arrivalTick: 110, returning: false,
+  } as any);
+  assert.ok(evaluateEconomicCities(c).some(proposal =>
+    proposal.task === "econ.storehouse" && proposal.importance === 90
+  ));
+  economic.storage = 1000;
+  economic.population = { used: 190, max: 200 };
+  assert.equal(evaluateEconomicCities(c)[0]?.task, "econ.farm");
+  economic.population = { used: 30, max: 200 };
+  assert.ok(evaluateEconomicCities(c).some(proposal =>
+    proposal.task === "econ.storehouse" && proposal.importance === 95
+  ));
+});
+
+test("economic-city build options preserve queue, affordability and round-end blockers", () => {
+  const c = context();
+  const economic = structuredClone(c.state.villages[0]!);
+  economic.id = "v2";
+  c.state.villages.push(economic);
+  (c as AdvisorContext).cityRoles = cityRoles(c, []);
+  const option = economic.options.build.find(value => value.building === "cellar")!;
+  option.blockers = ["REQUIREMENTS_NOT_MET"];
+  option.ticks = 100;
+  economic.resourcesMilli = { timber: 0, stone: 0, iron: 0 };
+  economic.buildQueue.push({
+    id: "busy", building: "farm", level: 2, cost: { timber: 1, stone: 1, iron: 1 },
+    startTick: 100, endTick: 110,
+  });
+  c.state.world.endsAtTick = 150;
+  const proposal = evaluateEconomicCities(c).find(value => value.task === "econ.cellar3")!;
+  assert.ok(proposal.blockers.includes("REQUIREMENTS_NOT_MET"));
+  assert.ok(proposal.blockers.includes("BUILD_QUEUE_BUSY"));
+  assert.ok(proposal.blockers.includes("INSUFFICIENT_RESOURCES"));
+  assert.ok(proposal.blockers.includes("ROUND_END_TOO_SOON"));
+});
+
+test("logistics requests top up resources, rank by score and points, and suppress in-flight work", () => {
+  const c = context();
+  const capital = c.state.villages[0]!;
+  const city = structuredClone(capital);
+  city.id = "v2";
+  city.name = "Harbor";
+  city.points = 200;
+  city.storage = 1500;
+  city.resources = { timber: 500, stone: 1100, iron: 900 };
+  city.resourcesMilli = { timber: 500000, stone: 1100000, iron: 900000 };
+  const lowerPoints = structuredClone(city);
+  lowerPoints.id = "v3";
+  lowerPoints.name = "Low Point";
+  lowerPoints.points = 10;
+  c.state.villages.push(city, lowerPoints);
+  c.state.world.villages = 3;
+  (c as AdvisorContext).cityRoles = cityRoles(c, []);
+  capital.resourcesMilli = { timber: 10000000, stone: 10000000, iron: 10000000 };
+  capital.merchants = { total: 1, available: 0 };
+  c.state.player.nextActTick = c.state.world.tick + 1;
+  const proposals = logisticsAdvisor.evaluate(c);
+  const request = proposals.find(proposal =>
+    proposal.action.type === "trade" && proposal.action.target === "v2"
+  )!;
+  assert.deepEqual(request.action.type === "trade" ? request.action.resources : null, {
+    timber: 1000, stone: 400, iron: 600,
+  });
+  assert.equal(request.importance, 90);
+  assert.ok(request.blockers.includes("NOT_ENOUGH_MERCHANTS"));
+  assert.ok(request.blockers.includes("COUNCIL_COOLDOWN"));
+  capital.resourcesMilli.timber = 0;
+  assert.ok(logisticsAdvisor.evaluate(c).find(proposal =>
+    proposal.action.type === "trade" && proposal.action.target === "v2"
+  )?.blockers.includes("INSUFFICIENT_RESOURCES"));
+  capital.resourcesMilli.timber = 10000000;
+  c.state.trades.incoming.push({
+    id: "inbound", seq: 1, from: { id: "v1" }, to: { id: "v2" },
+    resources: { timber: 200, stone: 0, iron: 0 }, merchants: 1,
+    sentTick: 100, arrivalTick: 110, returning: false,
+  } as any);
+  const inboundRequest = logisticsAdvisor.evaluate(c).find(proposal =>
+    proposal.action.type === "trade" && proposal.action.target === "v2"
+  )!;
+  assert.equal(inboundRequest.action.type === "trade" ? inboundRequest.action.resources.timber : null, 800);
+  assert.equal(proposals.find(proposal =>
+    proposal.action.type === "trade" && proposal.action.target === "v3"
+  )?.requestRank, 0);
+  assert.ok(proposals.some(proposal => proposal.task === "logistics.market-growth"));
+
+  capital.merchants = { total: 10, available: 10 };
+  c.state.player.nextActTick = null;
+  Object.assign(city.buildings, { cellar: 10, hall: 13, storehouse: 3, lumberyard: 4, quarry: 4, mine: 4 });
+  const mid = logisticsAdvisor.evaluate(c).find(proposal => proposal.action.type === "trade" && proposal.action.target === "v2");
+  assert.equal(mid?.importance, 65);
+  Object.assign(city.buildings, { lumberyard: 5, quarry: 5, mine: 5, market: 1 });
+  const developed = logisticsAdvisor.evaluate(c).find(proposal => proposal.action.type === "trade" && proposal.action.target === "v2");
+  assert.equal(developed?.importance, 40);
+
+  (c as AdvisorContext).activeProposals = [developed!];
+  assert.ok(!logisticsAdvisor.evaluate(c).some(proposal =>
+    proposal.action.type === "trade" && proposal.action.target === "v2"
+  ));
+  (c as AdvisorContext).activeProposals = [];
+  c.state.trades.outgoing.push({
+    id: "in-flight", seq: 1, from: { id: capital.id }, to: { id: city.id },
+    resources: { timber: 1, stone: 0, iron: 0 }, merchants: 1,
+    sentTick: c.state.world.tick, arrivalTick: c.state.world.tick + 10, returning: false,
+  } as any);
+  assert.ok(!logisticsAdvisor.evaluate(c).some(proposal =>
+    proposal.action.type === "trade" && proposal.action.target === "v2"
+  ));
 });
 
 test("g: every non-capability node is emitted per village; capabilities are account-wide", () => {
@@ -240,7 +479,7 @@ test("g: every non-capability node is emitted per village; capabilities are acco
     projection.nodes.filter(value => value.key === "round").map(value => value.villageId),
     ["v1", "v2"],
   );
-  assert.equal(projection.nodes.filter(value => value.kind === "capability").length, 4);
+  assert.equal(projection.nodes.filter(value => value.kind === "capability").length, PLAN.nodes.filter(value => value.kind === "capability").length);
   assert.ok(projection.nodes.filter(value => value.kind === "capability").every(value => value.villageId === null));
 });
 
@@ -284,7 +523,7 @@ test("mission and cohort commitment memory are included in the projection", () =
   assert.deepEqual(projection.missions, [{
     id: "mission-1",
     definition: "firstConquest",
-    nodeKey: "first-conquest",
+    nodeKey: "expansion",
     villageId: "v1",
     status: "active",
     phase: "active",
@@ -301,6 +540,23 @@ test("mission and cohort commitment memory are included in the projection", () =
     baselines: { pikemen: 12, shieldmen: 4 },
     createdTick: 25,
   }]);
+});
+
+test("each first and recurring mission projects under the expansion node", () => {
+  const recurring: MissionInstance = {
+    ...mission("active"),
+    id: "recurring-2",
+    incarnation: "recurring-2",
+    definition: "conquest",
+    sequence: 2,
+    startedTick: 80,
+  };
+  const projection = project(context(), {
+    memory: { missions: [mission("completed"), recurring] },
+  });
+  assert.deepEqual(projection.missions.map(value => value.nodeKey), ["expansion", "expansion"]);
+  assert.deepEqual(projection.missions.map(value => value.definition), ["firstConquest", "conquest"]);
+  assert.equal(node(projection, "expansion").status, "running");
 });
 
 test("manual Court construction satisfies its prerequisite without bot history", () => {

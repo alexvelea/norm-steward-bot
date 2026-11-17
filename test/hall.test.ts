@@ -154,8 +154,9 @@ test("longer useful pipeline can justify a Hall rejected by the old eight-build 
   c.state.world.endsAtTick = c.state.world.tick + 200;
   assert.equal(estimateHall(v, c.rules, c.state.world).needed, false);
 });
-test("imminent attack defers Hall investment", () => {
+test("imminent attack does not defer Hall investment", () => {
   const { c, v } = scenario();
+  const withoutAttack = evaluateEconomy(c).find((p) => p.action.building === "hall")!;
   c.state.commands.incoming = [
     {
       kind: "attack",
@@ -164,8 +165,10 @@ test("imminent attack defers Hall investment", () => {
     } as any,
   ];
   const p = evaluateEconomy(c).find((p) => p.action.building === "hall")!;
-  assert.equal(p.status, "not-needed");
-  assert.match(p.reason, /attack arrives/);
+  assert.equal(p.status, withoutAttack.status);
+  assert.equal(p.reason, withoutAttack.reason);
+  assert.deepEqual(p.blockers, withoutAttack.blockers);
+  assert.doesNotMatch(p.reason, /attack arrives/);
 });
 
 test("projected farm completion resolves stale population blockers in the Hall pipeline", () => {

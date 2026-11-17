@@ -3,7 +3,8 @@ import type { ConquestPlan } from "../../../advisors/conquest.js";
 export interface MissionInstance {
   id: string;
   incarnation: string;
-  definition: "firstConquest";
+  definition: "firstConquest" | "conquest";
+  sequence?: number;
   definitionVersion: number;
   scope: string;
   villageId: string;
@@ -21,10 +22,16 @@ export interface MissionInstance {
 }
 
 export function conquestMission(plan: ConquestPlan): MissionInstance {
+  const sequence=plan.sequence??1;
+  const recurring=sequence>=2;
+  const id=recurring
+    ? `${plan.scope}:conquest:${plan.villageId}:${plan.startedTick}`
+    : `${plan.scope}:firstConquest:${plan.villageId}`;
   return {
-    id: `${plan.scope}:firstConquest:${plan.villageId}`,
-    incarnation: `${plan.scope}:firstConquest:${plan.startedTick}`,
-    definition: "firstConquest",
+    id,
+    incarnation: recurring ? id : `${plan.scope}:firstConquest:${plan.startedTick}`,
+    definition: recurring ? "conquest" : "firstConquest",
+    sequence,
     definitionVersion: 1,
     scope: plan.scope,
     villageId: plan.villageId,
@@ -40,6 +47,7 @@ export function conquestPlan(mission: MissionInstance): ConquestPlan {
   return {
     scope: mission.scope,
     villageId: mission.villageId,
+    sequence: mission.sequence ?? 1,
     startedTick: mission.startedTick,
     status: mission.status === "completed" ? "captured" : mission.status === "active" ? "preparing" : "stopped",
     targetId: mission.targetId,

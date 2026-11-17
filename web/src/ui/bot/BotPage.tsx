@@ -60,7 +60,9 @@ export function BotPage({ view, advisors }: { view: ControlView; advisors: React
 
 function candidateLabel(view: ControlView, id: string): string {
   const p = view.proposals.find((value) => value.id === id);
-  return p ? `${p.villageName}: ${p.buildingName} → ${p.targetLevel}` : id;
+  return p
+    ? `${p.villageName}: ${p.action.type === "trade" ? p.buildingName : `${p.buildingName} → ${p.targetLevel}`}`
+    : id;
 }
 
 function BudgetsView({ view }: { view: ControlView }) {
@@ -139,8 +141,7 @@ function ExecutionView({ view }: { view: ControlView }) {
         <ul className="bp-ops">
           {journal.map((p) => (
             <li key={p.action.clientId ?? p.proposal.id}>
-              <span className="cc-status">{p.phase}</span> {p.proposal.villageName}: {p.proposal.buildingName} →{" "}
-              {p.proposal.targetLevel} · <code>{p.action.clientId}</code> · created tick {p.createdTick}, expires tick{" "}
+              <span className="cc-status">{p.phase}</span> {p.proposal.villageName}: {p.action.type === "trade" ? p.proposal.buildingName : `${p.proposal.buildingName} → ${p.proposal.targetLevel}`} · <code>{p.action.clientId}</code> · created tick {p.createdTick}, expires tick{" "}
               {p.expiresTick}
             </li>
           ))}

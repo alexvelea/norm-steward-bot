@@ -1,9 +1,10 @@
 # Bot refactor: missions, world adapters, durable execution, and planning UI
 
 Status: backend mission planning architecture, version-2 persistence/migration, execution journal,
-and version-1 planning projection are implemented. Automated scouting and raid bot behavior was
+and version-1 planning projection are implemented. Economic-city roles and resource requests fulfilled
+by capital trade are implemented, with recurring conquest. Automated scouting and raid bot behavior was
 removed. By owner decision, no gameplay parity harness was added. Parallel mission budgets, multiple
-submissions per cycle, satellite roles, and resource logistics remain unavailable capabilities.
+submissions per cycle, satellite roles, defender requests, and overflow fulfilment remain unavailable.
 The design below retains the broader proposal and acceptance criteria for future work.
 
 This document is a handoff for an implementing agent. It describes an architectural refactor,

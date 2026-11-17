@@ -2315,3 +2315,13 @@ input.num {
   .bp-needs, .bp-blocker { display: none; }
   .bp-facts { grid-template-columns: 84px 1fr; }
 }
+
+.bp-status.status-planned { color: #b9a6e8; border-color: rgba(185, 166, 232, 0.45); border-style: dashed; }
+.bp-warn { font-size: 11px; color: #e8a96b; }
+.bp-roles-toggle { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; }
+.bp-spec { margin: 8px 0 4px; }
+.bp-spec-list { margin: 0; padding-left: 16px; }
+.bp-spec-list li { margin: 2px 0; }
+.bp-mismatch { margin: 8px; padding: 8px 10px; border: 1px solid rgba(232, 169, 107, 0.45); border-radius: 8px; background: rgba(232, 169, 107, 0.06); }
+.bp-mismatch strong { color: #e8a96b; font-size: 13px; }
+.bp-mismatch ul { margin: 6px 0 0; padding-left: 16px; }

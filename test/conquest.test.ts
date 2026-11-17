@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {applyConquest, conquestCaptureTick, conquestScope, type ConquestContext} from '../src/advisors/conquest.js';
 import {selectProposal} from '../src/advisors/president.js';
+import {allocateWithPresident} from '../src/bot/allocation/president.js';
 import type {AdvisorContext, Proposal} from '../src/advisors/types.js';
 import {developedContext} from './control-fixtures.js';
 import {Controller} from '../src/control/controller.js';
@@ -210,6 +211,71 @@ test('repeated cycles retain one first-conquest mission instance',async()=>{
  const x=await executor();x.saved().missions=[];
  const c=await x.create();await c.setAutomatic(false);await c.cycle();await c.cycle();
  assert.equal(x.saved().missions?.filter(mission=>mission.definition==='firstConquest').length,1);
+ assert.equal(x.saved().missions?.[0]?.sequence,1);
+});
+
+test('recurring conquest reuses the home escort and remaps Envoy and dispatch tasks',()=>{
+ const {context,v,c}=fixture();
+ c.plan.sequence=2;c.plan.escort=200;
+ v.units.home.raider=150;v.units.home.envoy=0;
+ let proposals=applyConquest(context,[],c);
+ assert.ok(!proposals.some(p=>p.action.type==='train'&&p.action.unit==='raider'));
+ assert.ok(proposals.some(p=>p.task==='expansion.envoy'&&p.action.type==='train'&&p.action.unit==='envoy'));
+ assert.ok(!proposals.some(p=>p.task==='expansion.dispatch'));
+ v.units.home.raider=200;v.units.home.envoy=1;c.assessment!.raiders=200;
+ proposals=applyConquest(context,[],c);
+ const dispatch=proposals.find(p=>p.action.type==='send');
+ assert.equal(dispatch?.task,'expansion.dispatch');
+ assert.ok(!proposals.some(p=>p.action.type==='train'&&p.action.unit==='raider'));
+});
+
+test('recurring conquest starts only after every capital and economic-city gate is met',async()=>{
+ for(const block of ['hall','court','pikemen','orders','active'] as const){
+  const x=await executor();
+  const previous=structuredClone(x.c.plan);previous.status='captured';
+  x.saved().missions=[conquestMission(previous)];
+  const economic=structuredClone(x.v);economic.id='economic';economic.name='Economic';economic.buildings.hall=10;
+  x.context.state.villages.push(economic);x.context.state.world.villages=2;
+  if(block==='hall')economic.buildings.hall=9;
+  if(block==='court')x.v.buildings.court=0;
+  if(block==='pikemen')x.v.units.home.pikeman=149;
+  if(block==='orders')x.v.orders.build=[{building:'wall',toLevel:2}];
+  if(block==='active'){previous.status='preparing';x.saved().missions=[conquestMission(previous)];}
+  const controller=await x.create();await controller.setAutomatic(false);await controller.cycle();
+  assert.equal(x.saved().missions?.length,1,`gate ${block}`);
+ }
+});
+
+test('a completed first conquest starts a sequenced recurring mission with a new identity',async()=>{
+ const x=await executor();
+ const previous=structuredClone(x.c.plan);previous.status='captured';
+ x.saved().missions=[conquestMission(previous)];
+ const economic=structuredClone(x.v);economic.id='economic';economic.name='Economic';economic.buildings.hall=10;
+ x.context.state.villages.push(economic);x.context.state.world.villages=2;
+ const controller=await x.create();await controller.setAutomatic(false);await controller.cycle();
+ const recurring=x.saved().missions?.find(mission=>mission.definition==='conquest');
+ assert.ok(recurring);
+ assert.equal(recurring.sequence,2);
+ assert.equal(recurring.id,`${recurring.scope}:conquest:${x.v.id}:${x.context.state.world.tick}`);
+ assert.ok(controller.snapshot().proposals.some(proposal=>proposal.task==='expansion.dispatch'));
+ assert.ok(!controller.snapshot().proposals.some(proposal=>
+  proposal.action.type==='train'&&proposal.action.unit==='raider'
+ ));
+});
+
+test('a recurring mission leaves capital economy selectable while waiting for its home escort',async()=>{
+ const x=await executor();
+ x.c.plan.sequence=2;x.c.plan.escort=200;
+ x.v.units.home.raider=100;x.c.assessment!.raiders=100;
+ x.saved().missions=[conquestMission(structuredClone(x.c.plan))];
+ const controller=await x.create();await controller.setAutomatic(false);await controller.cycle();
+ const view=controller.snapshot();
+ const economy=view.proposals.filter(proposal=>
+  proposal.villageId===x.v.id&&proposal.advisor==='economic'&&proposal.status==='ready');
+ assert.ok(economy.length>0);
+ assert.ok(allocateWithPresident(economy).selection.selected);
+ assert.equal(view.planning.reservations.some(reservation=>reservation.kind==='exclusiveSpending'),false);
+ assert.equal(x.writes.length,0);
 });
 
 test('Raider escort is funded in minute batches, letting affordable Smithy work proceed while training',()=>{

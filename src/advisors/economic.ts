@@ -122,19 +122,6 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
       (r) => f.coverage[r],
     );
     const hall = estimateHall(v, rules, state.world);
-    const imminentThreat = state.commands.incoming.some(
-      (c) =>
-        c.kind === "attack" &&
-        c.to.id === v.id &&
-        c.arrivalTick <= state.world.tick + 300,
-    );
-    if (imminentThreat) {
-      hall.needed = false;
-      hall.importance = 30;
-      hall.reason =
-        "An attack arrives within 300 ticks. Defer construction-speed investment; preserve resources for defence. " +
-        hall.reason;
-    }
     for (const building of ECONOMIC_BUILDINGS) {
       const option = v.options.build.find((o) => o.building === building),
         queued = v.buildQueue.find((q) => q.building === building);
@@ -179,7 +166,6 @@ export function evaluateEconomy({ state, rules }: AdvisorContext): Proposal<Extr
         reason = hall.reason;
         if (phaseLevel < 8 || v.buildings.hall >= 5) { needed = false; importance = 30; reason = phaseLevel < 8 ? "Grow all three producers to level 8 before discretionary Great Hall investment." : "Great Hall 5 milestone reached; retain construction income for production and military capability."; }
         else { needed = true; importance = 86; reason = "All three producers reached level 8. Bring Great Hall to level 5 for construction speed before the level-10 production milestone."; }
-        if(imminentThreat) { needed=false;importance=30;reason="An attack arrives within 300 ticks; defer the Hall milestone and preserve resources for defence."; }
       }
       const payback =
         building in producers && !queued && !v.buildQueue.length

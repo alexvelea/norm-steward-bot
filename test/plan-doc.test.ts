@@ -12,7 +12,7 @@ test("PLAN has a valid rooted containment tree and acyclic prerequisites",()=>{
   assert.doesNotThrow(()=>validatePlan());
   assert.throws(()=>validatePlan({...PLAN,nodes:[...PLAN.nodes,PLAN.nodes[0]]} as PlanDefinition),/Duplicate/);
   assert.throws(()=>validatePlan({...PLAN,edges:[...PLAN.edges,{from:"missing",to:"round",kind:"requires"}]}),/Unknown plan edge/);
-  assert.throws(()=>validatePlan({...PLAN,edges:[...PLAN.edges,{from:"conquest.dispatch",to:"conquest.infrastructure",kind:"requires"}]}),/Requires cycle/);
+  assert.throws(()=>validatePlan({...PLAN,edges:[...PLAN.edges,{from:"conquest.dispatch",to:"conquest.enabled",kind:"requires"}]}),/Requires cycle/);
 });
 
 test("docs/plan.md is generated from PLAN",()=>{

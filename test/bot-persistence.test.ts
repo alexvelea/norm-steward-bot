@@ -8,8 +8,20 @@ import { Controller } from "../src/control/controller.js";
 import { FileControlStorage } from "../src/control/storage.js";
 import type { Remote } from "../src/control/remote.js";
 import type { Settings } from "../src/control/types.js";
+import { decodeControlStore, isControlStoreV2 } from "../src/bot/persistence/schema.js";
 
 const fixture=resolve(dirname(fileURLToPath(import.meta.url)),"fixtures/control-legacy.json");
+
+test("version-2 persistence accepts recurring conquest mission instances without migration",()=>{
+ const store={
+  storeVersion:2,
+  settings:{serverUrl:"https://sandbox.invalid",worldId:"w",apiKey:"fixture"},
+  execution:{journalVersion:1,automatic:false,pending:null,active:[],decisions:[]},
+  strategy:{schema:1,missions:[{definition:"conquest",sequence:2}],commitments:[]},
+ };
+ assert.equal(isControlStoreV2(store),true);
+ assert.equal(decodeControlStore(store).missions?.[0]?.definition,"conquest");
+});
 
 test("legacy state migrates durable work and writes a private backup before v2",async()=>{
  const directory=await mkdtemp(resolve(tmpdir(),"steward-migration-"));

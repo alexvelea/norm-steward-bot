@@ -13,6 +13,14 @@ import { Link } from "./common";
 import { WorldPage } from "./WorldPage";
 import { BotPage } from "./bot/BotPage";
 
+type Proposal = ControlView["proposals"][number];
+
+function proposalTitle(proposal: Proposal): string {
+  return proposal.action.type === "trade"
+    ? proposal.buildingName
+    : `${proposal.buildingName} → ${proposal.targetLevel}`;
+}
+
 export function ControlCenter() {
   const route = useRoute();
   const key = useApiKey();
@@ -239,7 +247,7 @@ function AdvisorPage({
           <p className="eyebrow">President · coordinator</p>
           <h2>
             {view.selection.selected
-              ? `${view.selection.selected.buildingName} → ${view.selection.selected.targetLevel}`
+              ? proposalTitle(view.selection.selected)
               : "Wait & preserve resources"}
           </h2>
           <p>{view.selection.reason}</p>
@@ -390,7 +398,7 @@ function AdvisorPage({
                   </span>
                   <div>
                     <h3>
-                      {p.buildingName} <span>→ {p.targetLevel}</span>
+                      {proposalTitle(p)}
                     </h3>
                     <small>
                       {p.villageName} ·{" "}
@@ -398,7 +406,11 @@ function AdvisorPage({
                         ? "Military Advisor"
                         : p.advisor === "economic"
                           ? "Economic Advisor"
-                          : p.advisor}
+                          : p.advisor === "economic-city"
+                            ? "Economic-city Advisor"
+                            : p.advisor === "logistics"
+                              ? "Logistics Advisor"
+                              : p.advisor}
                     </small>
                   </div>
                   <div className="cc-score">
@@ -467,8 +479,7 @@ function AdvisorPage({
             <div className="cc-card">
               <h3>Tracked operation</h3>
               <p>
-                {view.pending.proposal.buildingName} →{" "}
-                {view.pending.proposal.targetLevel}
+                {proposalTitle(view.pending.proposal)}
               </p>
               <span className="cc-status">{view.pending.phase}</span>
               <p className="small muted">

@@ -35,7 +35,14 @@ export function isControlStoreV2(value: unknown): value is ControlStoreV2 {
     typeof store.execution.automatic === "boolean" &&
     Array.isArray(store.execution.decisions) &&
     !!store.strategy && store.strategy.schema === 1 &&
-    Array.isArray(store.strategy.missions) && Array.isArray(store.strategy.commitments);
+    Array.isArray(store.strategy.missions) && store.strategy.missions.every(value => {
+      const mission=record(value);
+      return !!mission &&
+        (mission.definition==="firstConquest"||mission.definition==="conquest") &&
+        (mission.sequence===undefined||
+          (typeof mission.sequence==="number"&&Number.isInteger(mission.sequence)&&mission.sequence>=1));
+    }) &&
+    Array.isArray(store.strategy.commitments);
 }
 
 export class UnsupportedControlStoreError extends Error {

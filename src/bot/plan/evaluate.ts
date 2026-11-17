@@ -12,9 +12,10 @@ import type {
   PlanningReservation,
   TaskState,
 } from "../diagnostics/planning.js";
-import { PLAN, type PlanNode } from "./graph.js";
+import { PLAN, type CityRole, type PlanNode } from "./graph.js";
 import type { MissionInstance } from "../strategy/missions/conquest.js";
 import type { StrategicCommitment } from "../strategy/commitments.js";
+import { cityRoles } from "../strategy/roles.js";
 
 export interface PlanningMemory {
   missions: readonly MissionInstance[];
@@ -42,6 +43,7 @@ function milestoneProgress(
   context: AdvisorContext,
   villageId: string,
   mission: MissionInstance | undefined,
+  missions: readonly MissionInstance[],
 ): { observed: number | null; goal: number | null; satisfied: boolean } {
   if (node.predicateKey === "producers.minimum") {
     const goal = node.thresholds?.minimum ?? null;
@@ -54,6 +56,12 @@ function milestoneProgress(
   if (node.key === "conquest.target-owned" || node.key === "conquest.first-achieved") {
     const observed = mission?.status === "completed" ? 1 : 0;
     return { observed, goal: 1, satisfied: observed === 1 };
+  }
+  if (node.key === "expansion.captured") {
+    const observed = missions.filter(value =>
+      (value.sequence ?? 1) >= 2 && value.status === "completed"
+    ).length;
+    return { observed, goal: null, satisfied: observed >= 1 };
   }
   return { observed: null, goal: null, satisfied: false };
 }
@@ -71,13 +79,15 @@ function taskProgress(
   if (predicate.startsWith("building.") && village) {
     const building = predicate.slice("building.".length) as keyof typeof village.buildings;
     observed = village.buildings[building];
+  } else if (node.key === "expansion.escort" && village) {
+    observed = village.units.home.raider ?? 0;
   } else if (predicate === "troops.raider" && village) {
     observed = (village.units.home.raider ?? 0) + (village.units.away.raider ?? 0);
   } else if (predicate === "troops.envoy" && village) {
     observed = (village.units.home.envoy ?? 0) + (village.units.away.envoy ?? 0);
   } else if (predicate === "troops.lancer" && village) {
     observed = (village.units.home.lancer ?? 0) + (village.units.away.lancer ?? 0);
-  } else if (node.key === "conquest.dispatch" && mission) {
+  } else if ((node.key === "conquest.dispatch" || node.key === "expansion.dispatch") && mission) {
     observed = mission.memory.waves;
   } else if (node.key === "defense.cohort" && village) {
     observed =
@@ -160,11 +170,31 @@ function rollupState(nodeKey: string, states: Map<string, PlanningNodeState>): {
   return { status: "idle", primaryBlocker: null };
 }
 
+/** Capital: origin of the first conquest while owned, else the first listed city. Others: economic. */
+const parentOf = new Map<string, string>(PLAN.edges.filter(edge => edge.kind === "contains").map(edge => [edge.to, edge.from]));
+const nodeByKey = new Map<string, PlanNode>(PLAN.nodes.map(node => [node.key, node]));
+
+/** Roles from the node or its nearest ancestor that declares them; undefined applies to every role. */
+export function effectiveRoles(key: string): readonly CityRole[] | undefined {
+  for (let current: string | undefined = key; current; current = parentOf.get(current)) {
+    const roles = nodeByKey.get(current)?.roles;
+    if (roles) return roles;
+  }
+  return undefined;
+}
+
+export function isPlanned(key: string): boolean {
+  for (let current: string | undefined = key; current; current = parentOf.get(current)) {
+    if (nodeByKey.get(current)?.planned) return true;
+  }
+  return false;
+}
+
 function planningMissions(missions: readonly MissionInstance[]): PlanningMission[] {
   return missions.map(mission => ({
     id: mission.id,
     definition: mission.definition,
-    nodeKey: "first-conquest",
+    nodeKey: "expansion",
     villageId: mission.villageId,
     status: mission.status,
     phase: mission.phase ?? null,
@@ -216,24 +246,30 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
     itemId: operation.itemId ?? null,
   }));
   const villageStates = new Map<string, Map<string, PlanningNodeState>>();
+  const roles = cityRoles(context, memory.missions);
+  const orderedMissions=[...memory.missions].sort((a,b)=>a.startedTick-b.startedTick);
+  const firstMission=orderedMissions.find(value=>value.definition==="firstConquest");
+  const mission=orderedMissions.at(-1);
 
   for (const village of context.state.villages) {
     const states = new Map<string, PlanningNodeState>();
     for (const node of PLAN.nodes) {
       if (node.kind === "capability") continue;
-      const mission = memory.missions.find(value => value.villageId === village.id && value.definition === "firstConquest");
       const candidatesForNode = candidates.filter(candidate => candidate.task === node.key && candidate.villageId === village.id);
       const candidate = candidatesForNode[0] ? proposalById.get(candidatesForNode[0].id) : undefined;
       const operationsForNode = operations.filter(operation => operation.task === node.key && operation.villageId === village.id);
       const progress = node.kind === "milestone"
-        ? milestoneProgress(node, context, village.id, mission)
+        ? milestoneProgress(node, context, village.id, firstMission, memory.missions)
         : node.kind === "task"
           ? taskProgress(node, context, village.id, mission, candidate)
           : { observed: null, goal: null, satisfied: false };
       let status: TaskState = "idle";
       let primaryBlocker: PlanningBlocker | null = null;
 
-      if (node.key === "first-conquest" && node.kind === "mission") {
+      if(node.key==="expansion.captured"){
+        const active=memory.missions.some(value=>(value.sequence??1)>=2&&value.status==="active");
+        status=active?"running":progress.satisfied?"satisfied":"idle";
+      } else if (node.key === "expansion" && node.kind === "mission") {
         if (!mission) primaryBlocker = { reasonCode: "MISSION_NOT_STARTED" };
         else if (mission.status === "completed") status = "satisfied";
         else if (mission.status === "failed" || mission.status === "cancelled" || mission.phase === "stopped") {
@@ -242,9 +278,7 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
             reasonCode: mission.memory.reason ?? "MISSION_STOPPED",
             ...(mission.memory.reason === undefined ? {} : { message: mission.memory.reason }),
           };
-        } else {
-          status = "running";
-        }
+        } else status = "running";
       } else if (isRollupNode(node)) {
         const rollup = rollupState(node.key, states);
         status = rollup.status;
@@ -285,10 +319,33 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
       const previous = [...states.values()].map(state => `${state.key}:${state.status}:${JSON.stringify(state.primaryBlocker)}`).join("|");
       for (const node of PLAN.nodes) {
         const state = states.get(node.key);
+        if (!state || (node as PlanNode).predicateKey !== "requires.done") continue;
+        const prerequisites = PLAN.edges.filter(edge => edge.kind === "requires" && edge.to === node.key).map(edge => states.get(edge.from));
+        const done = prerequisites.filter(value => value?.status === "satisfied").length;
+        state.progress = { observed: done, goal: prerequisites.length };
+        if (done === prerequisites.length) { state.status = "satisfied"; state.primaryBlocker = null; }
+        else if (state.status !== "unavailable") state.primaryBlocker = { reasonCode: "REQUIRES_PREREQUISITE", nodeKey: PLAN.edges.find(edge => edge.kind === "requires" && edge.to === node.key && states.get(edge.from)?.status !== "satisfied")?.from };
+      }
+      for (const node of PLAN.nodes) {
+        const state = states.get(node.key);
         if (!state || !isRollupNode(node)) continue;
-        if (node.key === "first-conquest") {
-          const mission = memory.missions.find(value => value.villageId === village.id && value.definition === "firstConquest");
-          if (mission?.status === "active") state.primaryBlocker = rollupState(node.key, states).primaryBlocker;
+        if (node.key === "expansion") {
+          if (!mission) {
+            state.status="idle";
+            state.primaryBlocker={reasonCode:"MISSION_NOT_STARTED"};
+          } else if(mission.status==="completed") {
+            state.status="satisfied";
+            state.primaryBlocker=null;
+          } else if(mission.status==="failed"||mission.status==="cancelled"||mission.phase==="stopped") {
+            state.status="invalid";
+            state.primaryBlocker={
+              reasonCode:mission.memory.reason??"MISSION_STOPPED",
+              ...(mission.memory.reason===undefined?{}:{message:mission.memory.reason}),
+            };
+          } else {
+            state.status="running";
+            state.primaryBlocker=rollupState(node.key,states).primaryBlocker;
+          }
           continue;
         }
         const rollup = rollupState(node.key, states);
@@ -297,6 +354,8 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
       }
       for (const node of PLAN.nodes) {
         const state = states.get(node.key);
+        if(node.key==="expansion"&&state?.status==="idle"&&
+          state.primaryBlocker?.reasonCode==="MISSION_NOT_STARTED")continue;
         if (!state || state.status === "satisfied" || state.status === "running" || state.status === "invalid" || state.candidates.length > 0) continue;
         const prerequisite = firstUnmetPrerequisite(node.key, states);
         if (prerequisite) {
@@ -306,6 +365,34 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
       }
       const current = [...states.values()].map(state => `${state.key}:${state.status}:${JSON.stringify(state.primaryBlocker)}`).join("|");
       if (current === previous) break;
+    }
+    const role = roles.get(village.id)?.role ?? "capital";
+    for (const node of PLAN.nodes) {
+      const state = states.get(node.key);
+      if (!state || (node as PlanNode).predicateKey !== "steps.done") continue;
+      const steps = PLAN.edges
+        .filter(edge => edge.kind === "contains" && edge.from === parentOf.get(node.key) && edge.to !== node.key)
+        .map(edge => states.get(edge.to));
+      state.progress = { observed: steps.filter(step => step?.progress.goal !== null && step !== undefined && step.progress.observed !== null && step.progress.observed >= step.progress.goal!).length, goal: steps.length };
+    }
+    for (const state of states.values()) {
+      const applies = effectiveRoles(state.key)?.includes(role) ?? true;
+      if (!applies) state.applies = false;
+      if (isPlanned(state.key)) {
+        const { observed, goal } = state.progress;
+        const met = applies && observed !== null && goal !== null && observed >= goal;
+        state.status = met ? "satisfied" : "unavailable";
+        state.primaryBlocker = met ? null : { reasonCode: applies ? "PLANNED" : "NOT_FOR_ROLE" };
+      }
+    }
+    for (const node of PLAN.nodes) {
+      const state = states.get(node.key);
+      if (!state || !isPlanned(node.key) || !isRollupNode(node) || state.applies === false) continue;
+      const contained = containedTaskKeys(node.key).map(key => states.get(key));
+      if (contained.length > 0 && contained.every(child => child?.status === "satisfied")) {
+        state.status = "satisfied";
+        state.primaryBlocker = null;
+      }
     }
     villageStates.set(village.id, states);
   }
@@ -360,7 +447,7 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
     evaluatedAt: input.evaluatedAt,
     nodes,
     edges: PLAN.edges,
-    villages: context.state.villages.map(village => ({ id: village.id, name: village.name, scope: memory.scope })),
+    villages: context.state.villages.map(village => ({ id: village.id, name: village.name, scope: memory.scope, role: roles.get(village.id)?.role ?? "capital", roleReason: roles.get(village.id)?.reason ?? "" })),
     candidates,
     allocation,
     reservations,
