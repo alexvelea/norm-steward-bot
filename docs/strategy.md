@@ -41,6 +41,18 @@ intentionally in the economy-only stage; do not call that recruitment starvation
 throughput tests at producer >=10 with income sufficient for the live Barracks speed and the
 construction allowance. Threat response, opportunity cost and the 20% allowance remain to evaluate.
 
+## Owner correction: incoming attacks do not suspend conquest (2026-11-17)
+
+An incoming-attack guard previously suppressed every origin proposal, including construction.
+Live decisions showed Quarry 15 confirmed at tick 3676, then no build until Hall 6 at tick 3730,
+immediately after the incoming command resolved. That left about 27 real seconds of idle building.
+The owner explicitly prefers offensive Raiders away from home rather than held for defence.
+Incoming attacks therefore no longer block conquest entry, home construction/training, or an
+otherwise eligible Raider/Envoy expedition. The 150-home-Pikeman requirement, neutral-target and
+battle checks, deadlines, external-order checks and durable idempotency remain in force.
+Regression tests cover Hall eligibility, phase entry, and an incoming attack appearing during
+pre-submission revalidation while dispatch still leaves Pikemen and Shieldmen at home.
+
 ## Hybrid opening and gameplay-led research (2026-11-16 owner direction)
 
 Keep sustainable 3Pi1Sh recruitment from producer minimum 10. Delay discretionary Walls until
@@ -78,8 +90,8 @@ Barracks 10, Smithy 10, Market 5, Court, one bounded Raider escort and one reusa
 The integrated candidate uses the existing President and durable executor. It retains existing
 buildings and troops; it does not remove live fortifications or cancel accepted work.
 Research `conquest-transition-economics` supports this bounded peaceful capture objective.
-Delivery `conquest-transition-gameplay-delivery` is now verified and ready for wrapper activation;
-this review does not itself deploy or change the persisted gameplay execution preference.
+Delivery `conquest-transition-gameplay-delivery` was verified and deployed as `1a8965c`.
+The evidence below describes that original release; the incoming-attack correction above is newer.
 
 The falsifiable hypothesis was capture before tick 10800 while retaining at least 150 home
 Pikemen and the paid Shieldmen. Completed worker job `20261117T063645Z-a27f75` tested the exact
@@ -120,7 +132,7 @@ buildings and troops remain separate assets. No threshold optimality or survival
 All 363 ordinary actions succeeded and both worlds were deleted. All actions and checkpoints
 match the earlier research job `20261117T050825Z-398f24`. The current policy fingerprint is
 `a541964b6dc59c562594049b6b84a9f2fd980f7c968a155e42cba291c8a48f8a`;
-all 32 current source files byte-match the immutable tested snapshot, and fresh live rules are
+at that verification, all 32 source files byte-matched the immutable tested snapshot, and fresh live rules are
 still v3. Typecheck, all 219 tests, the web build and diff checks pass. No policy was edited
 after that comparison. Wrapper push, activation and health gates still apply.
 

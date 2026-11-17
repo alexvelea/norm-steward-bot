@@ -50,8 +50,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
    (p.action.type==='train'&&p.action.unit==='shieldman'&&p.defenseBatch&&
     (context.activeProposals??[]).some(a=>a.villageId===v.id&&a.defenseBatch)));
  if(state.world.status!=='running'||rules.version!==state.world.rulesVersion||
-   Object.values(v.orders).some(o=>o.length)||state.scheduled.length||
-   state.commands.incoming.some(cmd=>cmd.kind==='attack'&&cmd.to.id===v.id))return retained;
+   Object.values(v.orders).some(o=>o.length)||state.scheduled.length)return retained;
  const metadata=rules.rules.BUILDINGS as Record<BuildingId,{name:string}>;
  const blockers=()=> (state.player.nextActTick??0)>state.world.tick?['COUNCIL_COOLDOWN']:[];
  const buffer=Math.max(50,Math.ceil(v.population.max*.2));

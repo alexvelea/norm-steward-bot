@@ -232,14 +232,16 @@ The last 100 decisions and any pending request survive restarts in `control.json
 
 ## Bounded first-conquest transition
 
-The verified conquest transition (ready for wrapper activation) uses this same
+The live conquest transition uses this same
 President and durable executor. After 150 home Pikemen,
 it finishes the paid defensive cohort, catches all three producers up to 15, then funds
 Hall 13, Barracks 10, Smithy 10, Market 5 and Court. Capacity remains an ordinary paid
 prerequisite. It prepares one bounded Raider escort and one Envoy, retaining home infantry.
 It targets an unowned town and rechecks ownership and the server battle simulation before
-each attack, allowing at most six waves with the surviving Envoy and escort. Incoming attacks,
-external orders and scheduled actions defer transition spending. No live experimental loop
+each attack, allowing at most six waves with the surviving Envoy and escort. Incoming attacks
+do not pause home construction, training, phase entry or an eligible Raider/Envoy dispatch.
+The 150-Pikeman home-defence requirement still applies; the offensive escort is allowed to leave
+while the origin is threatened. External orders and scheduled actions defer transition spending. No live experimental loop
 or separate resource allocator exists.
 
 Progress is persisted under server/account/world/epoch scope, independently of the operator

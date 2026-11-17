@@ -455,8 +455,7 @@ export class Controller {
     if(this.saved.conquest?.scope!==scope)this.saved.conquest=undefined;
     if(!this.saved.conquest&&state.villages.length===1&&state.world.status==='running'){
       const v=state.villages[0];
-      if((v.units.home.pikeman??0)>=150&&!Object.values(v.orders).some(q=>q.length)&&
-        !state.commands.incoming.some(c=>c.kind==='attack'&&c.to.id===v.id))
+      if((v.units.home.pikeman??0)>=150&&!Object.values(v.orders).some(q=>q.length))
         this.saved.conquest={scope,villageId:v.id,startedTick:state.world.tick,status:'preparing',waves:0};
     }
     const plan=this.saved.conquest;

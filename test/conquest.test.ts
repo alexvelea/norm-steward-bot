@@ -37,12 +37,12 @@ test('conquest reuses surviving escort without buying replacements after the fir
  assert.ok(!proposals.some(p=>p.action.type==='train'));
  assert.equal(selectProposal(proposals).selected?.action.type,'send');
 });
-test('an impossible capture deadline, external orders, incoming attacks and six waves prevent dispatch',()=>{
+test('an impossible capture deadline, external orders and six waves prevent dispatch',()=>{
  const {context,v,c}=fixture();assert.equal(conquestCaptureTick(context,c),250);
  context.state.world.endsAtTick=309;assert.equal(selectProposal(applyConquest(context,[],c)).selected,null);
  context.state.world.endsAtTick=10800;c.plan.waves=6;assert.equal(selectProposal(applyConquest(context,[],c)).selected,null);c.plan.waves=0;
  v.orders.build=[{building:'wall',toLevel:2}];assert.equal(applyConquest(context,[],c).length,0);v.orders.build=[];
- context.state.commands.incoming=[{kind:'attack',to:{id:v.id}} as any];assert.equal(applyConquest(context,[],c).length,0);
+
 });
 test('transition funds producer 15 before the Court path and saves through the President',()=>{
  const {context,v,c}=fixture();v.buildings.mine=14;
@@ -141,12 +141,11 @@ test('conquest expiry pauses execution, and a changed epoch never replays the ol
  assert.equal(x.saved().pending,null);assert.equal(x.writes.length,1);
 });
 
-test('fresh ownership, home defence, incoming attacks and external orders prevent conquest writes',async()=>{
+test('fresh ownership, home defence and external orders prevent conquest writes',async()=>{
  for(const mutate of [
   (x:Awaited<ReturnType<typeof executor>>)=>{x.c.map!.villages[0].ownerId='enemy';},
   (x:Awaited<ReturnType<typeof executor>>)=>{x.v.units.home.pikeman=149;},
   (x:Awaited<ReturnType<typeof executor>>)=>{x.v.orders.build=[{building:'wall',toLevel:2}];},
-  (x:Awaited<ReturnType<typeof executor>>)=>{x.context.state.commands.incoming=[{kind:'attack',to:{id:x.v.id}} as any];},
   (x:Awaited<ReturnType<typeof executor>>)=>{x.context.state.scheduled=[{} as any];},
  ]){
   const x=await executor();x.preflight(()=>mutate(x));await x.controller.cycle();
@@ -178,4 +177,29 @@ test('authoritative capture survives a missing report or a lost final send respo
   assert.equal(restarted.snapshot().error,null);assert.equal(x.saved().conquest?.status,'captured');
   assert.equal(x.saved().pending,null);assert.equal(x.writes.length,1);assert.equal(restarted.snapshot().automatic,false);
  }
+});
+
+test('incoming attacks leave affordable Hall construction eligible',()=>{
+ const {context,v,c}=fixture();v.buildings.hall=11;
+ const o=v.options.build.find(o=>o.building==='hall')!;o.level=12;o.ok=true;o.blockers=[];o.cost={timber:100,stone:100,iron:100};
+ context.state.commands.incoming=[{kind:'attack',to:{id:v.id}} as any];
+ const selected=selectProposal(applyConquest(context,[],c)).selected;
+ assert.equal(selected?.action.type,'build');if(selected?.action.type==='build')assert.equal(selected.action.building,'hall');
+ assert.ok(!applyConquest(context,[],c).some(p=>p.action.type==='send'));
+});
+
+test('incoming attacks do not hold a ready Raider and Envoy expedition at home',async()=>{
+ const x=await executor();
+ x.preflight(()=>{x.context.state.commands.incoming=[{kind:'attack',to:{id:x.v.id}} as any];});
+ await x.controller.cycle();
+ assert.equal(x.writes.length,1);assert.equal(x.writes[0].type,'send');
+ if(x.writes[0].type==='send')assert.deepEqual(x.writes[0].units,{raider:140,envoy:1});
+ assert.equal(x.v.units.home.pikeman,153);assert.equal(x.v.units.home.shieldman,51);
+});
+
+test('incoming attacks do not prevent entering the conquest phase at 150 home Pikemen',async()=>{
+ const x=await executor();delete x.saved().conquest;
+ x.context.state.commands.incoming=[{kind:'attack',to:{id:x.v.id}} as any];
+ const c=await x.create();await c.setAutomatic(false);await c.cycle();
+ assert.equal(x.saved().conquest?.status,'preparing');assert.equal(x.writes.length,0);
 });
