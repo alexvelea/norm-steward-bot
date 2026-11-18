@@ -61,6 +61,11 @@ export class Controller{
 
 
 class SnapshotWorkerTests(unittest.TestCase):
+    def test_round_covers_long_horizons(self):
+        self.assertEqual(worker.round_ticks(3600),10800)
+        self.assertEqual(worker.round_ticks(10800),10800)
+        self.assertEqual(worker.round_ticks(28800),28800)
+        self.assertEqual(worker.round_ticks(3600,keep=True),43200)
     def test_parse_house_bots(self):
         parse=worker.parse_house_bots
         self.assertEqual(parse('warden=2,reaver=2,sovereign=2'),{'warden':2,'reaver':2,'sovereign':2})
@@ -91,6 +96,7 @@ class SnapshotWorkerTests(unittest.TestCase):
             value=json.loads((directory/'result.json').read_text())
             snapshots=[json.loads(line) for line in (directory/'snapshots.jsonl').read_text().splitlines()]
             self.assertEqual(snapshots,value['checkpoints'])
+            self.assertEqual(value['roundTicks'],10800)
             self.assertEqual([r['tick'] for r in snapshots],[0,300,600])
             self.assertTrue(all(len(r['villages'])==2 for r in snapshots))
             self.assertEqual(snapshots[-1]['villages'][1]['units'],{'home':{'pikeman':10},'away':{'scout':2}})
@@ -167,6 +173,7 @@ class SnapshotWorkerTests(unittest.TestCase):
                 (root/'paused').touch()
                 with self.assertRaisesRegex(RuntimeError,'paused'):worker.run()
                 with self.assertRaises(ValueError):worker.run(hours=0)
+                with self.assertRaises(ValueError):worker.run(hours=13)
                 with self.assertRaises(ValueError):worker.run(snapshot_ticks=0)
                 self.assertFalse(any(call.args and call.args[0][0]=='node' for call in command.call_args_list))
 

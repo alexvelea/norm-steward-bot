@@ -11,13 +11,15 @@ import type {
   PlanningReservation,
   TaskState,
 } from "../diagnostics/planning.js";
-import { PLAN, type CityRole, type PlanNode } from "./graph.js";
+import { isTaskKey, PLAN, type CityRole, type PlanNode, type TaskKey } from "./graph.js";
 import type { MissionInstance } from "../strategy/missions/conquest.js";
 import { cityRoles } from "../strategy/roles.js";
 
 export interface PlanningMemory {
   missions: readonly MissionInstance[];
   scope: string;
+  /** Per village: milestones reached and tasks handed off to their replacement in this scope. */
+  reached?: Readonly<Record<string, readonly string[]>>;
 }
 
 export interface PlanningInput {
@@ -154,7 +156,7 @@ function containedTaskKeys(nodeKey: string): string[] {
   const visit = (parent: string): void => {
     for (const childKey of children.get(parent) ?? []) {
       const child = nodes.get(childKey);
-      if (!child || child.kind === "capability") continue;
+      if (!child || child.kind === "capability" || child.planned) continue;
       if (child.kind === "task" || child.kind === "milestone" || isActionNode(child)) result.push(child.key);
       else visit(child.key);
     }
@@ -263,6 +265,7 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
 
   for (const village of context.state.villages) {
     const states = new Map<string, PlanningNodeState>();
+    const reached = new Set(memory.reached?.[village.id] ?? []);
     for (const node of PLAN.nodes) {
       if (node.kind === "capability") continue;
       const candidatesForNode = candidates.filter(candidate => candidate.task === node.key && candidate.villageId === village.id);
@@ -306,6 +309,11 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
         status = progress.satisfied ? "satisfied" : "waiting";
         if (!progress.satisfied) primaryBlocker = { reasonCode: "PROGRESS_BELOW_GOAL", nodeKey: node.key };
       }
+      const latched = reached.has(node.key) && (node.kind === "milestone" || (node as PlanNode).replacedBy !== undefined);
+      if (latched) {
+        status = "satisfied";
+        primaryBlocker = null;
+      }
 
       const wake = candidatesForNode
         .map(value => proposalById.get(value.id)?.affordableAtTick)
@@ -322,6 +330,7 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
         candidates: candidatesForNode.map(value => value.id),
         operations: operationsForNode.map(value => value.id),
         wake,
+        ...((node as PlanNode).replacedBy !== undefined && latched ? { replaced: true as const } : {}),
       });
     }
 
@@ -329,7 +338,7 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
       const previous = [...states.values()].map(state => `${state.key}:${state.status}:${JSON.stringify(state.primaryBlocker)}`).join("|");
       for (const node of PLAN.nodes) {
         const state = states.get(node.key);
-        if (!state || (node as PlanNode).predicateKey !== "requires.done") continue;
+        if (!state || (node as PlanNode).predicateKey !== "requires.done" || reached.has(node.key)) continue;
         const prerequisites = PLAN.edges.filter(edge => edge.kind === "requires" && edge.to === node.key).map(edge => states.get(edge.from));
         const done = prerequisites.filter(value => value?.status === "satisfied").length;
         state.progress = { observed: done, goal: prerequisites.length };
@@ -380,6 +389,18 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
       }
       const current = [...states.values()].map(state => `${state.key}:${state.status}:${JSON.stringify(state.primaryBlocker)}`).join("|");
       if (current === previous) break;
+    }
+    for (const node of PLAN.nodes as readonly PlanNode[]) {
+      const state = states.get(node.key);
+      if (!state || !node.replacedBy || state.replaced) continue;
+      const parentKey = parentOf.get(node.key);
+      const handedOff = (parentKey !== undefined && states.get(parentKey)?.status === "satisfied") ||
+        PLAN.edges.some(edge => edge.kind === "requires" && edge.from === node.key && states.get(edge.to)?.status === "satisfied");
+      if (handedOff) {
+        state.status = "satisfied";
+        state.primaryBlocker = null;
+        state.replaced = true;
+      }
     }
     const role = roles.get(village.id)?.role ?? "capital";
     for (const node of PLAN.nodes) {
@@ -471,4 +492,29 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
     missions: planningMissions(memory.missions),
     wake,
   };
+}
+
+/** Per village: milestones reached and tasks handed off, to keep them done for the rest of the scope. */
+export function reachedNodes(projection: PlanningProjection): Record<string, string[]> {
+  const reached: Record<string, string[]> = {};
+  for (const state of projection.nodes) {
+    if (state.villageId === null || state.applies === false || isPlanned(state.key)) continue;
+    if (state.replaced || (state.kind === "milestone" && state.status === "satisfied")) {
+      (reached[state.villageId] ??= []).push(state.key);
+    }
+  }
+  return reached;
+}
+
+/** Work for a task that was handed off belongs to its replacement. */
+export function routeReplaced<T extends { task: TaskKey; villageId: string }>(
+  proposals: readonly T[],
+  reached: Readonly<Record<string, readonly string[]>>,
+): T[] {
+  return proposals.map(proposal => {
+    const replacement = (nodeByKey.get(proposal.task) as PlanNode | undefined)?.replacedBy;
+    return replacement && isTaskKey(replacement) && reached[proposal.villageId]?.includes(proposal.task)
+      ? { ...proposal, task: replacement }
+      : proposal;
+  });
 }

@@ -45,12 +45,12 @@ test("Stable 1 is the final military-development step for Scouts", () => {
   const village = context.state.villages[0]!;
   Object.assign(village.buildings, {barracks: 5, smithy: 5});
   for (const option of village.options.build) option.level = village.buildings[option.building] + 1;
-  const proposal = evaluateMilitaryDevelopment(context).find(value => value.task === "military.scouts");
+  const proposal = evaluateMilitaryDevelopment(context).find(value => value.task === "military.stable1");
   assert.equal(proposal?.action.type, "build");
   if (proposal?.action.type === "build") {
     assert.equal(proposal.action.building, "stable");
     assert.equal(proposal.targetLevel, 1);
-    assert.equal(proposal.task, "military.scouts");
+    assert.equal(proposal.task, "military.stable1");
   }
 });
 

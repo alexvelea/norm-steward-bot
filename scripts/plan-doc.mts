@@ -28,6 +28,8 @@ export function renderPlanDoc(): string {
     "",
     "Node kinds: objective is the top-level outcome; mission is durable strategic intent; group organizes work; task is continuous actionable work; milestone is a measured goal; policy describes a decision rule; capability marks supported or unavailable behavior.",
     "",
+    "Within a world, a milestone stays done once reached. A task with a replacement stays live until a task that requires it, or its group, is done; then it stays done and its work goes to the replacement. Other tasks are live and act again when their goal regresses.",
+    "",
     "Edges: contains organizes the plan tree; requires gates a dependent on a prerequisite and points from prerequisite (`from`) to dependent (`to`); contributesTo links work that contributes to an outcome without defining containment or a gate.",
     "",
     "```mermaid",
@@ -61,12 +63,12 @@ export function renderPlanDoc(): string {
     "",
     "Contains edges are solid blue, requires edges are dashed red, and contributesTo edges are dashed purple.",
     "",
-    "| Key | Kind | Title | Summary | Gating thresholds | Requires |",
-    "| --- | --- | --- | --- | --- | --- |",
+    "| Key | Kind | Title | Summary | Gating thresholds | Requires | Replaced by |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
   );
   for(const node of PLAN.nodes){
     const prerequisites=PLAN.edges.filter(edge=>edge.kind==="requires"&&edge.to===node.key).map(edge=>edge.from).join(", ")||"—";
-    lines.push(`| ${escapeCell(node.key)} | ${node.kind} | ${escapeCell(node.title)} | ${escapeCell(node.summary)} | ${escapeCell(thresholds(node))} | ${escapeCell(prerequisites)} |`);
+    lines.push(`| ${escapeCell(node.key)} | ${node.kind} | ${escapeCell(node.title)} | ${escapeCell(node.summary)} | ${escapeCell(thresholds(node))} | ${escapeCell(prerequisites)} | ${escapeCell((node as PlanNode).replacedBy??"—")} |`);
   }
   return `${lines.join("\n")}\n`;
 }

@@ -2438,9 +2438,6 @@ input.num {
 }
 
 .bp-status.status-planned { color: #b9a6e8; border-color: rgba(185, 166, 232, 0.45); border-style: dashed; }
-.bp-replaced-by { background: transparent; cursor: pointer; font: inherit; font-size: 8px; white-space: nowrap; }
-.bp-replaced-by:hover { color: #d0c1f2; }
-.bp-replaced-by:focus-visible { outline: 1px solid var(--gold); }
 .bp-warn { font-size: 11px; color: #e8a96b; }
 .bp-roles-toggle { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; }
 .bp-spec { margin: 8px 0 4px; }

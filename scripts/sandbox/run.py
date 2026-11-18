@@ -11,6 +11,11 @@ DEFAULT_HOUSE_BOTS='warden=2,reaver=2,sovereign=2'
 HOUSE_BOT_KINDS=('warden','reaver','sovereign')
 MAX_HOUSE_BOTS=12
 ROUND_TICKS=10800
+MAX_TICKS=43200  # SANDBOX.durationMax
+
+def round_ticks(ticks,keep=False):
+    """The round lasts three hours, or the horizon when longer; a kept world gets the longest round so it stays playable."""
+    return MAX_TICKS if keep else max(ROUND_TICKS,ticks)
 
 def read(path):return json.loads(path.read_text())
 
@@ -63,8 +68,9 @@ def stored(revision,wanted):
 def run(ref='HEAD',hours=1,snapshot_ticks=300,seed=73430,working_tree=None,house_bots=None,keep=False,rerun=False):
     if house_bots is None:house_bots=parse_house_bots(DEFAULT_HOUSE_BOTS)
     ticks=round(hours*3600)
-    if keep:ticks=min(ticks,ROUND_TICKS-1)  # an ended world cannot be opened in the dashboard
-    if not 600<=ticks<=10800:raise ValueError('Use a horizon of 600–10800 game ticks (up to 3 hours)')
+    if not 600<=ticks<=MAX_TICKS:raise ValueError('Use a horizon of 600–43200 game ticks (up to 12 hours)')
+    rounds=round_ticks(ticks,keep)
+    if keep:ticks=min(ticks,rounds-1)  # an ended world cannot be opened in the dashboard
     if not 1<=snapshot_ticks<=ticks:raise ValueError('snapshot-ticks must be between 1 and the horizon')
     revision=subprocess.check_output(['git','rev-parse',ref+'^{commit}'],cwd=working_tree or ROOT,text=True).strip()
     if working_tree is None and not keep and not rerun:
@@ -90,7 +96,7 @@ def run(ref='HEAD',hours=1,snapshot_ticks=300,seed=73430,working_tree=None,house
             spec['workingTree']=working_tree is not None
             spec['fingerprint']=fingerprint(source);atomic(directory/'run.json',spec)
             env={**{k:os.environ[k] for k in ['PATH','HOME','LANG','TMPDIR','STEWARD_CONTROL_DIR'] if k in os.environ},'STEWARD_REVIEW_DIR':str(DATA.resolve()),'STEWARD_REVIEW_RUN':str(directory.resolve()),'STEWARD_REVIEW_TOOLS':str(ROOT),
-                 'STEWARD_EXPERIMENT_SOURCE':str(source),'STEWARD_EXPERIMENT_TICKS':str(ticks),'STEWARD_EXPERIMENT_SEED':str(seed),'STEWARD_EXPERIMENT_SNAPSHOT_TICKS':str(snapshot_ticks),'STEWARD_EXPERIMENT_HOUSE_BOTS':json.dumps(house_bots),**({'STEWARD_EXPERIMENT_KEEP':'1'} if keep else {})}
+                 'STEWARD_EXPERIMENT_SOURCE':str(source),'STEWARD_EXPERIMENT_TICKS':str(ticks),'STEWARD_EXPERIMENT_ROUND_TICKS':str(rounds),'STEWARD_EXPERIMENT_SEED':str(seed),'STEWARD_EXPERIMENT_SNAPSHOT_TICKS':str(snapshot_ticks),'STEWARD_EXPERIMENT_HOUSE_BOTS':json.dumps(house_bots),**({'STEWARD_EXPERIMENT_KEEP':'1'} if keep else {})}
             with (directory/'worker.log').open('a') as log:
                 subprocess.run(['node','--import','tsx',str(ROOT/'scripts/sandbox/runner.mts')],cwd=source,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=5400,check=True)
             if not valid_run(directory,spec):raise RuntimeError('Run did not produce complete owned-world receipts and snapshots')

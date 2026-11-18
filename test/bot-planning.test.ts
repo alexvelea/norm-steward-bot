@@ -7,7 +7,7 @@ import { logisticsAdvisor } from "../src/advisors/logistics.js";
 import { militaryAdvisor } from "../src/advisors/military.js";
 import { allocateWithPresident } from "../src/bot/allocation/president.js";
 import type { PlanningMemory } from "../src/bot/plan/evaluate.js";
-import { effectiveRoles, evaluatePlanning } from "../src/bot/plan/evaluate.js";
+import { effectiveRoles, evaluatePlanning, reachedNodes, routeReplaced } from "../src/bot/plan/evaluate.js";
 import { isTaskKey, PLAN, proposalTask, type TaskKey } from "../src/bot/plan/graph.js";
 import type { MissionInstance } from "../src/bot/strategy/missions/conquest.js";
 import { cityRoles, filterProposalsByRole } from "../src/bot/strategy/roles.js";
@@ -181,7 +181,7 @@ test("the early producer milestone tracks the separate 14/14/12 thresholds", () 
 test("early-game graph orders its opening and removes the old conquest Hall and Barracks tasks", () => {
   const keys = new Set<string>(PLAN.nodes.map(value => value.key));
   assert.ok(keys.has("early-game"));
-  for (const key of ["early.economy", "early.barracks1", "early.wall5", "early.hall10", "early.barracks5", "early.producers15", "early.pikemen"])
+  for (const key of ["early.economy", "early.barracks1", "early.wall5", "early.hall10", "early.barracks5", "early.pikemen"])
     assert.ok(keys.has(key), `missing ${key}`);
   assert.equal(keys.has("conquest.hall13"), false);
   assert.equal(keys.has("conquest.barracks10"), false);
@@ -191,16 +191,20 @@ test("early-game graph orders its opening and removes the old conquest Hall and 
   assert.ok(requires.has("early.barracks1->early.wall5"));
   assert.ok(requires.has("early.wall5->early.hall10"));
   assert.ok(requires.has("early.hall10->early.barracks5"));
-  assert.ok(requires.has("early.barracks5->early.producers15"));
+  assert.ok(requires.has("early.barracks5->economy.producers.15"));
+  assert.ok(!keys.has("early.producers15"));
   assert.ok(requires.has("early.barracks1->first-conquest"));
-  assert.ok(requires.has("early.producers15->defense.smithy1"));
-  assert.ok(requires.has("early.pikemen->defense.smithy1"));
-  assert.ok(!requires.has("early-game->defense.smithy1"));
+  assert.ok(requires.has("economy.producers.15->military.stable1"));
+  assert.ok(requires.has("early.pikemen->military.stable1"));
+  assert.ok(requires.has("economy.producers.20->military.attack"));
   const contains = new Set(PLAN.edges.filter(edge => edge.kind === "contains").map(edge => `${edge.from}->${edge.to}`));
   assert.ok(contains.has("early-game->early.pikemen"));
   assert.ok(contains.has("early-game->conquest.infrastructure"));
   assert.ok(!contains.has("early-game->first-conquest"));
-  assert.ok(contains.has("defense->defense.smithy1"));
+  assert.ok(contains.has("defense->military.scouting"));
+  assert.ok(contains.has("military.scouting->military.stable1"));
+  assert.ok(contains.has("defense->military.attack"));
+  assert.ok(!keys.has("defense.development") && !keys.has("defense.smithy1"));
   assert.ok(contains.has("round->conquest"));
   for (const key of ["military.raiders", "first-conquest", "expansion"])
     assert.ok(contains.has(`conquest->${key}`), `Conquest must contain ${key}`);
@@ -232,7 +236,7 @@ test("early game finishes when conquest is enabled without waiting for the first
   capital.units.home.pikeman = 200;
 
   const projection = project(c, { memory: { missions: [mission()] } });
-  for (const key of ["early.economy", "early.barracks1", "early.wall5", "early.hall10", "early.barracks5", "early.producers15", "early.pikemen"])
+  for (const key of ["early.economy", "early.barracks1", "early.wall5", "early.hall10", "early.barracks5", "early.pikemen"])
     assert.equal(node(projection, key).status, "satisfied", `${key} should be satisfied`);
   assert.notEqual(node(projection, "conquest.first-achieved").status, "satisfied");
   assert.notEqual(node(projection, "first-conquest").status, "satisfied");
@@ -1046,4 +1050,46 @@ test("economic city ships surplus to the capital from producers 15 and grows its
 
   capital.storage = capital.resources.timber + 2000;
   assert.equal(surplus().length, 0, "capital has no room for a full shipment");
+});
+
+test("replaced tasks stay live until handoff, then stay done and route work to the replacement", () => {
+  const live = project();
+  assert.notEqual(node(live, "early.pikemen").replaced, true);
+
+  const handoff = context();
+  handoff.state.villages[0]!.buildings.stable = 1;
+  const handedOff = project(handoff);
+  assert.equal(node(handedOff, "early.pikemen").status, "satisfied");
+  assert.equal(node(handedOff, "early.pikemen").replaced, true);
+  assert.ok(reachedNodes(handedOff).v1?.includes("early.pikemen"));
+
+  const later = project(context(), { memory: { reached: { v1: ["early.pikemen"] } } });
+  assert.equal(node(later, "early.pikemen").status, "satisfied");
+  assert.equal(node(later, "early.pikemen").replaced, true);
+  assert.equal(node(later, "early.pikemen").primaryBlocker, null);
+
+  const work = [{ task: "early.pikemen" as TaskKey, villageId: "v1" }, { task: "early.pikemen" as TaskKey, villageId: "v2" }];
+  assert.deepEqual(routeReplaced(work, { v1: ["early.pikemen"] }).map(value => value.task), ["military.pikemen-baseline", "early.pikemen"]);
+  assert.deepEqual(routeReplaced(work, {}).map(value => value.task), ["early.pikemen", "early.pikemen"]);
+});
+
+test("first-conquest tasks hand off to expansion after the first capture", () => {
+  const after = project(context(), { memory: { missions: [mission("completed")] } });
+  for (const key of ["conquest.escort", "conquest.envoy", "conquest.dispatch"]) {
+    assert.equal(node(after, key).replaced, true, key);
+    assert.equal(node(after, key).status, "satisfied", key);
+  }
+  const before = project(context(), { memory: { missions: [mission()] } });
+  assert.notEqual(node(before, "conquest.envoy").replaced, true);
+});
+
+test("milestones stay done once reached while ordinary tasks act again on regression", () => {
+  const c = context();
+  setProducers(c, 4);
+  assert.equal(node(project(c), "economy.producers.8").status, "waiting");
+  const latched = project(c, { memory: { reached: { v1: ["economy.producers.8", "early.barracks1"] } } });
+  assert.equal(node(latched, "economy.producers.8").status, "satisfied");
+  assert.equal(node(latched, "economy.producers.8").primaryBlocker, null);
+  assert.equal(node(latched, "early.barracks1").status, node(project(c), "early.barracks1").status);
+  assert.notEqual(node(latched, "early.barracks1").replaced, true);
 });

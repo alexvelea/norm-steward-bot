@@ -146,7 +146,8 @@ export function PlanView({ view }: { view: ControlView }) {
           <p className="small muted bp-legend">
             Tree = contains. “Needs” lists unmet prerequisites (requires edges). Only branches for
             the selected city's role are shown. “Planned” nodes are designed but not codified yet;
-            the bot never acts on them. Several tasks can be ready at once; the bot still submits
+            the bot never acts on them. Milestones stay done once reached; a task with a replacement is
+            hidden once handed off. Several tasks can be ready at once; the bot still submits
             one action per cycle.
           </p>
         </section>
@@ -189,7 +190,7 @@ function TreeRow({
   const unmet = prerequisites(nodeKey).filter((key) => states.get(key)?.status !== "satisfied");
   const offRole = state?.applies === false;
   const activeOffRole = offRole && !!state && (state.candidates.length > 0 || state.operations.length > 0);
-  if (offRole && !allRoles) return null;
+  if ((offRole && !allRoles) || state?.replaced) return null;
   return (
     <li
       role="treeitem"
@@ -230,16 +231,6 @@ function TreeRow({
           {activeOffRole && <span className="bp-warn">acts here today; not in this role's plan</span>}
           {state && <StatusPill state={state} />}
         </button>
-        {node.replacedBy && (
-          <button
-            type="button"
-            className="bp-status status-planned bp-replaced-by"
-            aria-label={`Replaced by ${byKey.get(node.replacedBy)?.title ?? node.replacedBy}`}
-            onClick={() => onSelect(node.replacedBy!)}
-          >
-            Replaced by {byKey.get(node.replacedBy)?.title ?? node.replacedBy}
-          </button>
-        )}
       </div>
       {kids.length > 0 && open && (
         <ul role="group">
@@ -370,6 +361,17 @@ function Inspector({
           {state?.applies === false ? " · not this city's role" : ""}
           {isPlanned(nodeKey) ? " · planned, not codified yet" : ""}
         </dd>
+        {node.replacedBy && (
+          <>
+            <dt>Replaced by</dt>
+            <dd>
+              <button className="linkish" onClick={() => onSelect(node.replacedBy!)}>
+                {byKey.get(node.replacedBy)?.title ?? node.replacedBy}
+              </button>
+              {state?.replaced ? " · handed off; done for this world" : " · once a dependent task or its group is done"}
+            </dd>
+          </>
+        )}
         {node.advisor && (
           <>
             <dt>Advisor</dt>

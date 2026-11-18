@@ -42,7 +42,7 @@ SANDBOX_HOST=root@host scripts/sandbox/fetch.sh master HEAD
 
 Other options: `--house-bots none` or `--house-bots warden=1,reaver=1` (default
 `warden=2,reaver=2,sovereign=2`, at most 12), `--snapshot-ticks N` (default 300) and `--hours`
-(600–10800 ticks, up to three game hours). The default ref is HEAD and the default seed is 73430.
+(600–43200 ticks, up to 12 game hours). The round lasts three hours, or the horizon when it is longer; with `--keep` it lasts 12 hours so the kept world stays playable after the horizon. The default ref is HEAD and the default seed is 73430.
 
 A one-hour run takes roughly 25 seconds and a two-hour run under two minutes. Run the command in
 the foreground and read its output; do not wrap it in polling loops. Runs are serialized by
@@ -109,7 +109,7 @@ the latest sighting details. Milestones already true at tick 0 are omitted.
 
 ## Kept worlds
 
-`--keep` stops one tick before the round ends when asked for the full three hours, because an ended
+`--keep` stops one tick before the round ends when asked for the full round, because an ended
 world cannot be opened. The world stays paused and counts against the account limit of ten
 sandboxes, so delete it with `--delete <run id>` as soon as you are done. A failed `--keep` run is
 cleaned up like any other.

@@ -148,7 +148,7 @@ export class Broker {
         if (Object.keys(this.registry.worlds).length >= 8) throw new Error('Eight sandbox creations per review is the limit; finish this bounded experiment');
         if (Object.values(this.registry.worlds).filter(v => !v.deleted).length >= SANDBOX.perAccount) throw new Error('Sandbox per-account limit reached');
         const config = { name: 'review-' + randomUUID().slice(0, 8), seed: request.seed ?? 73421, durationTicks: request.durationTicks ?? 600, clock: 'lockstep', paused: true, houseBots: request.houseBots ?? { warden: 0, reaver: 0, sovereign: 0 } };
-        if (!Number.isSafeInteger(config.durationTicks) || config.durationTicks < 600 || config.durationTicks > 10800) throw new Error('Use a bounded 600–10800 tick experiment');
+        if (!Number.isSafeInteger(config.durationTicks) || config.durationTicks < 600 || config.durationTicks > SANDBOX.durationMax) throw new Error(`Use a bounded 600–${SANDBOX.durationMax} tick experiment`);
         const me = (await this.api('/me')).account.id;
         const result = await this.api('/sandboxes', config);
         if (result?.kind !== 'sandbox' || result.ownerId !== me || typeof result.id !== 'string') throw new Error('Server did not return an owner-created sandbox');

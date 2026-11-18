@@ -53,6 +53,8 @@ export interface SavedControl {
   decisions: Decision[];
   production?: ProductionLedger;
   missions?: MissionInstance[];
+  /** Plan milestones reached and tasks handed off, per village, for one world scope. */
+  reached?: { scope: string; villages: Record<string, string[]> };
   persistenceFault?: string;
   recoveryRequired?: string;
   /** Persisted execution preference; service restarts must not override an operator pause. */

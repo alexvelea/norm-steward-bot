@@ -13,7 +13,7 @@ const keep=process.env.STEWARD_EXPERIMENT_KEEP==='1';
 const run=process.env.STEWARD_REVIEW_RUN!;
 const snapshotTicks=Number(process.env.STEWARD_EXPERIMENT_SNAPSHOT_TICKS??300);
 assert.ok(Number.isSafeInteger(snapshotTicks)&&snapshotTicks>0);
-const result:any={seed:Number(process.env.STEWARD_EXPERIMENT_SEED??73430),roundTicks:10800,stopTick:Number(process.env.STEWARD_EXPERIMENT_TICKS??7200),houseBots:JSON.parse(process.env.STEWARD_EXPERIMENT_HOUSE_BOTS??'{"warden":2,"reaver":2,"sovereign":2}'),clock:'paused lockstep',evaluation:'one-tick action follow-up; authoritative queue/funding events; max 30 idle ticks',startedAt:new Date().toISOString(),checkpoints:[],actions:[],passed:false,deleted:false};
+const result:any={seed:Number(process.env.STEWARD_EXPERIMENT_SEED??73430),roundTicks:Number(process.env.STEWARD_EXPERIMENT_ROUND_TICKS??10800),stopTick:Number(process.env.STEWARD_EXPERIMENT_TICKS??7200),houseBots:JSON.parse(process.env.STEWARD_EXPERIMENT_HOUSE_BOTS??'{"warden":2,"reaver":2,"sovereign":2}'),clock:'paused lockstep',evaluation:'one-tick action follow-up; authoritative queue/funding events; max 30 idle ticks',startedAt:new Date().toISOString(),checkpoints:[],actions:[],passed:false,deleted:false};
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function cool(error:unknown,attempt:number){
  if(!/429|Rate limited/.test(String(error)))throw error;

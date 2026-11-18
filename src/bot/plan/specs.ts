@@ -226,9 +226,13 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     priority: ["Score: to be decided when codified."],
   },
   "economy.hall-push": {
-    intent: "After producers 20 the capital keeps the Great Hall growing alongside military growth.",
+    intent: "Once producers reach 20, force the Great Hall to 15, then keep it growing alongside military growth.",
     eligible: ["All three resource producers reach level 20."],
-    priority: ["Score: to be decided when codified."],
+    priority: ["Great Hall 15 comes first after producers 20.", "Score: to be decided when codified."],
+  },
+  "economy.producer-cap": {
+    intent: "Capital producers stop at level 20.",
+    never: ["Never raise a capital producer above level 20."],
   },
   "early.economy": {
     intent: "Reach the capital's early military producer gate: Lumberyard 14, Quarry 14, Mine 12.",
@@ -253,10 +257,6 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     intent: "Grow Barracks to level 5 after Hall 10, then cap it there.",
     eligible: ["Hall 10 and Wall 5 are complete.", "Barracks is below level 5."],
     never: ["Never build Barracks above level 5."],
-  },
-  "early.producers15": {
-    intent: "Bring all three capital producers to level 15 after Barracks 5.",
-    eligible: ["Barracks 5 is complete.", "Lumberyard, Quarry and Mine are each at least level 15."],
   },
   "early.pikemen": {
     intent: "Train 200 home Pikemen from Barracks 1 in parallel with the early military buildings.",
@@ -290,22 +290,48 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     priority: ["72 for baseline Raider training."],
     never: ["Never wait for Raiders that are not being trained."],
   },
+  "military.stable1": {
+    intent: "Build Stable 1 for Scouts once Scout-path Smithy is done; the Stable is only for Scouts.",
+    eligible: ["Producers 15 and 200 home Pikemen are reached.", "Smithy reaches level 5 first, because Stable 1 requires it."],
+    priority: ["Follow the military development step order: Barracks 3, then Smithy and Stable 1 with its missing prerequisites."],
+    never: ["Before producers reach 20, never build beyond Stable 1; Attack owns later Stable levels."],
+  },
   "military.scouts": {
-    intent: "The capital keeps 20 Scouts at home per city it owns, and stations 20 in each economic city on request. The Stable is only for Scouts (Stable 1).",
-    eligible: ["Keep 20 Scouts at home per city owned.", "Station 20 Scouts in each economic city on request.", "Build Stable 1 only for Scouts."],
+    intent: "The capital keeps 20 Scouts at home per city it owns, and stations 20 in each economic city on request.",
+    eligible: ["Stable 1 is built.", "Keep 20 Scouts at home per city owned.", "Station 20 Scouts in each economic city on request."],
     priority: ["Score: to be decided when codified."],
-    never: ["Never use the Stable for non-Scout units or build beyond Stable 1."],
+    never: ["Never use the Stable for non-Scout units."],
+  },
+  "military.attack": {
+    intent: "Late-game resource sink: once the capital's producers reach 20, turn surplus into Lancers and Rams and keep building in the capital.",
+    eligible: ["The capital's producers reach level 20."],
+  },
+  "military.attack-workshop": {
+    intent: "After Stable 10, build Workshop 10 before raising the Stable further.",
+    eligible: ["Stable 10 is built."],
+    priority: ["Workshop 10 ranks above Stable growth beyond 10."],
+  },
+  "military.attack-stable": {
+    intent: "Build the Stable to at least 10; after Workshop 10, keep raising it when it cannot train units fast enough.",
+    priority: ["Farm takes priority over Stable growth."],
+  },
+  "military.lancers": {
+    intent: "Train Lancers from the Stable continuously while timber, stone and iron are each above 10,000 in the capital.",
+    eligible: ["Every capital resource is above 10,000.", "Batches never drop a resource below 10,000."],
+    priority: ["Lancers come before Rams."],
+  },
+  "military.rams": {
+    intent: "Train Rams from the Workshop while timber, stone and iron are each above 20,000 in the capital; Lancers come first.",
+    eligible: ["Every capital resource is above 20,000 after the next Lancer batch.", "Batches never drop a resource below 20,000."],
+  },
+  "military.capital-growth": {
+    intent: "Keep upgrading capital buildings alongside the troop sink.",
   },
   "military.wall-cap": {
     intent: "Capital Walls stop at level 10.",
     eligible: ["Build Capital Walls only up to level 10."],
     priority: ["Score: to be decided when codified."],
     never: ["Never build Walls above level 10."],
-  },
-  "military.workshop": {
-    intent: "Skipped: we win on numbers, not Rams or Trebuchets.",
-    priority: ["Score: to be decided when codified."],
-    never: ["Skip Rams and Trebuchets; win on numbers."],
   },
   "expansion.cities4": {
     intent: "Own four cities before opening the enemy-conquest plan.",

@@ -8,7 +8,7 @@ import { Controller } from "../src/control/controller.js";
 import { FileControlStorage } from "../src/control/storage.js";
 import type { Remote } from "../src/control/remote.js";
 import type { Settings } from "../src/control/types.js";
-import { decodeControlStore, isControlStoreV2 } from "../src/bot/persistence/schema.js";
+import { controlStore, decodeControlStore, isControlStoreV2 } from "../src/bot/persistence/schema.js";
 
 const fixture=resolve(dirname(fileURLToPath(import.meta.url)),"fixtures/control-legacy.json");
 
@@ -65,4 +65,11 @@ test("unsupported store versions block controller execution without rewriting st
   assert.deepEqual((await readdir(directory)),["control.json"]);
   await assert.rejects(controller.setAutomatic(true),/recovery is required/);
  }finally{await rm(directory,{recursive:true,force:true});}
+});
+
+test("reached plan nodes persist with their world scope",()=>{
+ const reached={scope:"s|a|w|1",villages:{v1:["early.pikemen","conquest.enabled"]}};
+ const store=controlStore({settings:{serverUrl:"https://sandbox.invalid",worldId:"w",apiKey:"fixture"},automatic:false,pending:null,active:[],decisions:[],reached} as Parameters<typeof controlStore>[0]);
+ assert.deepEqual(store.strategy.reached,reached);
+ assert.deepEqual(decodeControlStore(JSON.parse(JSON.stringify(store))).reached,reached);
 });

@@ -1,5 +1,6 @@
 import { evaluateBarracksGrowth, evaluateMilitaryDevelopment, evaluateWalls } from "./military-development.js";
 import { evaluateSustainedDefense } from "./sustained-defense.js";
+import { evaluateAttackSink } from "./attack-sink.js";
 import { minuteTrainingProposal } from "./military-training.js";
 import { completionWindow } from "./completion.js";
 import type { Action, BuildingId, Resources } from "../shared/api.js";
@@ -17,7 +18,7 @@ export const militaryAdvisor: Advisor = { id: "military", evaluate: context => {
   return [
     ...evaluateMilitary(context), ...evaluateSustainedDefense(context), ...evaluateRaiders(context),
     ...evaluateMilitaryDevelopment(context), ...evaluateBarracksGrowth(context), ...evaluateWalls(context),
-    ...evaluateRecall(context),
+    ...evaluateRecall(context), ...evaluateAttackSink(context),
   ].filter(proposal => proposal.villageId === capital.id ||
     proposal.task === "econ.request-defenders" || proposal.task === "econ.request-scouts" ||
     proposal.task === "expansion.recall");

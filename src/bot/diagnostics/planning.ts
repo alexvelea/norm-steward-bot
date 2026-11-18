@@ -27,6 +27,8 @@ export interface PlanningNodeState {
   wake: number | null;
   /** False when the village's role is outside this node's roles. */
   applies?: false;
+  /** Handed off to its replacedBy task in this world; stays done and proposes nothing. */
+  replaced?: true;
 }
 
 export interface PlanningCandidate {

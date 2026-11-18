@@ -35,7 +35,7 @@ import {safeEnvoyAttack} from "../review/conquest-plan.js";
 import type { AdvisorContext, Proposal } from "../advisors/types.js";
 import type { ControlStorage } from "./storage.js";
 import { allocateWithPresident } from "../bot/allocation/president.js";
-import { effectiveRoles, evaluatePlanning } from "../bot/plan/evaluate.js";
+import { effectiveRoles, evaluatePlanning, reachedNodes, routeReplaced } from "../bot/plan/evaluate.js";
 import { PLAN } from "../bot/plan/graph.js";
 import { BotRunner } from "../bot/runner/runner.js";
 import { prepareJournalEntry } from "../bot/execution/journal.js";
@@ -614,6 +614,9 @@ export class Controller {
       !this.view.proposals.some(proposal=>proposal.id===pendingTrade.proposal.id))
       this.view.proposals.push(pendingTrade.proposal);
     this.view.proposals=filterProposalsByRole(this.view.proposals,roles,effectiveRoles);
+    const scope=productionScope(this.settings.serverUrl,this.view.account!.id,context.state);
+    const reached=this.saved.reached?.scope===scope?this.saved.reached.villages:{};
+    this.view.proposals=routeReplaced(this.view.proposals,reached);
     const lane = (a: Proposal["action"]) => {
       if (a.type === "build") return `${a.village}:build`;
       if (a.type === "send") return a.kind === "attack" ? "combat" : `support:${a.target}`;
@@ -639,11 +642,10 @@ export class Controller {
       pending:this.saved.pending?.proposal??null,
     });
     this.view.selection = allocation.selection;
-    const scope=productionScope(this.settings.serverUrl,this.view.account!.id,context.state);
     const journal=[...(this.saved.active??[]),...(this.saved.pending?[this.saved.pending]:[])];
     this.view.planning=evaluatePlanning({
       context,
-      memory:{missions,scope},
+      memory:{missions,scope,reached},
       candidates:this.view.proposals,
       journal,
       evaluatedAt:new Date(this.now()).toISOString(),
@@ -652,6 +654,7 @@ export class Controller {
       excludedCandidates:allocation.excluded,
       reservations:allocation.reservations,
     });
+    this.saved.reached={scope,villages:reachedNodes(this.view.planning)};
     if (!this.view.selection.selected && this.saved.active?.length) {
       this.view.selection.reason += ` Tracking ${this.saved.active.length} accepted operation(s) across independent construction/training/command queues.`;
     }

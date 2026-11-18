@@ -23,6 +23,7 @@ export interface ControlStoreV2 {
     missions: MissionInstance[];
     commitments?: unknown[];
     production?: ProductionLedger;
+    reached?: { scope: string; villages: Record<string, string[]> };
   };
 }
 
@@ -176,6 +177,7 @@ export function controlStore(value: SavedControl): ControlStoreV2 {
       schema: 1,
       missions: value.missions ?? [],
       ...(value.production ? { production: value.production } : {}),
+      ...(value.reached ? { reached: value.reached } : {}),
     },
   };
 }
@@ -189,6 +191,7 @@ export function hydrateControlStore(store: ControlStoreV2): SavedControl {
     automatic: store.execution.automatic,
     missions: store.strategy.missions,
     production: store.strategy.production,
+    ...(store.strategy.reached ? { reached: store.strategy.reached } : {}),
     persistenceFault: store.execution.persistenceFault,
   };
 }
