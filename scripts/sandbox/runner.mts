@@ -4,9 +4,12 @@ import {readFile,writeFile,rename,open} from 'node:fs/promises';
 const source=process.env.STEWARD_EXPERIMENT_SOURCE!;
 const tools=process.env.STEWARD_REVIEW_TOOLS!;
 const {Controller}=await import(source+'/src/control/controller.ts');
-const {PrivateSandbox,sandbox:rawSandbox,shutdownSandbox}=await import(tools+'/src/review/sandbox-client.ts');
-const {privateRead}=await import(tools+'/src/review/sandbox-read.ts');
-const {retrySandboxAction}=await import(tools+'/src/review/sandbox-actions.ts');
+const {PrivateSandbox,sandbox:rawSandbox,shutdownSandbox}=await import(tools+'/scripts/sandbox/client.ts');
+const {privateRead}=await import(tools+'/scripts/sandbox/read.ts');
+const {retrySandboxAction}=await import(tools+'/scripts/sandbox/actions.ts');
+const {Timeline,LABELS:labels}=await import(tools+'/scripts/sandbox/timeline.ts');
+const timeline=new Timeline();
+const keep=process.env.STEWARD_EXPERIMENT_KEEP==='1';
 const run=process.env.STEWARD_REVIEW_RUN!;
 const snapshotTicks=Number(process.env.STEWARD_EXPERIMENT_SNAPSHOT_TICKS??300);
 assert.ok(Number.isSafeInteger(snapshotTicks)&&snapshotTicks>0);
@@ -30,17 +33,18 @@ async function advanceTo(target:number){
  throw new Error('Clock retry bound exceeded');
 }
 const save=async()=>{
+ result.timeline=timeline.rows(false);result.incoming=timeline.incoming;
  await writeFile(run+'/result.json.tmp',JSON.stringify(result,null,2),{mode:0o600});await rename(run+'/result.json.tmp',run+'/result.json');
  const lines=['| Minute | Village | Buildings (completed levels only) | Army (trained, home + away) |','|---:|---|---|---|'];
- const labels:any={hall:'Hall',lumberyard:'Lumberyard',quarry:'Quarry',mine:'Iron Mine',farm:'Farm',storehouse:'Storehouse',cellar:'Cellar',barracks:'Barracks',smithy:'Smithy',stable:'Stable',workshop:'Workshop',market:'Market',wall:'Wall',watchtower:'Watchtower',court:'Court',pikeman:'Pikemen',shieldman:'Shieldmen',raider:'Raiders',archer:'Archers',scout:'Scouts',lancer:'Lancers',knight:'Knights',ram:'Rams',trebuchet:'Trebuchets',envoy:'Envoys'};
  for(const row of result.checkpoints)for(const v of row.villages){lines.push(`| ${row.minute} | ${v.name.replaceAll('|','\\|')} | ${Object.entries(v.buildings).map(([b,n])=>`${labels[b]??b} ${n}`).join(', ')} | ${Object.entries(v.army).map(([u,n])=>`${n} ${labels[u]??u}`).join(', ')||'—'} |`);}
  await writeFile(run+'/checkpoints.md',lines.join('\n')+'\n',{mode:0o600});
+ await writeFile(run+'/timeline.md',timeline.markdown(),{mode:0o600});
 };
 let box:any,state:any,saved:any;
 let interrupted=false;process.on('SIGTERM',()=>{interrupted=true;});process.on('SIGINT',()=>{interrupted=true;});
 try{
  box=await retry(()=>PrivateSandbox.create(result.seed,result.roundTicks,result.houseBots),"create");result.worldId=box.world.id;
- state=await retry(()=>box.join());const rules=await retry(()=>box.rules());result.rulesVersion=rules.version;result.initial=structuredClone(state);assert.equal(state.world.tick,0);
+ state=await retry(()=>box.join());const rules=await retry(()=>box.rules());result.rulesVersion=rules.version;result.initial=structuredClone(state);assert.equal(state.world.tick,0);timeline.observe(state);
  const settings={serverUrl:'https://sandbox.invalid',worldId:box.world.id,apiKey:'sandbox-adapter-no-credential'};
  saved={settings,pending:null,active:[],automatic:false,decisions:[]};
  const storage={load:async()=>structuredClone(saved),save:async(value:any)=>{saved=structuredClone(value);await writeFile(run+'/controller.json',JSON.stringify(saved,null,2),{mode:0o600});}};
@@ -61,7 +65,7 @@ try{
   const response:any=await retrySandboxAction(()=>call({op:'act',world:box.world.id,requestId:action.clientId,actions:[action]}),(attempt:any)=>{
    result.actions.push({tick:state.world.tick,action,result:attempt.results[0],proposal:saved.pending.proposal});
   },sleep);
-  state=response.state??await retry(()=>box.state());if(!response.results[0]?.ok)failures++;assert.ok(failures<5,'Repeated action failures');return response;
+  state=response.state??await retry(()=>box.state());timeline.observe(state);if(!response.results[0]?.ok)failures++;assert.ok(failures<5,'Repeated action failures');return response;
  };
  let nextCheckpoint=0;
  async function capture(){
@@ -100,12 +104,24 @@ try{
   for(const p of view.proposals)if(p.affordableAtTick>tick)events.push(p.affordableAtTick);
   for(const command of [...state.commands.outgoing,...state.commands.incoming])if(command.arrivalTick>tick)events.push(command.arrivalTick);
   const next=Math.min(...events.filter(n=>Number.isFinite(n)&&n>tick));assert.ok(next>tick&&next<=result.stopTick);
-  state=await advanceTo(next);
+  state=await advanceTo(next);timeline.observe(state);
  }
  await c.setAutomatic(false);result.final=state;result.lastTick=state.world.tick;result.cycles=cycles;assert.equal(state.world.tick,result.stopTick);assert.equal(result.checkpoints.at(-1).tick,result.stopTick);result.passed=true;
 }catch(error){result.error=String(error);throw error;}
 finally{
- result.finishedAt=new Date().toISOString();if(box){try{await retry(()=>box.close(),"delete");result.deleted=true;}catch(error){result.cleanupError=String(error);}}
- try{await call({op:'cleanup'});}catch(error){result.cleanupError=String(error);}finally{await shutdownSandbox();}
+ result.finishedAt=new Date().toISOString();
+ // Battle and scouting reports, paged to the end; best effort so a failed read never hides the run.
+ if(box&&state)try{
+  const summaries:any[]=[];let before:string|null|undefined;
+  for(let page=0;page<50;page++){const data:any=await call({op:'read',world:box.world.id,resource:'reports',...(before?{before}:{})});if(!Array.isArray(data?.reports))break;summaries.push(...data.reports);before=data.next;if(!before)break;}
+  const reports=[];for(const summary of summaries.slice(0,500))reports.push(await retry(()=>privateRead(box,'/reports/'+summary.id)));
+  await writeFile(run+'/reports.json',JSON.stringify(reports,null,2),{mode:0o600});result.reports=summaries.length;
+ }catch(error){result.reportsError=String(error);}
+ if(keep&&result.passed&&box)try{await call({op:'keep',world:box.world.id});result.kept=true;}catch(error){result.cleanupError=String(error);}
+ if(!result.kept){
+  if(box){try{await retry(()=>box.close(),"delete");result.deleted=true;}catch(error){result.cleanupError=String(error);}}
+  try{await call({op:'cleanup'});}catch(error){result.cleanupError=String(error);}
+ }
+ await shutdownSandbox();
  await save();console.log(JSON.stringify({finished:true,passed:result.passed,lastTick:result.lastTick,deleted:result.deleted,error:result.error,output:run+'/checkpoints.md'}));
 }

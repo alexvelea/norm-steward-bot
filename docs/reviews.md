@@ -76,39 +76,12 @@ No-change reviews are valid. Incomplete code is retained without activation. Lar
 span reviews. The wrapper rejects auto-deployment changes to scheduler, deployment, rules/contracts,
 AGENTS.md and dependency manifests; these need an owner-driven maintenance review.
 
-## Single-version sandbox runs
+## Sandbox runs
 
-Run a committed policy immediately on the configured host:
-
-```bash
-npm run sandbox -- --ref HEAD --hours 1 --snapshot-ticks 300 --seed 73430
-# For uncommitted policy edits in the current dedicated worktree:
-npm run sandbox -- --working-tree --hours 1
-npm run sandbox -- --ref HEAD --hours 1 --house-bots none
-npm run sandbox -- --ref HEAD --hours 1 --house-bots warden=1,reaver=1
-```
-
-Sandbox runs default to blitz opponents (2 wardens, 2 reavers, 2 sovereigns). House bots attack
-after new-player protection ends at 900 ticks, so results are no longer comparable to earlier
-zero-bot runs.
-
-The default ref is HEAD. The runner creates a detached Git worktree for a ref, links the existing
-node_modules, runs the real Controller with a sandbox-only transport, then removes that worktree.
---working-tree uses the current directory as-is without creating/removing it; do not edit it during
-the run. No gameplay execution preference is changed.
-
-The printed directory under `$STEWARD_REVIEW_DIR/experiments/runs/<id>/` contains run.json
-(revision, policy fingerprint, seed, horizon and completion status), worker.log, result.json,
-controller.json, snapshots.jsonl, checkpoints.md and sandbox ownership/action/step/delete receipts.
-Every 300 ticks (five game-minutes) by default, including tick zero and the endpoint, the worker
-visits the exact snapshot boundary and appends/fsyncs every owned city's ID/name, buildings,
-home/away units, stationed/abroad support, resources, production, queues and commands.
-result.json contains the same checkpoints. --snapshot-ticks changes cadence; --hours supports
-600–10800 ticks (up to three game hours). Construction and arrival events still bound decisions.
-
-There is no paired runner, comparison.json, comparison.md, durable queue or experiment timer.
-To compare versions, run each independently with the same seed/horizon/cadence and read their
-snapshots. A peaceful seed is not survival evidence. Scheduled reviews invoke this same foreground
+Commands, output files, the milestone timeline, comparisons and operating rules are in
+[sandbox.md](sandbox.md). `npm run sandbox -- --ref a b --seed 1 2` runs each ref on each seed and
+prints one milestone comparison table; there is no durable queue or experiment timer.
+A peaceful seed is not survival evidence. Scheduled reviews invoke this same foreground
 runner within their bounded time budget; partial runs are retained but cannot authorize activation.
 A policy activation requires two completed runs with matching seed, horizon and rules, including
 the current candidate fingerprint, successful ordinary actions and a supports-change verdict.
@@ -207,7 +180,7 @@ shows active work, attempts/stalls, the last gameplay shipment and recent review
 ### Credential-safe experiments
 
 The reviewer is authorized to create its own experiments. It uses `PrivateSandbox` from
-`src/review/sandbox-client.ts`, backed by trusted `scripts/sandbox-broker.mts`. The broker reads configured
+`scripts/sandbox/client.ts`, backed by trusted `scripts/sandbox/broker-cli.mts`. The broker reads configured
 credentials internally; callers see no key and cannot write to a live or foreign world. Each run
 has a durable registry of worlds it created, ownership checks at creation/first use with in-process caching and invalidation, stable action IDs,
 HTTP-429 backoff, and an fsynced `sandbox-events.jsonl`. At most eight worlds can be created per run

@@ -6,10 +6,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 test("scheduled reviewer quota, lock, timeout, continuity and activation guards", () => {
-  execFileSync("python3", ["-m", "unittest", "discover", "-s", "scripts/review", "-p", "test_*.py"], {
-    timeout: 15000,
-    stdio: "pipe",
-  });
+  for (const directory of ["scripts/review", "scripts/sandbox"])
+    execFileSync("python3", ["-m", "unittest", "discover", "-s", directory, "-p", "test_*.py"], {
+      timeout: 15000,
+      stdio: "pipe",
+    });
 });
 test("review status exposes safe fields and a separate durable review pause", async () => {
   const dir = await mkdtemp(join(tmpdir(), "review-status-"));

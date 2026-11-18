@@ -17,11 +17,11 @@ class Broker:
         self.directory=pathlib.Path(directory);self.work=pathlib.Path(work)
     def call(self,request):
         registry=self.directory/'sandboxes.json'
-        if request.get('op')=='cleanup' and (not registry.exists() or not any(not v.get('deleted') for v in json.loads(registry.read_text()).get('worlds',{}).values())):return []
+        if request.get('op')=='cleanup' and (not registry.exists() or not any(not v.get('deleted') and (request.get('kept') or not v.get('kept')) for v in json.loads(registry.read_text()).get('worlds',{}).values())):return []
         tools=pathlib.Path(os.environ.get('STEWARD_REVIEW_TOOLS',pathlib.Path(__file__).resolve().parents[2]))
         env={k:os.environ[k] for k in ['PATH','HOME','LANG','TMPDIR','STEWARD_CONTROL_DIR','STEWARD_REVIEW_DIR'] if k in os.environ}
         env['STEWARD_REVIEW_RUN']=str(self.directory.resolve())
-        result=subprocess.run(['node','--import','tsx',str(tools/'scripts/sandbox-broker.mts')],cwd=self.work,env=env,input=json.dumps(request)+'\n',capture_output=True,text=True,timeout=180)
+        result=subprocess.run(['node','--import','tsx',str(tools/'scripts/sandbox/broker-cli.mts')],cwd=self.work,env=env,input=json.dumps(request)+'\n',capture_output=True,text=True,timeout=180)
         if result.returncode:raise SandboxError('Sandbox recovery broker failed; inspect sandbox-events.jsonl')
         value=json.loads(result.stdout.splitlines()[0])
         if not value['ok']:raise SandboxError(value['error'])

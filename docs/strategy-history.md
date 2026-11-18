@@ -435,7 +435,7 @@ comes after a usable force and scout-informed target/risk estimates exist.
 
 ## How to make progress
 
-Use src/review/sandbox-client.ts: PrivateSandbox creates an owner-only world, joins, reads rules/state,
+Use scripts/sandbox/client.ts: PrivateSandbox creates an owner-only world, joins, reads rules/state,
 submits normal test actions, steps the clock and cleans up without exposing credentials. The wrapper
 injects the run/tool paths and records signed-in owner checks and exact code fingerprints in receipts.
 Do not wait for supplied sandbox evidence: create the experiment yourself. Keep incomplete code and

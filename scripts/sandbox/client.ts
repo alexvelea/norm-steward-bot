@@ -7,7 +7,7 @@ import type {
   WorldSummary,
   Action,
   ActionsResponse,
-} from "../shared/api.js";
+} from "../../src/shared/api.js";
 export function brokerEnvironment(env = process.env): NodeJS.ProcessEnv {
   const clean: NodeJS.ProcessEnv = {};
   for (const key of ['PATH', 'HOME', 'LANG', 'TMPDIR', 'STEWARD_CONTROL_DIR', 'STEWARD_REVIEW_DIR', 'STEWARD_REVIEW_RUN', 'STEWARD_REVIEW_TOOLS']) if (env[key] !== undefined) clean[key] = env[key];
@@ -18,7 +18,7 @@ export class SandboxConnection {
   private pending: { resolve: (value: any) => void; reject: (error: Error) => void }[] = [];
   private failed?: Error;
   private exited: Promise<void>;
-  constructor(script = (process.env.STEWARD_REVIEW_TOOLS || '/root/norm-steward-bot') + '/scripts/sandbox-broker.mts', env = brokerEnvironment()) {
+  constructor(script = (process.env.STEWARD_REVIEW_TOOLS || '/root/norm-steward-bot') + '/scripts/sandbox/broker-cli.mts', env = brokerEnvironment()) {
     this.child = spawn(process.execPath, ['--import', 'tsx', script], { env: brokerEnvironment(env), stdio: ['pipe', 'pipe', 'pipe'] });
     this.child.stderr.resume();
     const fail = () => {

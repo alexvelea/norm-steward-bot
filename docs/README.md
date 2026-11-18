@@ -7,6 +7,7 @@
 - [Operations](operations.md): verified host inventory, dated runtime observations and status interpretation.
 - [Architect review handoff](ARCHITECT_REVIEW.md): a copyable GitHub-only review prompt.
 - [Setup and hosting](../README.md): install, run, configure, and publish this client.
+- [Sandbox runs](sandbox.md): commands, run artifacts, milestone timeline, comparisons and operating rules.
 - [Scheduled reviews](reviews.md): Codex timer, usage/backoff, durable backlog and deployment recovery.
 - [Unit stats and recruitment budgets](unit-stats.md): combat stats, training times and continuous resource demand.
 - [Strategy](strategy.md): priorities and next measurements.

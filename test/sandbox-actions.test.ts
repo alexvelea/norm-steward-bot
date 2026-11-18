@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { retrySandboxAction } from '../src/review/sandbox-actions.js';
+import { retrySandboxAction } from '../scripts/sandbox/actions.js';
 
 test('quota retries preserve requests, record every result and honor live executor backoff', async () => {
   const request = { actions: [{ type: 'build', clientId: 'journaled-id' }] };

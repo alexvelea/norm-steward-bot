@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Bounded, locked Codex strategic reviews. Run with --help for operator commands."""
 import argparse, datetime, fcntl, json, os, pathlib, selectors, signal, subprocess, sys, time
-sys.path.insert(0,str(pathlib.Path(__file__).resolve().parent/'review'))
+sys.path[:0]=[str(pathlib.Path(__file__).resolve().parent/d) for d in ('review','sandbox')]
 from usage import read_usage, budget_pause
 from evidence import collect, settings, CONTROL
 from deploy import activate, atomic
 from progress import select_task, source_digest, assess, advance, runtime_change, snapshot, policy_change, delivered
-from sandbox import Broker
+from broker import Broker
 ROOT=pathlib.Path(os.environ.get('STEWARD_REVIEW_REPO','/root/norm-steward-bot'))
 DATA=pathlib.Path(os.environ.get('STEWARD_REVIEW_DIR','/var/lib/norm-steward-review'))
 WORK=DATA/'worktree'
@@ -85,7 +85,7 @@ def run_agent(args,prompt,run,timeout=RUN_SECONDS):
             process.wait();process.stdout.close();process.stderr.close()
     return reason or ('completed' if process.returncode==0 else 'failed'),usage
 
-FORBIDDEN=('src/review/sandbox-client.ts','scripts/sandbox-broker.mts','AGENTS.md','src/rules/','src/shared/','scripts/review','scripts/experiments.py','scripts/sandbox-runner.mts','src/review/sandbox-read.ts','deploy/','package.json','package-lock.json','.github/')
+FORBIDDEN=('scripts/sandbox/','AGENTS.md','src/rules/','src/shared/','scripts/review','deploy/','package.json','package-lock.json','.github/')
 def allowed_changes(paths):return all(not any(p==prefix or p.startswith(prefix) for prefix in FORBIDDEN) and not p.startswith(('/', '..')) for p in paths)
 
 def validate_report(report):

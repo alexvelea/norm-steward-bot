@@ -1,7 +1,7 @@
 import { createInterface } from 'node:readline';
 import { resolve, isAbsolute, relative, join } from 'node:path';
 import { realpathSync } from 'node:fs';
-import { Broker, credentialTransport } from './review/sandbox-broker.js';
+import { Broker, credentialTransport } from './broker.js';
 
 process.umask(0o077);
 const run = realpathSync(resolve(process.env.STEWARD_REVIEW_RUN!));

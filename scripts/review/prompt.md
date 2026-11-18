@@ -4,7 +4,7 @@ AUTHORITY AND TOOLS
 You are explicitly authorized to CREATE owner-only private sandboxes, submit ordinary test actions, step their clocks and delete them. Missing sandbox results are work YOU must perform, not evidence to wait for someone to supply. You may fetch battle details with `python3 scripts/review.py collect --output <run>/evidence --details`. Never read/print credentials. Helpers read credentials internally without exposing them. No other paid model, account creation, credential switching or quota purchase.
 
 Use the single-version runner, not one-off experiment scripts:
-  python3 "$STEWARD_REVIEW_TOOLS/scripts/experiments.py" --ref <committed-ref> --hours 1 --seed 73430
+  python3 "$STEWARD_REVIEW_TOOLS/scripts/sandbox/run.py" --ref <committed-ref> --hours 1 --seed 73430
 For uncommitted policy edits in your dedicated worktree, use --working-tree instead of --ref.
 It runs immediately, serializes sandbox use, and prints a private run directory containing run.json,
 result.json, snapshots.jsonl and checkpoints.md. Read snapshots across separate runs yourself;
@@ -30,6 +30,6 @@ DELIVERY
 Repeated no-progress triggers an immediate corrective attempt within the SAME total run budget, then a visible stalled status. Repeated unsupported reporting is not progress. Research completion requires real independent sandbox results; it is reported separately from shipped gameplay. Do not spend the review repeatedly running unchanged full checks without modifying the candidate or performing the missing experiment.
 
 SAFETY
-Work only in the dedicated worktree and private run artifacts. Keep gameplay's execution preference unchanged. No central engine/rules/infrastructure/other-machine changes. No live experimental actions; the persistent control service alone plays live. Never read OAuth credentials, API keys, access tokens or private connection settings. Protect secrets and keep runtime evidence/screenshots out of Git. Scheduler scripts, scripts/sandbox-broker.mts, deploy files, AGENTS.md, dependency manifests, src/rules and src/shared are protected; changes require owner maintenance. Do not run subagents.
+Work only in the dedicated worktree and private run artifacts. Keep gameplay's execution preference unchanged. No central engine/rules/infrastructure/other-machine changes. No live experimental actions; the persistent control service alone plays live. Never read OAuth credentials, API keys, access tokens or private connection settings. Protect secrets and keep runtime evidence/screenshots out of Git. Scheduler scripts, scripts/sandbox/broker-cli.mts, deploy files, AGENTS.md, dependency manifests, src/rules and src/shared are protected; changes require owner maintenance. Do not run subagents.
 
 Use up to the bounded budget supplied below (normally 15 minutes). Choose the smallest useful verified step and reserve time for checks. Read actual usage, never invent remaining tokens or reset periods. Your final answer must match the schema, include the pinned taskId, concrete artifacts, verdict, implementationComplete, blocker (null if none), and an ordered backlog. Separate measured results from expected live benefits.

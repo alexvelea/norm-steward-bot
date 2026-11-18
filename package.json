@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "sandbox": "python3 scripts/experiments.py",
+    "sandbox": "python3 scripts/sandbox/run.py",
     "dev": "node --import tsx web/build.mjs --serve",
     "start": "node --import tsx scripts/serve.mjs",
     "build:web": "node web/build.mjs",

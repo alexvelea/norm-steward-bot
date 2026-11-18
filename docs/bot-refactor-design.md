@@ -50,7 +50,7 @@ No LLM participates in the gameplay decision loop. Do not introduce a separate w
 | `src/advisors/president.ts` | Ranked selection and village-level saving | Sole allocator; eventually select compatible actions across active missions |
 | `src/advisors/conquest.ts` | Persistent conquest type plus policy/proposal replacement | Explicit mission policy and task dependencies |
 | `src/control/storage.ts`, `types.ts` | Settings, execution journal and strategic memory in `control.json` | Versioned durable state with clear internal boundaries |
-| `src/review/sandbox-client.ts`, `scripts/sandbox-runner.mts` | Managed sandbox access and Controller experiments | Sandbox adapter using the same core, retaining broker ownership/credential safeguards |
+| `scripts/sandbox/client.ts`, `scripts/sandbox/runner.mts` | Managed sandbox access and Controller experiments | Sandbox adapter using the same core, retaining broker ownership/credential safeguards |
 
 Today `activeProposals` is supplied to evaluators primarily to remember a partially submitted
 Pikeman/Shieldman cohort and protect its complement during conquest. Conquest also filters away
@@ -143,7 +143,7 @@ src/bot/
 Tests and scripted observations live under `test/`; private captures, journals and experiment output
 remain outside Git. Characterize behavior before moving files, within the same implementation run.
 
-Before moving runtime logic, update `scripts/review/sandbox.py`'s fingerprint and
+Before moving runtime logic, update `scripts/sandbox/broker.py`'s fingerprint and
 `scripts/review/progress.py`'s runtime/policy classifiers to include nested `src/bot/` modules and all
 decision-affecting helpers, including retained helpers under `src/review/`. Today the fingerprint only
 hashes top-level `src/advisors/*.ts` and `src/control/*.ts`. Include a fingerprint-format version;

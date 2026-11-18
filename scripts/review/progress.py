@@ -1,6 +1,7 @@
 """Small durable work contract and evidence-based progress classification."""
-import hashlib, json, pathlib, re, os
-from sandbox import fingerprint
+import hashlib, json, pathlib, re, os, sys
+sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'sandbox'))
+from broker import fingerprint
 
 RUNTIME=('src/advisors/','src/control/','src/bot/','src/review/','web/src/','scripts/serve.mjs')
 EXPERIMENT_RUNS=pathlib.Path(os.environ.get('STEWARD_REVIEW_DIR','/var/lib/norm-steward-review'))/'experiments/runs'

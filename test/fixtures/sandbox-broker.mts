@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline';
-import { Broker } from '../../scripts/review/sandbox-broker.js';
+import { Broker } from '../../scripts/sandbox/broker.js';
 
 const directory = process.env.STEWARD_REVIEW_RUN!;
 let tick = 0;

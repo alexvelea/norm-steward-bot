@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location('snapshot_worker', ROOT / 'scripts/experiments.py')
+spec = importlib.util.spec_from_file_location('snapshot_worker', ROOT / 'scripts/sandbox/run.py')
 worker = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(worker)
 
@@ -28,6 +28,7 @@ function state(){return {world:{id:'offline',tick,status:tick===600?'ended':'pau
  commands:{outgoing:tick<125?[{arrivalTick:125}]:[],incoming:[]}};}
 export async function sandbox(r){
  if(r.op==='cleanup')return [];
+ if(r.op==='keep'){receipt('keep');return {kept:r.world};}
  if(r.op==='step'){receipt('step');tick+=r.ticks;appendFileSync(process.env.STEWARD_REVIEW_RUN+'/steps.jsonl',tick+'\n');return state();}
  if(r.op==='act'){receipt('act');return {results:[{ok:true,data:{item:{startTick:0,endTick:75}}}],state:state()};}
  if(r.op==='read')return state();
@@ -60,15 +61,23 @@ export class Controller{
 
 
 class SnapshotWorkerTests(unittest.TestCase):
+    def test_parse_house_bots(self):
+        parse=worker.parse_house_bots
+        self.assertEqual(parse('warden=2,reaver=2,sovereign=2'),{'warden':2,'reaver':2,'sovereign':2})
+        self.assertEqual(parse('none'),{'warden':0,'reaver':0,'sovereign':0})
+        self.assertEqual(parse('reaver=3'),{'warden':0,'reaver':3,'sovereign':0})
+        for value in ['unknown=1','warden=-1','warden=7,reaver=6','warden=1,warden=2']:
+            with self.subTest(value=value),self.assertRaises(ValueError):parse(value)
     def fixture(self, root):
-        repo=root/'repo';(repo/'src/review').mkdir(parents=True);(repo/'src/control').mkdir();(repo/'scripts').mkdir()
+        repo=root/'repo';(repo/'src/control').mkdir(parents=True);(repo/'scripts/sandbox').mkdir(parents=True)
         (repo/'package.json').write_text('{"type":"module"}')
         (repo/'node_modules').symlink_to(ROOT/'node_modules',target_is_directory=True)
-        (repo/'src/review/sandbox-client.ts').write_text(SANDBOX)
-        shutil.copyfile(ROOT/'src/review/sandbox-actions.ts',repo/'src/review/sandbox-actions.ts')
-        (repo/'src/review/sandbox-read.ts').write_text("export function privateRead(){throw new Error('Unexpected private read');}")
+        (repo/'scripts/sandbox/client.ts').write_text(SANDBOX)
+        shutil.copyfile(ROOT/'scripts/sandbox/actions.ts',repo/'scripts/sandbox/actions.ts')
+        shutil.copyfile(ROOT/'scripts/sandbox/timeline.ts',repo/'scripts/sandbox/timeline.ts')
+        (repo/'scripts/sandbox/read.ts').write_text("export function privateRead(){throw new Error('Unexpected private read');}")
         (repo/'src/control/controller.ts').write_text(CONTROLLER)
-        shutil.copyfile(ROOT/'scripts/sandbox-runner.mts',repo/'scripts/sandbox-runner.mts')
+        shutil.copyfile(ROOT/'scripts/sandbox/runner.mts',repo/'scripts/sandbox/runner.mts')
         subprocess.run(['git','init','-q',str(repo)],check=True)
         subprocess.run(['git','add','package.json','src','scripts'],cwd=repo,check=True)
         subprocess.run(['git','-c','user.name=Test','-c','user.email=test@localhost','commit','-qm','offline policy'],cwd=repo,check=True)
@@ -125,7 +134,7 @@ class SnapshotWorkerTests(unittest.TestCase):
  receipt('act');
  if(!rejected){rejected=true;return {results:[{ok:false,error:{code:'RATE_LIMITED',details:{retryAfterMs:1}}}],state:state()};}
 """)
-            (repo/'src/review/sandbox-client.ts').write_text(sandbox)
+            (repo/'scripts/sandbox/client.ts').write_text(sandbox)
             with patch.object(worker,'ROOT',repo),patch.object(worker,'DATA',root/'data'):
                 directory=worker.run(hours=1/6,working_tree=repo)
             value=json.loads((directory/'result.json').read_text())
@@ -151,7 +160,7 @@ class SnapshotWorkerTests(unittest.TestCase):
     def test_early_round_end_preserves_final_state_without_more_writes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=pathlib.Path(tmp);repo=self.fixture(root)
-            (repo/'src/review/sandbox-client.ts').write_text(SANDBOX.replace("status:tick===600?'ended':'paused'", "status:tick>=125?'ended':'paused'"))
+            (repo/'scripts/sandbox/client.ts').write_text(SANDBOX.replace("status:tick===600?'ended':'paused'", "status:tick>=125?'ended':'paused'"))
             with patch.object(worker,'ROOT',repo),patch.object(worker,'DATA',root/'data'):
                 with self.assertRaisesRegex(RuntimeError,'Sandbox run failed'):
                     worker.run(hours=1/6,working_tree=repo)
@@ -164,13 +173,26 @@ class SnapshotWorkerTests(unittest.TestCase):
             self.assertIn('ended at tick 125 before requested horizon 600',value['error'])
             self.assertEqual(max(map(int,(directory/'steps.jsonl').read_text().splitlines())),125)
 
-    def test_idle_policy_and_failed_ref_cleanup(self):
+    def test_idle_policy_keep_timeline_comparison_and_failed_ref_cleanup(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=pathlib.Path(tmp);repo=self.fixture(root)
             with patch.object(worker,'ROOT',repo),patch.object(worker,'DATA',root/'data'):
                 (repo/'src/control/controller.ts').write_text(CONTROLLER.replace('if(!this.automatic||this.sent)return;','return;'))
-                directory=worker.run(hours=1/6,working_tree=repo)
-                self.assertEqual(json.loads((directory/'result.json').read_text())['actions'],[])
+                directory=worker.run(hours=1/6,working_tree=repo,keep=True)
+                value=json.loads((directory/'result.json').read_text())
+                self.assertEqual(value['actions'],[])
+                self.assertTrue(value['kept']);self.assertFalse(value['deleted'])
+                spec=json.loads((directory/'run.json').read_text())
+                self.assertEqual((spec['status'],spec['keep'],'ref' in spec),('complete',True,False))
+                ops=[json.loads(line)['op'] for line in (directory/'sandbox-events.jsonl').read_text().splitlines()]
+                self.assertIn('keep',ops);self.assertNotIn('delete',ops)
+                self.assertIn({'tick':75,'key':'Lumberyard 2','major':False},value['timeline'])
+                self.assertEqual(json.loads((directory/'reports.json').read_text()),[])
+                self.assertIn('| Tick | Minute | Milestone |',(directory/'timeline.md').read_text())
+                value['timeline']=[{'tick':102,'key':'Wall 5','major':True},{'tick':90,'key':'Wall 4','major':False}]
+                (directory/'result.json').write_text(json.dumps(value))
+                self.assertEqual(worker.compare([directory,directory]),'| Milestone | working tree @73430 | working tree @73430 |\n|---|---:|---:|\n| Wall 5 | 102 | 102 |\n')
+                with self.assertRaisesRegex(ValueError,'No sandbox run'):worker.delete('missing')
                 command=subprocess.run
                 def fail_node(args,**kwargs):
                     if args[0]=='node':raise subprocess.CalledProcessError(1,args)

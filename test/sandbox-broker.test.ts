@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { Broker, HttpError, credentialTransport, fingerprint, type Transport } from '../scripts/review/sandbox-broker.js';
-import { brokerEnvironment, SandboxConnection } from '../src/review/sandbox-client.js';
+import { Broker, HttpError, credentialTransport, fingerprint, type Transport } from '../scripts/sandbox/broker.js';
+import { brokerEnvironment, SandboxConnection } from '../scripts/sandbox/client.js';
 import { SANDBOX } from '../src/rules/config.js';
 
 function fixture(t: { after: (fn: () => void) => void }) {
@@ -252,7 +252,7 @@ test('per-action quota rejections remain visible in durable broker receipts', as
 
 test('production entrypoint rejects foreign worlds and absent settings without credential exposure', async t => {
   const f = fixture(t); const run = join(f.root, 'run'); mkdirSync(run);
-  const connection = new SandboxConnection(resolve('scripts/sandbox-broker.mts'), { PATH: process.env.PATH, HOME: process.env.HOME,
+  const connection = new SandboxConnection(resolve('scripts/sandbox/broker-cli.mts'), { PATH: process.env.PATH, HOME: process.env.HOME,
     STEWARD_REVIEW_RUN: run, STEWARD_REVIEW_DIR: f.root, STEWARD_CONTROL_DIR: join(f.root, 'missing-control') });
   try {
     await assert.rejects(connection.call({ op: 'read', world: 'blitz-1' }), /not created/);
@@ -262,6 +262,19 @@ test('production entrypoint rejects foreign worlds and absent settings without c
 });
 
 test('TypeScript fingerprints match the retained Python review validator', () => {
-  const result = spawnSync('python3', ['-c', "import sys;sys.path.insert(0,'scripts/review');from sandbox import fingerprint;print(fingerprint('.'))"], { encoding: 'utf8' });
+  const result = spawnSync('python3', ['-c', "import sys;sys.path.insert(0,'scripts/sandbox');from broker import fingerprint;print(fingerprint('.'))"], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr); assert.equal(result.stdout.trim(), fingerprint(process.cwd()));
+});
+
+test('kept worlds survive automatic cleanup and reports page only with a safe cursor', async t => {
+  const f = fixture(t), broker = f.make();
+  await assert.rejects(broker.call({ op: 'keep', world: 'blitz-1' }), /Only a live world/);
+  await broker.call({ op: 'create' });
+  await broker.call({ op: 'read', world: 'box', resource: 'reports', before: 'r-12' });
+  assert.equal(f.calls.at(-1)!.path.endsWith('/reports?before=r-12'), true);
+  await assert.rejects(broker.call({ op: 'read', world: 'box', resource: 'reports', before: 'x&y' }), /paged/);
+  await assert.rejects(broker.call({ op: 'read', world: 'box', resource: 'state', before: 'r-12' }), /paged/);
+  await broker.call({ op: 'keep', world: 'box' });
+  assert.deepEqual(await broker.call({ op: 'cleanup' }), []);
+  assert.deepEqual(await f.make().call({ op: 'cleanup', kept: true }), [{ deleted: 'box' }]);
 });

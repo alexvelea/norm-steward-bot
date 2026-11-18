@@ -66,7 +66,7 @@ Its prompt and report schema are versioned files, not hidden text in a timer or 
 prevent silent task reshuffling; a verified negative comparison can complete a research question.
 
 A sandbox run selects one Git ref in a detached worktree, or explicitly uses uncommitted policy
-edits in the dedicated working tree. `scripts/sandbox-runner.mts` runs that policy through the real
+edits in the dedicated working tree. `scripts/sandbox/runner.mts` runs that policy through the real
 Controller with a sandbox-only transport. The server clock is paused between bounded steps;
 action follow-ups use one game tick, queue/funding events wake decisions, and idle steps are capped
 at 30 ticks. Five-minute snapshots include every owned city's state and are durable as they are taken.

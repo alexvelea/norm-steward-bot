@@ -1,13 +1,7 @@
-import importlib.util,json,pathlib,tempfile,unittest
+import json,pathlib,tempfile,unittest
 from unittest.mock import patch
-from sandbox import fingerprint
-from progress import assess,advance
+from progress import assess,advance,fingerprint
 import progress
-
-ROOT=pathlib.Path(__file__).resolve().parents[2]
-spec=importlib.util.spec_from_file_location('experiments',ROOT/'scripts/experiments.py')
-experiments=importlib.util.module_from_spec(spec)
-spec.loader.exec_module(experiments)
 
 class ExperimentTests(unittest.TestCase):
  def setUp(self):
@@ -26,13 +20,6 @@ class ExperimentTests(unittest.TestCase):
   self.task={'id':'question','delivery':'research','stage':'experiment','nextAction':'measure'}
   self.report={'taskId':'question','activate':False,'artifacts':[str(self.runs/n/'result.json') for n in ['old','new']],'verdict':'rejects-change','nextMeasure':'another question'}
  def tearDown(self):self.temp.cleanup()
- def test_parse_house_bots(self):
-  parse=experiments.parse_house_bots
-  self.assertEqual(parse('warden=2,reaver=2,sovereign=2'),{'warden':2,'reaver':2,'sovereign':2})
-  self.assertEqual(parse('none'),{'warden':0,'reaver':0,'sovereign':0})
-  self.assertEqual(parse('reaver=3'),{'warden':0,'reaver':3,'sovereign':0})
-  for value in ['unknown=1','warden=-1','warden=7,reaver=6','warden=1,warden=2']:
-   with self.subTest(value=value),self.assertRaises(ValueError):parse(value)
  def assess(self,gameplay=False):
   with patch.object(progress,'EXPERIMENT_RUNS',self.runs):
    return assess(self.report,{**self.task,'delivery':'gameplay' if gameplay else 'research'},['src/advisors/policy.ts'] if gameplay else [],self.root,self.work,gameplay)

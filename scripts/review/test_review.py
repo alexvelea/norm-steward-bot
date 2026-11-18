@@ -14,7 +14,7 @@ class ReviewTests(unittest.TestCase):
   self.assertEqual(budget_pause({'available':True,'limits':{'a':{'primary':{'usedPercent':100,'resetsAt':1200},'secondary':{'usedPercent':100,'resetsAt':1900}}}},1000),1960)
  def test_protected_changes_do_not_auto_activate(self):
   self.assertTrue(runner.allowed_changes(['src/advisors/hall.ts','test/hall.test.ts']))
-  for path in ['AGENTS.md','src/rules/config.ts','src/shared/api.ts','package-lock.json','scripts/review.py','scripts/experiments.py','scripts/sandbox-runner.mts','scripts/sandbox-broker.mts','scripts/review/sandbox-broker.ts','deploy/service','../outside']:
+  for path in ['AGENTS.md','src/rules/config.ts','src/shared/api.ts','package-lock.json','scripts/review.py','scripts/sandbox/run.py','scripts/sandbox/runner.mts','scripts/sandbox/broker-cli.mts','scripts/sandbox/broker.ts','deploy/service','../outside']:
    self.assertFalse(runner.allowed_changes([path]))
  def test_unknown_final_result_never_activates(self):
   self.assertFalse(runner.validate_report({'summary':'done'}));self.assertFalse(runner.validate_report(None))

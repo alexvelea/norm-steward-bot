@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import deploy
 from progress import policy_change, runtime_change
-from sandbox import fingerprint
+from broker import fingerprint
 
 class BotRefactorTests(unittest.TestCase):
  def test_fingerprint_covers_nested_backend_and_review_sources(self):

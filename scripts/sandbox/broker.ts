@@ -155,9 +155,15 @@ export class Broker {
         world = result.id; this.registry.worlds[world!] = { ownerId: me, deleted: false, config }; this.save(); this.verified.set(world!, result);
         this.record(op, world, { ok: true, config, httpCalls: this.httpCalls - httpStart }); return result;
       }
+      if (op === 'keep') {
+        const entry = world && Object.hasOwn(this.registry.worlds, world) ? this.registry.worlds[world] : undefined;
+        if (!entry || entry.deleted) throw new Error('Only a live world created by this run can be kept');
+        entry.kept = true; this.save(); this.record(op, world, { ok: true }); return { kept: world };
+      }
       if (op === 'cleanup') {
+        // Kept worlds survive the automatic cleanup; only an explicit { kept: true } removes them.
         const results = [];
-        for (const [id, value] of Object.entries(this.registry.worlds)) if (!value.deleted) results.push(await this.call({ op: 'delete', world: id }));
+        for (const [id, value] of Object.entries(this.registry.worlds)) if (!value.deleted && (!value.kept || request.kept === true)) results.push(await this.call({ op: 'delete', world: id }));
         return results;
       }
       const registered = world && Object.hasOwn(this.registry.worlds, world) ? this.registry.worlds[world] : undefined;
@@ -170,7 +176,8 @@ export class Broker {
       else if (op === 'read') {
         const resource = request.resource ?? 'state';
         if (!['state', 'rules', 'reports', 'log'].includes(resource)) throw new Error('Unknown sandbox read resource');
-        result = await this.api(resource === 'log' ? '/sandboxes/' + id + '/log' : prefix + '/' + resource);
+        if (request.before != null && (resource !== 'reports' || !/^[a-zA-Z0-9_-]+$/.test(String(request.before)))) throw new Error('Only reports can be paged with before');
+        result = await this.api(resource === 'log' ? '/sandboxes/' + id + '/log' : prefix + '/' + resource + (request.before != null ? '?before=' + request.before : ''));
       } else if (op === 'query') {
         const suffix = request.suffix ?? '';
         if (!['/map', '/simulate/battle'].includes(suffix) && !/^\/reports\/[a-zA-Z0-9_-]+$/.test(suffix)) throw new Error('Unknown sandbox query');

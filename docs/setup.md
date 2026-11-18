@@ -15,8 +15,8 @@ services and a game account are not required to read the code or run the ordinar
 | Review prompt | `scripts/review/prompt.md` |
 | Structured review/backlog contract | `scripts/review/result.schema.json` |
 | Review scheduler, usage, evidence and deployment | `scripts/review.py`, `scripts/review/` |
-| Single-version sandbox runner | `scripts/experiments.py`, `scripts/sandbox-runner.mts` |
-| Private-world ownership/action broker | `scripts/sandbox-broker.mts`, `scripts/review/sandbox-broker.ts`, `src/review/sandbox-client.ts` |
+| Single-version sandbox runner | `scripts/sandbox/run.py`, `scripts/sandbox/runner.mts` |
+| Private-world ownership/action broker | `scripts/sandbox/broker-cli.mts`, `scripts/sandbox/broker.ts`, `scripts/sandbox/client.ts` |
 | Control service and review service/timer | `deploy/norm-steward-*.service`, `deploy/norm-steward-*.timer` |
 | HTTPS reverse proxy | `web/Caddyfile` |
 | Fresh backlog seed | `deploy/review-backlog.example.json` |
@@ -46,7 +46,8 @@ npm run build:web
 ```
 
 These checks need no gameplay credentials. The Python review/worker tests are included by `npm test`;
-they can also run with `python3 -m unittest discover -s scripts/review -p 'test_*.py'`.
+they can also run with `python3 -m unittest discover -s scripts/review -p 'test_*.py'` (and the same
+for `scripts/sandbox`).
 No GitHub Actions or paid model service is required.
 
 On macOS, ensure `python3` on PATH meets the prerequisite too; Node's review-runner test invokes
