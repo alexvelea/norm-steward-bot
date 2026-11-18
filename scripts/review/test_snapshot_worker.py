@@ -144,6 +144,22 @@ class SnapshotWorkerTests(unittest.TestCase):
                 with self.assertRaises(ValueError):worker.run(snapshot_ticks=0)
                 command.assert_not_called()
 
+    def test_early_round_end_preserves_final_state_without_more_writes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=pathlib.Path(tmp);repo=self.fixture(root)
+            (repo/'src/review/sandbox-client.ts').write_text(SANDBOX.replace("status:tick===600?'ended':'paused'", "status:tick>=125?'ended':'paused'"))
+            with patch.object(worker,'ROOT',repo),patch.object(worker,'DATA',root/'data'):
+                with self.assertRaisesRegex(RuntimeError,'Sandbox run failed'):
+                    worker.run(hours=1/6,working_tree=repo)
+            directory=next((root/'data/experiments/runs').iterdir())
+            value=json.loads((directory/'result.json').read_text())
+            self.assertFalse(value['passed']);self.assertTrue(value['deleted'])
+            self.assertEqual(value['lastTick'],125)
+            self.assertEqual(value['final']['world']['status'],'ended')
+            self.assertEqual([r['tick'] for r in value['checkpoints']],[0,125])
+            self.assertIn('ended at tick 125 before requested horizon 600',value['error'])
+            self.assertEqual(max(map(int,(directory/'steps.jsonl').read_text().splitlines())),125)
+
     def test_idle_policy_and_failed_ref_cleanup(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=pathlib.Path(tmp);repo=self.fixture(root)

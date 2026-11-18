@@ -9,7 +9,7 @@ const state = () => ({ world: { id: 'offline', tick, status: 'paused', kind: 'sa
 const broker = new Broker(directory, process.cwd(), async (path, body) => {
   if (path === '/me') return { account: { id: 'owner' } };
   if (path === '/sandboxes' || path === '/worlds/offline') return state().world;
-  if (path.endsWith('/control')) { const startingTick = tick; tick += body.ticks; return { ...state().world, tick: startingTick, status: 'running' }; }
+  if (path.endsWith('/control')) { tick += body.ticks; return state(); }
   return state();
 }, () => clock++, async () => {});
 try {

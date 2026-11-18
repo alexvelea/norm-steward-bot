@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, openSync, closeSync, fsyncSync, writeSync, writeFileSync, rmSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { SANDBOX } from '../../src/rules/config.js';
 
 export type Request = { op: string; world?: string; [key: string]: any };
 export type Transport = (path: string, body?: any, method?: string) => Promise<any>;
@@ -33,7 +34,7 @@ export function credentialTransport(control: string): Transport {
     const headers: Record<string, string> = { Authorization: 'Bearer ' + settings!.apiKey, 'Content-Type': 'application/json' };
     if (body == null && method == null) headers['X-Steward-Client'] = 'dashboard';
     let response: Response;
-    try { response = await fetch(settings!.serverUrl + '/api/v1' + path, { method: method ?? (body == null ? 'GET' : 'POST'), headers, body: body == null ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(25000) }); }
+    try { response = await fetch(settings!.serverUrl + '/api/v1' + path, { method: method ?? (body == null ? 'GET' : 'POST'), headers, body: body == null ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(body?.action === 'step' && body?.wait === true ? SANDBOX.stepWaitTimeoutMs + 5000 : 25000) }); }
     catch { throw new Error('Sandbox API connection failed'); }
     if (!response.ok) {
       let retryAfterMs: number | undefined;
@@ -48,6 +49,7 @@ export class Broker {
   private registry: { worlds: Record<string, any>; requests: Record<string, string> };
   private verified = new Map<string, any>();
   private buckets: Record<string, { tokens: number; at: number }> = {};
+  private httpCalls = 0;
   private readonly path: string;
   private readonly sourceFingerprint: string;
   constructor(readonly directory: string, readonly work: string, private transport: Transport,
@@ -99,8 +101,8 @@ export class Broker {
       if (lock && !ownsLock()) return await this.pace(body, method);
       if (this.pacingFile && existsSync(this.pacingFile)) this.buckets = JSON.parse(readFileSync(this.pacingFile, 'utf8'));
       const now = this.now();
-      const buckets: [string, number, number, number][] = body == null && method == null ? [['dashboard', 50, 10, 1]] : [['calls', 100, 50, 1]];
-      if (Array.isArray(body?.actions)) buckets.push(['actions', 500, 62, body.actions.length]);
+      const buckets: [string, number, number, number][] = body == null && method == null ? [['dashboard', SANDBOX.dashboardBurst, SANDBOX.dashboardPerSecond, 1]] : [['calls', SANDBOX.callBurst, SANDBOX.callsPerSecond, 1]];
+      if (Array.isArray(body?.actions)) buckets.push(['actions', SANDBOX.actionBurst, SANDBOX.actionsPerSecond, body.actions.length]);
       for (const [key, capacity, rate, cost] of buckets) {
         const old = this.buckets[key] ?? { tokens: capacity, at: now };
         const tokens = Math.min(capacity, old.tokens + Math.max(0, now - old.at) * rate);
@@ -119,7 +121,7 @@ export class Broker {
   async api(path: string, body?: any, method?: string): Promise<any> {
     for (let attempt = 0; attempt < 6; attempt++) {
       await this.pace(body, method);
-      try { return await this.transport(path, body, method); }
+      try { this.httpCalls++; return await this.transport(path, body, method); }
       catch (error) {
         if (!(error instanceof HttpError) || error.status !== 429 || attempt === 5) throw error;
         const numeric = Number(error.retryAfter);
@@ -139,17 +141,19 @@ export class Broker {
   }
   async call(request: Request): Promise<any> {
     const { op } = request; let world = request.world;
+    const httpStart = this.httpCalls;
+    let stepWaitIncomplete = false;
     try {
       if (op === 'create') {
         if (Object.keys(this.registry.worlds).length >= 8) throw new Error('Eight sandbox creations per review is the limit; finish this bounded experiment');
-        if (Object.values(this.registry.worlds).filter(v => !v.deleted).length >= 2) throw new Error('Two running sandboxes per account is the limit');
+        if (Object.values(this.registry.worlds).filter(v => !v.deleted).length >= SANDBOX.perAccount) throw new Error('Sandbox per-account limit reached');
         const config = { name: 'review-' + randomUUID().slice(0, 8), seed: request.seed ?? 73421, durationTicks: request.durationTicks ?? 600, clock: 'lockstep', paused: true, houseBots: request.houseBots ?? { warden: 0, reaver: 0, sovereign: 0 } };
         if (!Number.isSafeInteger(config.durationTicks) || config.durationTicks < 600 || config.durationTicks > 10800) throw new Error('Use a bounded 600–10800 tick experiment');
         const me = (await this.api('/me')).account.id;
         const result = await this.api('/sandboxes', config);
         if (result?.kind !== 'sandbox' || result.ownerId !== me || typeof result.id !== 'string') throw new Error('Server did not return an owner-created sandbox');
         world = result.id; this.registry.worlds[world!] = { ownerId: me, deleted: false, config }; this.save(); this.verified.set(world!, result);
-        this.record(op, world, { ok: true, config }); return result;
+        this.record(op, world, { ok: true, config, httpCalls: this.httpCalls - httpStart }); return result;
       }
       if (op === 'cleanup') {
         const results = [];
@@ -185,16 +189,18 @@ export class Broker {
         if (!Number.isSafeInteger(ticks) || ticks < 1 || ticks > 3600) throw new Error('Step must be 1–3600 ticks');
         if (!Number.isFinite(info.tick)) info.tick = (await this.api(prefix + '/state')).world.tick;
         const target = info.tick + ticks;
-        const response = await this.api('/sandboxes/' + id + '/control', { action: 'step', ticks });
-        if (response?.id && response.id !== world || response?.kind && response.kind !== 'sandbox' || response?.ownerId && response.ownerId !== registered.ownerId) {
+        const response = await this.api('/sandboxes/' + id + '/control', { action: 'step', ticks, wait: true });
+        const returnedWorld = response?.world ?? response;
+        if (returnedWorld?.id && returnedWorld.id !== world || returnedWorld?.kind && returnedWorld.kind !== 'sandbox' || returnedWorld?.ownerId && returnedWorld.ownerId !== registered.ownerId) {
           this.verified.delete(world!); await this.verify(world!, registered); throw new Error('Sandbox response ownership mismatch');
         }
-        await this.sleep(ticks / 2000);
-        for (let poll = 0; ; poll++) {
+        if (!response?.world || !Number.isFinite(response.world.tick)) throw new Error('Waiting step returned invalid state');
+        result = response;
+        stepWaitIncomplete = result.world.tick < target && result.world.status !== 'ended';
+        for (let poll = 0; result.world.tick < target && result.world.status !== 'ended'; poll++) {
           if (poll >= 150) throw new Error('Sandbox step timed out');
-          result = await this.api(prefix + '/state');
-          if (result.world.status === 'ended' || result.world.tick >= target && result.world.status === 'paused') break;
           await this.sleep(Math.min(0.5, 0.05 * 2 ** Math.min(poll, 4)));
+          result = await this.api(prefix + '/state');
         }
       } else if (op === 'delete') {
         await this.api('/sandboxes/' + id, undefined, 'DELETE'); registered.deleted = true; this.save(); this.verified.delete(world!); result = { deleted: world };
@@ -204,7 +210,7 @@ export class Broker {
         this.verified.delete(world!); await this.verify(world!, registered); throw new Error('Sandbox response ownership mismatch');
       }
       if (state?.world && Number.isFinite(state.world.tick)) info.tick = state.world.tick;
-      this.record(op, world, { ok: true, requestId: request.requestId ?? null, ticks: request.ticks ?? null, actionTypes: (request.actions ?? []).map((a: any) => a.type), actionResults: (result?.results ?? []).map((r: any) => ({ ok: r.ok, code: r.error?.code ?? null })) });
+      this.record(op, world, { ok: true, httpCalls: this.httpCalls - httpStart, ...(op === 'step' ? { stepWaitIncomplete } : {}), worldTick: state?.world?.tick, worldStatus: state?.world?.status, requestId: request.requestId ?? null, ticks: request.ticks ?? null, actionTypes: (request.actions ?? []).map((a: any) => a.type), actionResults: (result?.results ?? []).map((r: any) => ({ ok: r.ok, code: r.error?.code ?? null })) });
       return result;
     } catch (error) {
       if (world && error instanceof HttpError && [403, 404].includes(error.status)) {

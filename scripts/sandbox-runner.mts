@@ -81,6 +81,11 @@ try{
    await capture();
   }
   if(state.world.tick===result.stopTick)break;
+  if(state.world.status==='ended'){
+   result.final=state;result.lastTick=state.world.tick;result.cycles=cycles;
+   if(result.checkpoints.at(-1)?.tick!==state.world.tick)await capture();
+   throw new Error(`Sandbox ended at tick ${state.world.tick} before requested horizon ${result.stopTick}`);
+  }
   clockMs=state.world.tick*1000;
   const before=result.actions.length;await c.cycle();const view=c.snapshot();
   if(view.error){result.lastControllerError=view.error;await save();throw new Error(view.error);}

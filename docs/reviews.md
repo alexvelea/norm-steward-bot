@@ -110,12 +110,16 @@ The reviewer—not generated comparison code—interprets the tradeoffs.
 
 The experiment.lock serializes runs across manual commands and review children, independently
 of the review.lock already held by a scheduled review. The persisted review pause prevents new
-runs; a running measurement may finish. Broker calls use shared harness token buckets (dashboard
-10/s with burst 50, calls 50/s with burst 100, actions 62/s with burst 500), reserving at least
-half the account capacity for live gameplay. All worlds share the account's server buckets.
+runs; a running measurement may finish. Broker calls use the dedicated sandbox quota constants:
+dashboard 100/s with burst 500, calls 500/s with burst 1000, actions 625/s with burst 5000.
+These per-account sandbox buckets are separate from live-world quotas.
 Backoff prefers `retryAfterMs` over Retry-After; per-action `RATE_LIMITED` results are retried with
 the same journaled IDs, using the live executor's ten-second minimum backoff and server hint.
-Steps poll state after a ticks/2000-second initial wait, with quick bounded backoff.
+Steps use `wait:true` and return state directly. Incomplete waiting responses fall back to state
+polling with quick bounded backoff. Receipts count HTTP attempts and incomplete step waits.
+If the round ends before the requested horizon (for example, by dominance), the runner preserves
+its terminal state and snapshot, stops writes, and reports an incomplete run rather than inventing
+the remaining game time.
 Cached in-process ownership verification is invalidated/rechecked on
 403/404 or mismatched ownership. One long-lived TypeScript broker handles newline-delimited JSON
 requests over stdin/stdout per run; only that child reads credentials. Child environments use an
@@ -201,7 +205,7 @@ The reviewer is authorized to create its own experiments. It uses `PrivateSandbo
 credentials internally; callers see no key and cannot write to a live or foreign world. Each run
 has a durable registry of worlds it created, ownership checks at creation/first use with in-process caching and invalidation, stable action IDs,
 HTTP-429 backoff, and an fsynced `sandbox-events.jsonl`. At most eight worlds can be created per run
-(two may be active on the upstream account). Cleanup runs in the worker's finally and on broker stdin EOF; a credential-free Python recovery
+(the upstream account allows ten non-ended sandboxes). Cleanup runs in the worker's finally and on broker stdin EOF; a credential-free Python recovery
 bridge invokes the same TS implementation only if registry entries remain undeleted. No Python
 sandbox API implementation remains. Cleanup errors are visible. Expired worlds can be inspected in their registry.
 

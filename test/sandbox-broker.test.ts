@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { Broker, HttpError, credentialTransport, fingerprint, type Transport } from '../scripts/review/sandbox-broker.js';
 import { brokerEnvironment, SandboxConnection } from '../src/review/sandbox-client.js';
+import { SANDBOX } from '../src/rules/config.js';
 
 function fixture(t: { after: (fn: () => void) => void }) {
   const root = mkdtempSync(join(tmpdir(), 'sandbox-broker-')); t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -19,7 +20,7 @@ function fixture(t: { after: (fn: () => void) => void }) {
     if (path === '/me') return { account: { id: 'owner' } };
     if (path === '/sandboxes') return { ...state().world, id: ++serial === 1 ? 'box' : 'box' + serial };
     if (/^\/worlds\/box\d*$/.test(path)) return { ...state().world, id: path.slice(8) };
-    if (path.endsWith('/control')) { const startingTick = tick; tick += body.ticks; return { ...state().world, tick: startingTick, status: 'running' }; }
+    if (path.endsWith('/control')) { assert.equal(body.wait, true); tick += body.ticks; return state(); }
     if (path.endsWith('/actions')) return { results: [{ ok: true }], state: state() };
     return state();
   };
@@ -50,7 +51,8 @@ test('owned creation, cached ownership, stable IDs and durable receipts', async 
   await assert.rejects(broker.call({ ...request, actions: [{ ...request.actions[0], building: 'hall' }] }), /different actions/);
   assert.equal(f.calls.filter(c => c.path.endsWith('/actions')).length, 2);
   assert.equal((await broker.call({ op: 'step', world: 'box', ticks: 300 })).world.tick, 300);
-  assert.equal(f.calls.filter(c => c.path.endsWith('/state')).length, 2);
+  assert.equal(f.calls.filter(c => c.path.endsWith('/state')).length, 1);
+  assert.deepEqual(f.delays, []);
   await broker.call({ op: 'delete', world: 'box' }); await broker.call({ op: 'delete', world: 'box' });
   const registry = JSON.parse(readFileSync(join(f.root, 'sandboxes.json'), 'utf8'));
   assert.equal(registry.worlds.box.deleted, true);
@@ -58,6 +60,8 @@ test('owned creation, cached ownership, stable IDs and durable receipts', async 
   const events = readFileSync(join(f.root, 'sandbox-events.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
   for (const op of ['create', 'join', 'act', 'step', 'delete']) assert.ok(events.some(e => e.op === op && e.ok && e.fingerprint === fingerprint(process.cwd())));
   assert.ok(events.some(e => e.op === 'act' && e.actionResults?.[0]?.ok));
+  assert.equal(events.find(e => e.op === 'step').httpCalls, 1);
+  assert.equal(events.find(e => e.op === 'step').stepWaitIncomplete, false);
 });
 
 test('guards cover query allowlist, action cardinality, horizons and step integers', async t => {
@@ -68,7 +72,7 @@ test('guards cover query allowlist, action cardinality, horizons and step intege
     { op: 'act', actions: [{}] }, ...[0, -1, 3601, 1.5].map(ticks => ({ op: 'step', ticks })), { op: 'unknown' },
   ]) await assert.rejects(broker.call({ world: 'box', ...request }));
   for (const durationTicks of [599, 10801, 600.1]) await assert.rejects(broker.call({ op: 'create', durationTicks }), /bounded/);
-  await broker.call({ op: 'create' }); await assert.rejects(broker.call({ op: 'create' }), /Two running/);
+  await broker.call({ op: 'create' }); await broker.call({ op: 'create' });
   await broker.call({ op: 'cleanup' });
 });
 
@@ -117,29 +121,33 @@ test('403 invalidates cache and rechecks ownership; mismatched state is never re
   await assert.rejects(controlMismatch.call({ op: 'step', world: 'box', ticks: 1 }), /mismatch/);
 });
 
-test('async step waits for scheduler then polls until paused at target', async t => {
+test('waiting step falls back to polls only for incomplete state', async t => {
   const f = fixture(t); let reads = 0;
   const broker = f.make(async (path, body, method) => {
-    if (path.endsWith('/control')) return { ...f.state().world, status: 'running' };
-    if (path.endsWith('/state')) return { ...f.state(), world: { ...f.state().world, tick: ++reads < 2 ? 150 : 300, status: reads === 2 ? 'running' : 'paused' } };
+    if (path.endsWith('/control')) return { ...f.state(), world: { ...f.state().world, tick: 150, status: 'running' } };
+    if (path.endsWith('/state')) return { ...f.state(), world: { ...f.state().world, tick: ++reads < 2 ? 200 : 300 } };
     return f.api(path, body, method);
   });
   await broker.call({ op: 'create' });
   assert.equal((await broker.call({ op: 'step', world: 'box', ticks: 300 })).world.tick, 300);
-  assert.equal(reads, 3);
-  assert.deepEqual(f.delays, [0.15, 0.05, 0.1]);
-  const ended = f.make(async (path, body, method) => path.endsWith('/state') ? { world: { ...f.state().world, tick: 200, status: 'ended' } } : f.api(path, body, method));
+  assert.equal(reads, 2);
+  assert.deepEqual(f.delays, [0.05, 0.1]);
+  const receipt = JSON.parse(readFileSync(join(f.root, 'sandbox-events.jsonl'), 'utf8').trim().split('\n').at(-1)!);
+  assert.equal(receipt.stepWaitIncomplete, true); assert.equal(receipt.httpCalls, 3);
+  const ended = f.make(async (path, body, method) => path.endsWith('/control') ? { world: { ...f.state().world, tick: 200, status: 'ended' } } : f.api(path, body, method));
   assert.equal((await ended.call({ op: 'step', world: 'box', ticks: 300 })).world.tick, 200);
-  const stuck = f.make(async (path, body, method) => path.endsWith('/control') ? {} : f.api(path, body, method));
+  const stuck = f.make(async (path, body, method) => path.endsWith('/control') ? f.state() : f.api(path, body, method));
   await assert.rejects(stuck.call({ op: 'step', world: 'box', ticks: 300 }), /timed out/);
+  const malformed = f.make(async (path, body, method) => path.endsWith('/control') ? {} : f.api(path, body, method));
+  await assert.rejects(malformed.call({ op: 'step', world: 'box', ticks: 300 }), /invalid state/);
 });
 
 test('token buckets and Retry-After pace without real waits, including shared state', async t => {
   const f = fixture(t), broker = f.make(async () => ({}), join(f.root, 'pacing.json'));
-  for (let n = 0; n < 55; n++) await broker.api('/state');
-  assert.ok(Math.abs(f.now() - 100.5) < 0.000001);
+  for (let n = 0; n < SANDBOX.dashboardBurst + 5; n++) await broker.api('/state');
+  assert.ok(Math.abs(f.now() - 100 - 5 / SANDBOX.dashboardPerSecond) < 0.000001);
   const restarted = f.make(async () => ({}), join(f.root, 'pacing.json'));
-  await restarted.api('/state'); assert.ok(Math.abs(f.now() - 100.6) < 0.000001);
+  await restarted.api('/state'); assert.ok(Math.abs(f.now() - 100 - 6 / SANDBOX.dashboardPerSecond) < 0.000001);
   let attempts = 0;
   const limited = f.make(async () => { if (++attempts === 1) throw new HttpError(429, '2'); return { ok: true }; });
   const before = f.now(); assert.deepEqual(await limited.api('/state'), { ok: true });
@@ -150,11 +158,11 @@ test('token buckets and Retry-After pace without real waits, including shared st
   assert.equal(f.now() - preciseStart, 0.125);
   await assert.rejects(f.make(async () => { throw new HttpError(429, '61'); }).api('/state'), /Rate limited for 61/);
   const writes = f.make(async () => ({})); const start = f.now();
-  for (let n = 0; n < 70; n++) await writes.api('/actions', { actions: Array(8).fill({}) });
-  assert.ok(Math.abs(f.now() - start - 60 / 62) < 0.000001);
+  for (let n = 0; n < 630; n++) await writes.api('/actions', { actions: Array(8).fill({}) });
+  assert.ok(Math.abs(f.now() - start - 40 / SANDBOX.actionsPerSecond) < 0.000001);
   const calls = f.make(async () => ({})); const callStart = f.now();
-  for (let n = 0; n < 105; n++) await calls.api('/control', {});
-  assert.ok(Math.abs(f.now() - callStart - 0.1) < 0.000001);
+  for (let n = 0; n < SANDBOX.callBurst + 5; n++) await calls.api('/control', {});
+  assert.ok(Math.abs(f.now() - callStart - 5 / SANDBOX.callsPerSecond) < 0.000001);
 });
 
 test('pacing locks recover dead holders, expired live holders and incomplete old locks', async t => {
@@ -183,8 +191,8 @@ test('fresh live pacing locks are respected and throttle sleeps happen after rel
     } else assert.equal(existsSync(lock), false);
     clock += seconds;
   }, pacing);
-  for (let n = 0; n < 55; n++) await broker.api('/state');
-  assert.ok(waited); assert.ok(Math.abs(clock - 100.51) < 0.000001); assert.equal(existsSync(lock), false);
+  for (let n = 0; n < SANDBOX.dashboardBurst + 5; n++) await broker.api('/state');
+  assert.ok(waited); assert.ok(Math.abs(clock - 100.01 - 5 / SANDBOX.dashboardPerSecond) < 0.000001); assert.equal(existsSync(lock), false);
 });
 
 test('credential transport preserves dashboard GET header without exposing credentials', async t => {
