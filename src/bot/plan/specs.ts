@@ -53,13 +53,13 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     never: ["Never deferred because an attack is incoming."],
   },
   "first-conquest": {
-    intent: "After the early game, meet the remaining conquest requirements in the capital.",
-    eligible: ["Lumberyard 14, Quarry 14 and Mine 12.", "Wall 5, Hall 10, Barracks 5, producers 15 and 250 home Pikemen are complete."],
+    intent: "Conquer as soon as possible: meet the conquest requirements in the capital alongside the rest of the early game.",
+    eligible: ["The capital is the only city, has Barracks 1, 150 home Pikemen and no queued orders.", "Wall 5, Hall 10, Barracks 5, producers 15 and 250 home Pikemen need not be complete; producer upgrades pause during the Hall 10 rush and Raiders wait for Barracks 5."],
     priority: ["Mission tasks compete with every other task through the President (88 to 96); the capital saves for them when they are its top need."],
     never: ["Never pause or exclude the capital's other tasks; conquest is an operation on top of normal production."],
   },
   "conquest.enabled": {
-    intent: "Smithy 10, Market 5 and Court built; Hall 10 and Barracks 5 are completed in the early game.",
+    intent: "Smithy 10, Market 5 and Court built; the Court needs the early-game Hall 10.",
   },
   "conquest.dispatch": {
     intent: "Capture the nearest unowned village with the Envoy and escort.",

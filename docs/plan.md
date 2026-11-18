@@ -279,7 +279,7 @@ flowchart TD
   n26 -.->|requires| n27
   n27 -.->|requires| n28
   n24 -.->|requires| n29
-  n22 -.->|requires| n42
+  n24 -.->|requires| n42
   n22 -.->|requires| n31
   n31 -.->|requires| n39
   n11 -.->|requires| n43
@@ -510,7 +510,7 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | military.scouts | task | Scouts | The capital keeps 20 Scouts at home per city it owns, and stations 20 in each economic city on request. The Stable is only for Scouts (Stable 1). | perCity=20 | defense.smithy1 |
 | military.wall-cap | policy | Wall capped at 10 | Capital Walls stop at level 10. | maxLevel=10 | — |
 | military.workshop | capability | Workshop siege | Skipped: we win on numbers, not Rams or Trebuchets. | — | — |
-| first-conquest | mission | Enable conquest | After the early game, build the remaining requirements: Smithy 10, Market 5 and a Court; Hall 10 and Barracks 5 are already done. | originVillages=1, homePikemen=150, standingOrders=0 | early-game |
+| first-conquest | mission | Enable conquest | Starts as soon as the capital has 150 home Pikemen, in parallel with the rest of the early game: Smithy 10, Market 5 and a Court. | originVillages=1, homePikemen=150, standingOrders=0 | early.barracks1 |
 | conquest.infrastructure | group | Conquest infrastructure | Complete current building requirements and ordinary capacity prerequisites. | — | economy.producers.15 |
 | conquest.smithy10 | task | Smithy 10 | Build the conquest Smithy requirement. | level=10 | — |
 | conquest.market5 | task | Market 5 | Build the conquest Market requirement. | level=5 | — |
@@ -518,7 +518,7 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | conquest.capacity | task | Conquest capacity prerequisite | Fund farm and storage capacity as ordinary paid prerequisites. | — | — |
 | conquest.producer-funding | policy | Producer funding fallback | Compare the existing bounded producer investment against saving for the next conquest building. | — | — |
 | conquest.producer-investment | task | Conquest producer investment | Build the selected producer when the bounded funding fallback applies. | — | — |
-| conquest.enabled | milestone | Conquest enabled | Smithy 10, Market 5 and Court are complete; the early-game Hall 10 and Barracks 5 are already met. | — | conquest.smithy10, conquest.market5, conquest.court |
+| conquest.enabled | milestone | Conquest enabled | Smithy 10, Market 5 and Court are complete; the Court needs the early-game Hall 10. | — | conquest.smithy10, conquest.market5, conquest.court |
 | expansion | mission | Expansion | Conquer cities one at a time: the first capture, then the next ones once existing cities are developed. | — | conquest.enabled |
 | conquest.escort | task | Prepare Raider escort | Prepare the simulated bounded escort without replacing surviving waves. | — | — |
 | conquest.envoy | task | Prepare Envoy | Prepare one reusable Envoy for the bounded mission. | count=1 | — |

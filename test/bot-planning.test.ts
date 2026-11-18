@@ -191,7 +191,8 @@ test("early-game graph orders its opening and removes the old conquest Hall and 
   assert.ok(requires.has("early.wall5->early.hall10"));
   assert.ok(requires.has("early.hall10->early.barracks5"));
   assert.ok(requires.has("early.barracks5->early.producers15"));
-  assert.ok(requires.has("early-game->first-conquest"));
+  assert.ok(requires.has("early.barracks1->first-conquest"));
+  assert.ok(!requires.has("early-game->first-conquest"));
   assert.ok(requires.has("early-game->defense.smithy1"));
   assert.ok(PLAN.edges.some(edge => edge.kind === "contains" && edge.from === "early-game" && edge.to === "early.pikemen"));
   assert.equal(proposalTask("military", {type: "build", building: "barracks"}, 1), "early.barracks1");
