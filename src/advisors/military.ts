@@ -7,7 +7,7 @@ import type { Advisor, AdvisorContext, Proposal } from "./types.js";
 import { proposalTask } from "../bot/plan/graph.js";
 import { cityRoles } from "../bot/strategy/roles.js";
 import { evaluateRecall } from "./conquest.js";
-import { EARLY_GATE, EARLY_HALL, EARLY_WALL, RAIDER_MIN_BARRACKS, militaryUnlocked } from "./defense-budget.js";
+import { EARLY_GATE, EARLY_HALL, EARLY_WALL, RAIDER_MIN_BARRACKS, RAIDER_TARGET, militaryUnlocked } from "./defense-budget.js";
 
 /** Bounded military proposals share the President and its durable executor. */
 export const militaryAdvisor: Advisor = { id: "military", evaluate: context => {
@@ -29,11 +29,11 @@ export function evaluateRaiders(context: AdvisorContext): Proposal<Extract<Actio
   if (!capital || capital.buildings.barracks < RAIDER_MIN_BARRACKS || capital.buildings.smithy < 2) return [];
   const queued = capital.training.barracks.filter(batch => batch.unit === "raider").reduce((sum,batch) => sum + batch.remaining, 0);
   const current = (capital.units.home.raider ?? 0) + (capital.units.away.raider ?? 0) + queued;
-  const deficit = 140 - current;
+  const deficit = RAIDER_TARGET - current;
   if (deficit <= 0) return [];
   const proposal = minuteTrainingProposal(context, capital, "raider", deficit, "military.raiders", 72,
-    `Train toward 140 owned Raiders, counting home, away, and queued troops; losses are retrained.`,
-    `${context.state.world.epoch}:${capital.id}:raiders:140`, current, 140);
+    `Train toward ${RAIDER_TARGET} owned Raiders, counting home, away, and queued troops; losses are retrained.`,
+    `${context.state.world.epoch}:${capital.id}:raiders:${RAIDER_TARGET}`, current, RAIDER_TARGET);
   return proposal ? [proposal] : [];
 }
 export function evaluateMilitary(context: AdvisorContext): Proposal<Extract<Action, {type: "build"}>>[] {

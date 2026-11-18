@@ -8,7 +8,7 @@ import { cityRoles } from "../bot/strategy/roles.js";
 import { stockMinutes } from "./balance.js";
 import { expansionReadiness } from "./sustained-defense.js";
 import {nextConquestBuilding, fundingUpgrade, conquestLoyalty} from '../review/conquest-plan.js';
-import { BARRACKS_CAP, CONQUEST_PRODUCER_FLOOR, EARLY_HALL, RAIDER_MIN_BARRACKS, hallRushActive } from "./defense-budget.js";
+import { BARRACKS_CAP, CONQUEST_PRODUCER_FLOOR, EARLY_HALL, RAIDER_MIN_BARRACKS, RAIDER_SEND_MIN, RAIDER_TARGET, hallRushActive } from "./defense-budget.js";
 
 export interface ConquestPlan {
  scope: string;
@@ -133,13 +133,12 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   if(best)construction=best.p;
  }
  if(construction)retained.push(construction);
- if(plan.escort&&v.buildings.barracks>=RAIDER_MIN_BARRACKS){const p=train('raider',Math.max(140,plan.escort));if(p)retained.push(p);}
+ if(plan.escort&&v.buildings.barracks>=RAIDER_MIN_BARRACKS){const p=train('raider',Math.max(RAIDER_TARGET,plan.escort));if(p)retained.push(p);}
  if(!next&&(sequence<2||expansionReadiness(context,roles).ready)){const p=train('envoy',1);if(p)retained.push(p);}
  const raiders=v.units.home.raider??0;
- const escortGoal=Math.max(140,plan.escort??Infinity);
- const escortReady=plan.escort!==undefined&&raiders>=escortGoal;
- const expeditionTraining=Object.values(v.training).flat().some(batch=>batch.unit==="raider"||batch.unit==="envoy");
- if(!next&&(v.units.home.envoy??0)>=1&&raiders>0&&escortReady&&!expeditionTraining&&
+ const escortReady=plan.escort!==undefined&&raiders>=RAIDER_SEND_MIN;
+ const expeditionTraining=Object.values(v.training).flat().some(batch=>batch.unit==="envoy");
+ if(!next&&(v.units.home.envoy??0)>=1&&escortReady&&!expeditionTraining&&
    !state.commands.outgoing.some(cmd=>cmd.from.id===v.id)&&c.map?.tick===state.world.tick&&
    c.map.villages.find(t=>t.id===plan.targetId)?.ownerId===null&&c.assessment?.tick===state.world.tick&&
    c.assessment.raiders===raiders&&c.assessment.battle.winner==='attacker'&&(c.assessment.battle.attackerSurvivors.envoy??0)>=1){

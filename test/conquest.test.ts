@@ -17,25 +17,25 @@ function fixture(){
  Object.assign(v.buildings,{lumberyard:15,quarry:15,mine:15,hall:13,barracks:10,smithy:10,market:5,storehouse:5,court:1});
  v.population={max:10000,used:500};v.storage=100000;
  v.resources={timber:50000,stone:50000,iron:50000};v.resourcesMilli={timber:50000000,stone:50000000,iron:50000000};
- v.units.home={pikeman:153,raider:140,envoy:1};
+ v.units.home={pikeman:153,raider:150,envoy:1};
  v.options.train=['raider','envoy'].map(unit=>({unit:unit as 'raider'|'envoy',cost:{timber:55,stone:35,iron:45},ticksEach:4,pop:1,maxCount:1000,ok:true,blockers:[],affordableAtTick:null}));
  const c:ConquestContext={plan:{scope:conquestScope('https://sandbox.invalid','p1',context),villageId:v.id,startedTick:100,status:'preparing',waves:0,targetId:'t',escort:140},
   map:{tick:100,snapshotTick:100,size:100,players:[],villages:[{id:'t',x:2,y:1,name:'Target',ownerId:null,ownerName:null,points:0}]},
-  assessment:{tick:100,raiders:140,battle:{winner:'attacker',attackerSurvivors:{raider:114,envoy:1},attackerLost:{}} as any}};
+  assessment:{tick:100,raiders:150,battle:{winner:'attacker',attackerSurvivors:{raider:124,envoy:1},attackerLost:{}} as any}};
  return {context,v,c};
 }
 test('conquest retains paid defence, requires fresh neutral ownership and a surviving Envoy',()=>{
  const {context,v,c}=fixture();
  let p=selectProposal(applyConquest(context,[],c)).selected;
- assert.equal(p?.action.type,'send');assert.equal(p?.importance,94);if(p?.action.type==='send')assert.deepEqual(p.action.units,{raider:140,envoy:1});
+ assert.equal(p?.action.type,'send');assert.equal(p?.importance,94);if(p?.action.type==='send')assert.deepEqual(p.action.units,{raider:150,envoy:1});
  c.map!.tick--;assert.equal(applyConquest(context,[],c).length,0);c.map!.tick++;
  c.map!.villages[0].ownerId='enemy';assert.equal(applyConquest(context,[],c).length,0);c.map!.villages[0].ownerId=null;
  c.assessment!.battle.attackerSurvivors.envoy=0;assert.equal(applyConquest(context,[],c).length,0);
  c.assessment!.battle.attackerSurvivors.envoy=1;v.units.home.pikeman=149;
  assert.equal(selectProposal(applyConquest(context,[],c)).selected,null);
 });
-test('conquest dispatches with 140 home Raiders during Pikeman training',()=>{
- const {context,v,c}=fixture();c.plan.waves=1;v.units.home.raider=140;c.assessment!.raiders=140;
+test('conquest dispatches with 150 home Raiders during Pikeman training',()=>{
+ const {context,v,c}=fixture();c.plan.waves=1;
  v.training.barracks=[{
   id:'queued-pikemen',unit:'pikeman',count:2,remaining:2,
   costEach:{timber:45,stone:35,iron:15},nextTick:101,endTick:109,
@@ -124,10 +124,15 @@ test('transition keeps normal proposals while conquest is preparing',()=>{
  assert.ok(result.includes(routine));
  c.plan.status='captured';assert.deepEqual(applyConquest(context,[routine],c),[routine]);
 });
-test('conquest dispatch requires all 140 Raiders at home, not away',()=>{
+test('conquest dispatch needs 100 Raiders at home, not away, and sends every home Raider while the rest train',()=>{
  const {context,v,c}=fixture();
- v.units.home.raider=139;v.units.away.raider=1;
+ v.units.home.raider=99;v.units.away.raider=1;c.assessment!.raiders=99;
  assert.ok(!applyConquest(context,[],c).some(proposal=>proposal.action.type==='send'));
+ v.units.home.raider=100;v.units.away.raider=0;c.assessment!.raiders=100;
+ v.training.barracks=[{id:'raiders',unit:'raider',count:16,remaining:16,costEach:{timber:55,stone:35,iron:45},nextTick:104,endTick:164}];
+ const send=selectProposal(applyConquest(context,[],c)).selected;
+ assert.equal(send?.action.type,'send');
+ if(send?.action.type==='send')assert.deepEqual(send.action.units,{raider:100,envoy:1});
 });
 test('recall returns the capital-origin Raider stack after a city becomes economic',()=>{
  const context:AdvisorContext=developedContext(),capital=context.state.villages[0]!;
@@ -286,7 +291,7 @@ test('incoming attacks do not hold a ready Raider and Envoy expedition at home',
  x.preflight(()=>{x.context.state.commands.incoming=[{kind:'attack',to:{id:x.v.id}} as any];});
  await x.controller.cycle();
  assert.equal(x.writes.length,1);assert.equal(x.writes[0].type,'send');
- if(x.writes[0].type==='send')assert.deepEqual(x.writes[0].units,{raider:140,envoy:1});
+ if(x.writes[0].type==='send')assert.deepEqual(x.writes[0].units,{raider:150,envoy:1});
  assert.equal(x.v.units.home.pikeman,153);
 });
 
@@ -312,19 +317,22 @@ test('recurring conquest tops up the surviving escort before dispatch',()=>{
  let proposals=applyConquest(context,[],c);
  const escort=proposals.find(p=>p.action.type==='train'&&p.action.unit==='raider');
  assert.equal(escort?.task,'expansion.escort');
- if(escort?.action.type==='train')assert.equal(escort.action.count,30);
+ if(escort?.action.type==='train')assert.equal(escort.action.count,31);
  else assert.fail('Missing Raider escort top-up');
  assert.ok(proposals.some(p=>p.task==='expansion.envoy'&&p.action.type==='train'&&p.action.unit==='envoy'));
  assert.ok(!proposals.some(p=>p.action.type==='send'));
- v.units.home.raider=140;v.units.home.envoy=1;
- c.assessment={tick:context.state.world.tick,raiders:140,battle:{winner:'attacker',attackerSurvivors:{raider:114,envoy:1},attackerLost:{}} as any};
+ v.units.home.raider=150;v.units.home.envoy=1;
+ c.assessment={tick:context.state.world.tick,raiders:150,battle:{winner:'attacker',attackerSurvivors:{raider:114,envoy:1},attackerLost:{}} as any};
  proposals=applyConquest(context,[],c);
  const dispatch=proposals.find(p=>p.action.type==='send');
  assert.equal(dispatch?.task,'expansion.dispatch');assert.equal(dispatch?.importance,94);
  assert.ok(!proposals.some(p=>p.action.type==='train'&&p.action.unit==='raider'));
  c.plan.waves=1;v.units.home.raider=110;c.assessment.raiders=110;
- const nextWave=applyConquest(context,[],c);
+ let nextWave=applyConquest(context,[],c);
  assert.ok(nextWave.some(p=>p.action.type==='train'&&p.action.unit==='raider'));
+ assert.equal(selectProposal(nextWave).selected?.action.type,'send');
+ v.units.home.raider=90;c.assessment.raiders=90;
+ nextWave=applyConquest(context,[],c);
  assert.ok(!nextWave.some(p=>p.action.type==='send'));
 });
 
@@ -423,6 +431,6 @@ test('Raider escort is funded in minute batches, letting affordable Smithy work 
  v.resourcesMilli={timber:1120000,stone:1440000,iron:1280000};
  proposals=applyConquest(context,[],c);selected=selectProposal(proposals).selected;
  assert.equal(selected?.action.type,'build');if(selected?.action.type==='build')assert.equal(selected.action.building,'smithy');
- v.training.barracks=[];v.units.home.raider=132;
+ v.training.barracks=[];v.units.home.raider=142;
  const last=applyConquest(context,[],c).find(p=>p.action.type==='train'&&p.action.unit==='raider');if(last?.action.type==='train')assert.equal(last.action.count,8);else assert.fail('Missing final bounded batch');
 });

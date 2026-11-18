@@ -21,14 +21,14 @@ function ready() {
   return context;
 }
 
-test("after Barracks 1 and the 14/14/12 producer gate, a zero-Pikeman capital starts toward 250", () => {
+test("after Barracks 1 and the 14/14/12 producer gate, a zero-Pikeman capital starts toward 200", () => {
   const context = ready();
   const proposal = evaluateSustainedDefense(context).find(value =>
     value.action.type === "train",
   );
   assert.equal(proposal?.task, "early.pikemen");
   assert.equal(proposal?.importance, 75);
-  assert.equal(proposal?.targetLevel, 250);
+  assert.equal(proposal?.targetLevel, 200);
   assert.equal(proposal?.action.type, "train");
   if (proposal?.action.type === "train") assert.equal(proposal.action.unit, "pikeman");
   assert.ok(militaryAdvisor.evaluate(context).every(value =>
@@ -48,5 +48,5 @@ test("Pikeman training waits for the exact early producer gate", () => {
   const proposal = evaluateSustainedDefense(context).find(value =>
     value.task === "early.pikemen",
   );
-  assert.equal(proposal?.targetLevel, 250);
+  assert.equal(proposal?.targetLevel, 200);
 });

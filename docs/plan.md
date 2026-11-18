@@ -47,7 +47,7 @@ flowchart TD
   n25["Hall 10<br/><small>early.hall10 · task</small>"]
   n26["Barracks 5<br/><small>early.barracks5 · task</small>"]
   n27["Producers 15<br/><small>early.producers15 · milestone</small>"]
-  n28["250 home Pikemen<br/><small>early.pikemen · task</small>"]
+  n28["200 home Pikemen<br/><small>early.pikemen · task</small>"]
   n29["Military<br/><small>defense · mission</small>"]
   n30["Scout-path Smithy<br/><small>defense.smithy1 · task</small>"]
   n31["Military development work<br/><small>defense.development · task</small>"]
@@ -486,23 +486,23 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | economy.payback | policy | Production payback | Keep the existing round-end production return test and ceiling. | producerCeiling=20 | — |
 | economy.round-end | policy | Round-end completion | Keep current affordability, construction, and use deadlines. | — | — |
 | economy.hall-push | policy | Great Hall push | After producers 20 the capital keeps the Great Hall growing alongside military growth. | — | economy.producers.20 |
-| early-game | group | Early game | Open the capital through Barracks 1, Wall 5, Hall 10, Barracks 5, producers 15 and 250 home Pikemen. | — | — |
+| early-game | group | Early game | Open the capital through Barracks 1, Wall 5, Hall 10, Barracks 5, producers 15 and 200 home Pikemen. | — | — |
 | early.economy | milestone | Early producer gate | Reach Lumberyard 14, Quarry 14 and Mine 12. | lumberyard=14, quarry=14, mine=12 | — |
 | early.barracks1 | task | Barracks 1 | Build Barracks 1 after the early producer gate. | level=1 | early.economy |
 | early.wall5 | task | Wall 5 | Rush Wall 5 after Barracks 1, before further military development. | level=5 | early.barracks1 |
 | early.hall10 | task | Hall 10 | Complete Hall 10 after Wall 5 and before further Barracks growth. | level=10 | early.wall5 |
 | early.barracks5 | task | Barracks 5 | Grow Barracks to level 5 after Hall 10; Barracks stops there. | level=5 | early.hall10 |
 | early.producers15 | milestone | Producers 15 | Bring all three capital producers to level 15 after Barracks 5. | minimum=15 | early.barracks5 |
-| early.pikemen | task | 250 home Pikemen | Train Pikemen from Barracks 1 in parallel until 250 are home. | count=250 | early.barracks1 |
+| early.pikemen | task | 200 home Pikemen | Train Pikemen from Barracks 1 in parallel until 200 are home. | count=200 | early.barracks1 |
 | defense | mission | Military | Build the Pikemen garrison, keep the Raider attack force trained, and station Scouts. | — | — |
 | defense.smithy1 | task | Scout-path Smithy | Unlock the first Smithy for the Scout path after the early game. | level=1 | early-game |
 | defense.development | task | Military development work | Fund intermediate military development steps under current prerequisites. | — | — |
 | military.garrison | group | Garrison | Organize the capital's garrison requirements and growth. | — | — |
-| military.pikemen-baseline | task | Home Pikemen baseline | After the early goal is met, maintain 250 home Pikemen and add economic-city defender requests; recruitment starts at Barracks 1. | count=250 | — |
+| military.pikemen-baseline | task | Home Pikemen baseline | After the early goal is met, maintain 200 home Pikemen and add economic-city defender requests; recruitment starts at Barracks 1. | count=200 | — |
 | military.defence-scale | policy | Capital holds 3× any city | Once the capital's producers reach 20, the capital's home Pikemen grow to 3× the strongest other city's; economic cities follow via their ÷3 defender target. | multiplier=3 | economy.producers.20 |
-| military.barracks-growth | task | Barracks grows when troops lag | Raise Barracks when the Pikemen target or the 140 Raiders can't be trained fast enough; Barracks is capped at level 5. | — | — |
+| military.barracks-growth | task | Barracks grows when troops lag | Raise Barracks when the Pikemen target or the 150 Raiders can't be trained fast enough; Barracks is capped at level 5. | — | — |
 | military.army | group | Attack force | The capital's Raider force and its size. | — | — |
-| military.raiders | task | Raider force | Keep 140 Raiders trained at home; losses are retrained. An attack (hamlet or enemy) needs all 140 at home. | count=140 | — |
+| military.raiders | task | Raider force | Keep 150 Raiders trained; losses are retrained. An attack (hamlet or enemy) needs at least 100 at home and takes every Raider at home. | count=150 | — |
 | military.scouts | task | Scouts | The capital keeps 20 Scouts at home per city it owns, and stations 20 in each economic city on request. The Stable is only for Scouts (Stable 1). | perCity=20 | defense.smithy1 |
 | military.wall-cap | policy | Wall capped at 10 | Capital Walls stop at level 10. | maxLevel=10 | — |
 | military.workshop | capability | Workshop siege | Skipped: we win on numbers, not Rams or Trebuchets. | — | — |
@@ -567,12 +567,12 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | expansion.readiness | policy | Expansion readiness | Start the next mission after capital readiness and Great Hall 10 in every economic city; train its Envoy only after Every city defended. | economicHall=10, homePikemen=150 | — |
 | expansion.cities-defended | milestone | Every city defended | Every economic city has Wall 10 and at least 80% of its Pikemen target stationed. | economicWall=10, defenderShare=0.8 | — |
 | expansion.envoy | task | Train next Envoy | Train one Envoy for the next target once the next conquest has started. | — | expansion.cities-defended |
-| expansion.escort | task | Escort army at home | Before every wave, train up to max(140, simulated escort) Raiders at home; earlier survivors count. | — | — |
-| expansion.dispatch | task | Dispatch waves | Same rules as the first conquest: nearest unowned target, 140 Raiders at home, and recheck before each of at most six waves. | maximumWaves=6 | expansion.envoy, expansion.escort |
+| expansion.escort | task | Escort army at home | Before every wave, train up to max(150, simulated escort) Raiders; earlier survivors count. | — | — |
+| expansion.dispatch | task | Dispatch waves | Same rules as the first conquest: nearest unowned target, at least 100 Raiders at home, and recheck before each of at most six waves. | maximumWaves=6 | expansion.envoy, expansion.escort |
 | expansion.captured | milestone | Target captured | The captured city is tagged economic and starts the economic-city flow. | — | — |
 | expansion.cities4 | milestone | 4 cities owned | Own four cities before opening the enemy-conquest plan. | minimum=4 | — |
 | expansion.enemy | group | Enemy conquest | Scout and simulate attacks on enemy player villages before dispatching conquest. | — | expansion.cities4 |
 | expansion.enemy-target | policy | Close and big | Target enemy player villages, ranked by size (points) over distance. | — | — |
 | expansion.enemy-scout | task | Scout the target | Send Scouts before any attack; use the report's intel for the battle simulation. | — | — |
-| expansion.decisive | policy | Attack at 2× | Attack only with 140 Raiders at home, when our attack is at least 2× their defence and an Envoy is simulated to survive. Winner losses are (loser ÷ winner)^1.5, so a 2× edge costs about 35% of the army. | strengthRatio=2 | — |
-| expansion.enemy-dispatch | task | Dispatch conquest | Dispatch the enemy conquest after scouting and a decisive battle simulation, with 140 Raiders at home. | — | expansion.enemy-scout |
+| expansion.decisive | policy | Attack at 2× | Attack only with at least 100 Raiders at home, when our attack is at least 2× their defence and an Envoy is simulated to survive. Winner losses are (loser ÷ winner)^1.5, so a 2× edge costs about 35% of the army. | strengthRatio=2 | — |
+| expansion.enemy-dispatch | task | Dispatch conquest | Dispatch the enemy conquest after scouting and a decisive battle simulation, with at least 100 Raiders at home. | — | expansion.enemy-scout |

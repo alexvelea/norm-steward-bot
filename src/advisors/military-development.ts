@@ -2,7 +2,7 @@ import type {Action,BuildingId,Resources} from "../shared/api.js";
 import type {AdvisorContext,Proposal} from "./types.js";
 import { proposalTask } from "../bot/plan/graph.js";
 import {completionWindow} from "./completion.js";
-import { BARRACKS_CAP, EARLY_HALL, EARLY_WALL, defenseBudget, earlyGoalMet, hallRushActive, militaryUnlocked } from "./defense-budget.js";
+import { BARRACKS_CAP, EARLY_HALL, EARLY_WALL, RAIDER_TARGET, defenseBudget, earlyGoalMet, hallRushActive, militaryUnlocked } from "./defense-budget.js";
 import {RECRUIT_USE_TICKS} from "./defense-budget.js";
 import {evaluateSustainedDefense} from "./sustained-defense.js";
 import {cityRoles} from "../bot/strategy/roles.js";
@@ -121,7 +121,7 @@ export function evaluateBarracksGrowth(context:AdvisorContext):Proposal<Extract<
   const raiderQueued=Object.values(v.training).flat().filter(batch=>batch.unit==="raider").reduce((sum,batch)=>sum+batch.remaining,0);
   const raiderOwned=(v.units.home.raider??0)+(v.units.away.raider??0);
   const backlog=queued+pikeDeficit*(v.options.train.find(o=>o.unit==="pikeman")?.ticksEach??0)+
-   Math.max(0,140-raiderOwned-raiderQueued)*(raiderOption?.ticksEach??0);
+   Math.max(0,RAIDER_TARGET-raiderOwned-raiderQueued)*(raiderOption?.ticksEach??0);
   if(backlog<=600)continue;
   const o=v.options.build.find(option=>option.building==="barracks");if(!o||o.level<=v.buildings.barracks)continue;
   const batch=pikes?.requirements;

@@ -30,6 +30,7 @@ import { militaryAdvisor } from "../advisors/military.js";
 import { expansionReadiness } from "../advisors/sustained-defense.js";
 import { prioritizeFarmRunway } from "../advisors/farm-runway.js";
 import {applyConquest, conquestScope, conquestTravel, type ConquestContext} from "../advisors/conquest.js";
+import { RAIDER_SEND_MIN } from "../advisors/defense-budget.js";
 import {safeEnvoyAttack} from "../review/conquest-plan.js";
 import type { AdvisorContext, Proposal } from "../advisors/types.js";
 import type { ControlStorage } from "./storage.js";
@@ -515,8 +516,7 @@ export class Controller {
       }
       if(!plan.escort){plan.status='stopped';plan.reason='No bounded surviving-Envoy escort';savePlan();return;}
     }
-    const requiredEscort=Math.max(140,plan.escort??Infinity);
-    if((v.units.home.envoy??0)<1||(v.units.home.raider??0)<requiredEscort||
+    if((v.units.home.envoy??0)<1||(v.units.home.raider??0)<RAIDER_SEND_MIN||
       state.commands.outgoing.some(c=>c.from.id===v.id)){savePlan();return;}
     const travel=conquestTravel(context,this.conquest)!;
     const last=plan.lastBattle;

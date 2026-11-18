@@ -79,16 +79,16 @@ test("economic Pikemen target is topped up only below 80%, counting home, statio
   }
 });
 
-test("capital Pikemen target is 250 before producer 20, then scales to three times the strongest city", () => {
+test("capital Pikemen target is 200 before producer 20, then scales to three times the strongest city", () => {
   const context = ready();
   const {capital, city} = addEconomicCity(context);
   city.units.home.pikeman = 250;
   Object.assign(capital.buildings, {lumberyard: 19, quarry: 19, mine: 19});
-  capital.units.home.pikeman = 200;
+  capital.units.home.pikeman = 150;
   let pikes = evaluateSustainedDefense(context).find(proposal =>
     proposal.action.type === "train" && proposal.action.unit === "pikeman",
   );
-  assert.equal(pikes?.targetLevel, 250);
+  assert.equal(pikes?.targetLevel, 200);
 
   Object.assign(capital.buildings, {lumberyard: 20, quarry: 20, mine: 20});
   city.units.home.pikeman = 100;
@@ -102,7 +102,7 @@ test("capital Pikemen target is 250 before producer 20, then scales to three tim
 test("bounded Pikemen targets train when unsustainable but growth batches do not", () => {
   const context = ready();
   const capital = context.state.villages[0]!;
-  capital.units.home.pikeman = 200;
+  capital.units.home.pikeman = 150;
   capital.productionPerTickMilli = {timber: 1, stone: 1, iron: 1};
 
   let pikes = evaluateSustainedDefense(context).find(proposal =>
@@ -111,7 +111,7 @@ test("bounded Pikemen targets train when unsustainable but growth batches do not
   assert.equal(pikes?.importance, 75);
   assert.ok(!pikes?.blockers.includes("INCOME_CANNOT_SUSTAIN_TRAINING_AND_CONSTRUCTION"));
 
-  capital.units.home.pikeman = 250;
+  capital.units.home.pikeman = 200;
   pikes = evaluateSustainedDefense(context).find(proposal =>
     proposal.action.type === "train" && proposal.action.unit === "pikeman",
   );

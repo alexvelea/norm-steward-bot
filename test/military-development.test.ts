@@ -131,7 +131,7 @@ test("Barracks grows at importance 92 with idle stock, 65 otherwise, when Pikema
   assert.equal(evaluateBarracksGrowth(context)[0]?.importance, 65);
 });
 
-test("Raiders train toward 140 owned, counting home, away and queued troops", () => {
+test("Raiders train toward 150 owned, counting home, away and queued troops", () => {
   const context = ready();
   const village = context.state.villages[0]!;
   village.buildings.barracks = 5;
@@ -145,7 +145,7 @@ test("Raiders train toward 140 owned, counting home, away and queued troops", ()
   const proposal = evaluateRaiders(context)[0];
   assert.equal(proposal?.task, "military.raiders");
   assert.equal(proposal?.currentLevel, 120);
-  assert.equal(proposal?.targetLevel, 140);
+  assert.equal(proposal?.targetLevel, 150);
   assert.equal(proposal?.importance, 72);
   assert.equal(proposal?.action.type, "train");
   if (proposal?.action.type === "train") assert.equal(proposal.action.count, 8);

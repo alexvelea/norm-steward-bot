@@ -49,7 +49,7 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
   },
   "first-conquest": {
     intent: "Conquer as soon as possible: meet the conquest requirements in the capital alongside the rest of the early game.",
-    eligible: ["The capital is the only city, has Barracks 1, 150 home Pikemen and no queued orders.", "It does not wait for the rest of the early game (Wall 5, Hall 10, Barracks 5, producers 15, 250 Pikemen).", "Producer upgrades pause during the Hall 10 rush; Raiders wait for Barracks 5."],
+    eligible: ["The capital is the only city, has Barracks 1, 150 home Pikemen and no queued orders.", "It does not wait for the rest of the early game (Wall 5, Hall 10, Barracks 5, producers 15, 200 Pikemen).", "Producer upgrades pause during the Hall 10 rush; Raiders wait for Barracks 5."],
     priority: ["Mission tasks compete with every other task through the President (88 to 96); the capital saves for them when they are its top need."],
     never: ["Never pause or exclude the capital's other tasks; conquest is an operation on top of normal production."],
   },
@@ -197,13 +197,13 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     ],
   },
   "expansion.escort": {
-    intent: "Before every wave, train up to max(140, simulated escort) Raiders at home; earlier survivors count.",
-    eligible: ["Train the missing Raiders when home count is below max(140, simulated escort)."],
+    intent: "Before every wave, train up to max(150, simulated escort) Raiders; earlier survivors count.",
+    eligible: ["Train the missing Raiders when owned count is below max(150, simulated escort)."],
     never: ["Never send Pikemen that are part of the home-defence target.", "Never dispatch below the home Raider target."],
   },
   "expansion.dispatch": {
-    intent: "Same dispatch rules as the first conquest, with at least 140 Raiders at home.",
-    eligible: ["At least 140 Raiders and one Envoy at home."],
+    intent: "Same dispatch rules as the first conquest, with at least 100 Raiders at home.",
+    eligible: ["At least 100 Raiders and one Envoy at home; every home Raider is sent."],
     priority: ["94."],
     never: ["Never more than six waves per target.", "Never target an owned village."],
   },
@@ -249,8 +249,8 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     eligible: ["Barracks 5 is complete.", "Lumberyard, Quarry and Mine are each at least level 15."],
   },
   "early.pikemen": {
-    intent: "Train 250 home Pikemen from Barracks 1 in parallel with the early military buildings.",
-    eligible: ["Barracks 1 is built.", "Home Pikemen reach 250; queued troops do not count toward this early goal."],
+    intent: "Train 200 home Pikemen from Barracks 1 in parallel with the early military buildings.",
+    eligible: ["Barracks 1 is built.", "Home Pikemen reach 200; queued troops do not count toward this early goal."],
     priority: ["Continue bounded Pikeman training alongside Wall 5, Hall 10, Barracks growth and producer upgrades."],
   },
   "military.garrison": {
@@ -258,8 +258,8 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     priority: ["Score: to be decided when codified."],
   },
   "military.pikemen-baseline": {
-    intent: "After the early goal, maintain 250 home Pikemen; economic-city defender requests remain additive.",
-    eligible: ["Train from Barracks 1 toward 250 home Pikemen during the early game.", "At producer level 20, target at least 250 or three times the strongest economic city's Pikemen.", "Economic-city defender requests remain additive."],
+    intent: "After the early goal, maintain 200 home Pikemen; economic-city defender requests remain additive.",
+    eligible: ["Train from Barracks 1 toward 200 home Pikemen during the early game.", "At producer level 20, target at least 200 or three times the strongest economic city's Pikemen.", "Economic-city defender requests remain additive."],
     priority: ["Score: to be decided when codified."],
     never: ["Never use Shieldmen for this baseline."],
   },
@@ -269,8 +269,8 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     priority: ["Set the home Pikemen target to 3× the strongest other city's defence; economic-city targets use one third of the capital target.", "Score: to be decided when codified."],
   },
   "military.barracks-growth": {
-    intent: "Raise Barracks when the Pikemen target or the 140 Raiders can't be trained fast enough, up to level 5.",
-    eligible: ["The Pikemen target or the 140 Raiders cannot be trained fast enough.", "Barracks is below level 5."],
+    intent: "Raise Barracks when the Pikemen target or the 150 Raiders can't be trained fast enough, up to level 5.",
+    eligible: ["The Pikemen target or the 150 Raiders cannot be trained fast enough.", "Barracks is below level 5."],
     priority: ["Score 92 (above Storehouse overflow and producer builds, below Farm capacity) while every resource covers twice the upgrade plus two Pikemen batches; otherwise 65, so it never takes what Pikemen need."],
     never: ["Never build Barracks above level 5."],
   },
@@ -279,8 +279,8 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     priority: ["Score: to be decided when codified."],
   },
   "military.raiders": {
-    intent: "Keep 140 Raiders trained at home; losses are retrained. An attack (hamlet or enemy) needs all 140 at home.",
-    eligible: ["Raiders at home below 140 → train the missing ones.", "No conquest wave is sent until 140 Raiders are home."],
+    intent: "Keep 150 Raiders trained; losses are retrained. An attack (hamlet or enemy) needs at least 100 at home and takes every Raider at home.",
+    eligible: ["Owned Raiders below 150 → train the missing ones.", "A conquest wave needs at least 100 Raiders at home and takes every Raider at home."],
     priority: ["Score: to be decided when codified."],
     never: ["Never wait for Raiders that are not being trained."],
   },
@@ -321,13 +321,13 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     priority: ["Score: to be decided when codified."],
   },
   "expansion.decisive": {
-    intent: "Attack only with 140 Raiders at home, when our attack is at least 2× their defence and an Envoy is simulated to survive. Winner losses are (loser ÷ winner)^1.5, so a 2× edge costs about 35% of the army.",
-    eligible: ["140 Raiders are at home.", "Our attack is at least 2× their defence.", "An Envoy is simulated to survive."],
+    intent: "Attack only with at least 100 Raiders at home, when our attack is at least 2× their defence and an Envoy is simulated to survive. Winner losses are (loser ÷ winner)^1.5, so a 2× edge costs about 35% of the army.",
+    eligible: ["At least 100 Raiders are at home.", "Our attack is at least 2× their defence.", "An Envoy is simulated to survive."],
     priority: ["Score: to be decided when codified."],
   },
   "expansion.enemy-dispatch": {
-    intent: "Dispatch the enemy conquest after scouting and a decisive battle simulation, with 140 Raiders at home.",
-    eligible: ["140 Raiders are at home.", "The target has been scouted and its report informs the simulation.", "The attack is at least 2× the enemy defence and an Envoy is simulated to survive."],
+    intent: "Dispatch the enemy conquest after scouting and a decisive battle simulation, with at least 100 Raiders at home.",
+    eligible: ["At least 100 Raiders are at home.", "The target has been scouted and its report informs the simulation.", "The attack is at least 2× the enemy defence and an Envoy is simulated to survive."],
     priority: ["Score: to be decided when codified."],
   },
   "expansion.recall": {
