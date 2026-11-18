@@ -171,7 +171,7 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
   },
 
   expansion: {
-    intent: "Conquer cities one at a time: first the nearest unowned village, then the next ones once existing cities are developed.",
+    intent: "After the first capture, conquer the next cities one at a time once existing cities are developed.",
     eligible: ["Conquest enabled.", "No other conquest in progress."],
     never: ["Never hold the capital's production while waves are prepared or in flight."],
   },

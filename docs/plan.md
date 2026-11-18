@@ -132,7 +132,6 @@ flowchart TD
   n110["Dispatch conquest<br/><small>expansion.enemy-dispatch · task</small>"]
   n0 -->|contains| n1
   n0 -->|contains| n21
-  n0 -->|contains| n41
   n0 -->|contains| n50
   n0 -->|contains| n29
   n0 -->|contains| n60
@@ -252,6 +251,7 @@ flowchart TD
   n21 -->|contains| n26
   n21 -->|contains| n27
   n21 -->|contains| n28
+  n21 -->|contains| n41
   n41 -->|contains| n42
   n42 -->|contains| n43
   n42 -->|contains| n44
@@ -259,11 +259,11 @@ flowchart TD
   n42 -->|contains| n46
   n41 -->|contains| n47
   n41 -->|contains| n49
-  n50 -->|contains| n51
-  n50 -->|contains| n52
-  n50 -->|contains| n53
-  n50 -->|contains| n54
-  n50 -->|contains| n55
+  n41 -->|contains| n51
+  n41 -->|contains| n52
+  n41 -->|contains| n53
+  n41 -->|contains| n54
+  n41 -->|contains| n55
   n50 -->|contains| n98
   n105 -.->|requires| n106
   n108 -.->|requires| n110
@@ -278,7 +278,8 @@ flowchart TD
   n26 -.->|requires| n27
   n23 -.->|requires| n28
   n23 -.->|requires| n41
-  n21 -.->|requires| n30
+  n27 -.->|requires| n30
+  n28 -.->|requires| n30
   n30 -.->|requires| n38
   n11 -.->|requires| n42
   n51 -.->|requires| n53
@@ -346,8 +347,8 @@ flowchart TD
   linkStyle 45 stroke:#2563eb,stroke-width:2px;
   linkStyle 46 stroke:#2563eb,stroke-width:2px;
   linkStyle 47 stroke:#2563eb,stroke-width:2px;
-  linkStyle 48 stroke:#2563eb,stroke-width:2px;
-  linkStyle 49 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 48 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 49 stroke:#2563eb,stroke-width:2px;
   linkStyle 50 stroke:#2563eb,stroke-width:2px;
   linkStyle 51 stroke:#2563eb,stroke-width:2px;
   linkStyle 52 stroke:#2563eb,stroke-width:2px;
@@ -357,7 +358,7 @@ flowchart TD
   linkStyle 56 stroke:#2563eb,stroke-width:2px;
   linkStyle 57 stroke:#2563eb,stroke-width:2px;
   linkStyle 58 stroke:#2563eb,stroke-width:2px;
-  linkStyle 59 stroke:#2563eb,stroke-width:2px;
+  linkStyle 59 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 60 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 61 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 62 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
@@ -373,16 +374,16 @@ flowchart TD
   linkStyle 72 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 73 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 74 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 75 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 75 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 76 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 77 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 78 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 79 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 79 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 80 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 81 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 82 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 82 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 83 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 84 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 84 stroke:#2563eb,stroke-width:2px;
   linkStyle 85 stroke:#2563eb,stroke-width:2px;
   linkStyle 86 stroke:#2563eb,stroke-width:2px;
   linkStyle 87 stroke:#2563eb,stroke-width:2px;
@@ -456,9 +457,10 @@ flowchart TD
   linkStyle 155 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 156 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 157 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 158 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 159 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 158 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 159 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 160 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 161 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
 ```
 
 Contains edges are solid blue, requires edges are dashed red, and contributesTo edges are dashed purple.
@@ -486,7 +488,7 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | economy.payback | policy | Production payback | Keep the existing round-end production return test and ceiling. | producerCeiling=20 | — |
 | economy.round-end | policy | Round-end completion | Keep current affordability, construction, and use deadlines. | — | — |
 | economy.hall-push | policy | Great Hall push | After producers 20 the capital keeps the Great Hall growing alongside military growth. | — | economy.producers.20 |
-| early-game | group | Early game | Open the capital through Barracks 1, Wall 5, Hall 10, Barracks 5, producers 15 and 200 home Pikemen. | — | — |
+| early-game | group | Early game | From the opening to the first captured city: Barracks 1, Wall 5, Hall 10, Barracks 5, producers 15 and 200 home Pikemen, with the first conquest running in parallel. | — | — |
 | early.economy | milestone | Early producer gate | Reach Lumberyard 14, Quarry 14 and Mine 12. | lumberyard=14, quarry=14, mine=12 | — |
 | early.barracks1 | task | Barracks 1 | Build Barracks 1 after the early producer gate. | level=1 | early.economy |
 | early.wall5 | task | Wall 5 | Rush Wall 5 after Barracks 1, before further military development. | level=5 | early.barracks1 |
@@ -495,7 +497,7 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | early.producers15 | milestone | Producers 15 | Bring all three capital producers to level 15 after Barracks 5. | minimum=15 | early.barracks5 |
 | early.pikemen | task | 200 home Pikemen | Train Pikemen from Barracks 1 in parallel until 200 are home. | count=200 | early.barracks1 |
 | defense | mission | Military | Build the Pikemen garrison, keep the Raider attack force trained, and station Scouts. | — | — |
-| defense.smithy1 | task | Scout-path Smithy | Unlock the first Smithy for the Scout path after the early game. | level=1 | early-game |
+| defense.smithy1 | task | Scout-path Smithy | Unlock the first Smithy for the Scout path once producers reach 15 and 200 Pikemen are home. | level=1 | early.producers15, early.pikemen |
 | defense.development | task | Military development work | Fund intermediate military development steps under current prerequisites. | — | — |
 | military.garrison | group | Garrison | Organize the capital's garrison requirements and growth. | — | — |
 | military.pikemen-baseline | task | Home Pikemen baseline | After the early goal is met, maintain 200 home Pikemen and add economic-city defender requests; recruitment starts at Barracks 1. | count=200 | — |
@@ -506,7 +508,7 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | military.scouts | task | Scouts | The capital keeps 20 Scouts at home per city it owns, and stations 20 in each economic city on request. The Stable is only for Scouts (Stable 1). | perCity=20 | defense.smithy1 |
 | military.wall-cap | policy | Wall capped at 10 | Capital Walls stop at level 10. | maxLevel=10 | — |
 | military.workshop | capability | Workshop siege | Skipped: we win on numbers, not Rams or Trebuchets. | — | — |
-| first-conquest | mission | First conquest | Starts as soon as the capital has 150 home Pikemen, in parallel with the rest of the early game: Smithy 10, Market 5 and a Court. | originVillages=1, homePikemen=150, standingOrders=0 | early.barracks1 |
+| first-conquest | mission | First conquest | Starts as soon as the capital has 150 home Pikemen, alongside the rest of the early game: Smithy 10, Market 5 and Court, then Raiders, an Envoy and waves until the city is captured. | originVillages=1, homePikemen=150, standingOrders=0 | early.barracks1 |
 | conquest.infrastructure | group | Conquest infrastructure | Complete current building requirements and ordinary capacity prerequisites. | — | economy.producers.15 |
 | conquest.smithy10 | task | Smithy 10 | Build the conquest Smithy requirement. | level=10 | — |
 | conquest.market5 | task | Market 5 | Build the conquest Market requirement. | level=5 | — |
@@ -515,7 +517,7 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | conquest.producer-funding | policy | Producer funding fallback | Compare the existing bounded producer investment against saving for the next conquest building. | — | — |
 | conquest.producer-investment | task | Conquest producer investment | Build the selected producer when the bounded funding fallback applies. | — | — |
 | conquest.enabled | milestone | Conquest enabled | Smithy 10, Market 5 and Court are complete; the Court needs the early-game Hall 10. | — | conquest.smithy10, conquest.market5, conquest.court |
-| expansion | mission | Expansion | Conquer cities one at a time: the first capture, then the next ones once existing cities are developed. | — | conquest.enabled |
+| expansion | mission | Expansion | After the first capture, conquer the next cities one at a time once existing cities are developed. | — | conquest.enabled |
 | conquest.escort | task | Prepare Raider escort | Prepare the simulated bounded escort without replacing surviving waves. | — | — |
 | conquest.envoy | task | Prepare Envoy | Prepare one reusable Envoy for the bounded mission. | count=1 | — |
 | conquest.dispatch | task | Dispatch conquest wave | Recheck ownership and simulation before each of at most six waves. | maximumWaves=6 | conquest.escort, conquest.envoy, conquest.enabled |

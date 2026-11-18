@@ -192,15 +192,38 @@ test("early-game graph orders its opening and removes the old conquest Hall and 
   assert.ok(requires.has("early.hall10->early.barracks5"));
   assert.ok(requires.has("early.barracks5->early.producers15"));
   assert.ok(requires.has("early.barracks1->first-conquest"));
-  assert.ok(!requires.has("early-game->first-conquest"));
-  assert.ok(requires.has("early-game->defense.smithy1"));
-  assert.ok(PLAN.edges.some(edge => edge.kind === "contains" && edge.from === "early-game" && edge.to === "early.pikemen"));
+  assert.ok(requires.has("early.producers15->defense.smithy1"));
+  assert.ok(requires.has("early.pikemen->defense.smithy1"));
+  assert.ok(!requires.has("early-game->defense.smithy1"));
+  const contains = new Set(PLAN.edges.filter(edge => edge.kind === "contains").map(edge => `${edge.from}->${edge.to}`));
+  assert.ok(contains.has("early-game->early.pikemen"));
+  assert.ok(contains.has("early-game->first-conquest"));
+  for (const key of ["conquest.escort", "conquest.envoy", "conquest.dispatch", "conquest.target-owned", "conquest.first-achieved"])
+    assert.ok(contains.has(`first-conquest->${key}`), `first-conquest must contain ${key}`);
+  assert.ok(!contains.has("round->first-conquest"));
+  assert.ok(!contains.has("expansion->conquest.dispatch"));
   assert.equal(proposalTask("military", {type: "build", building: "barracks"}, 1), "early.barracks1");
   assert.equal(proposalTask("military", {type: "build", building: "barracks"}, 2), "early.barracks5");
   assert.equal(proposalTask("military", {type: "build", building: "wall"}, 5), "early.wall5");
   assert.equal(proposalTask("military", {type: "build", building: "hall"}, 10), "early.hall10");
   assert.equal(proposalTask("conquest", {type: "build", building: "hall"}, 13), "conquest.capacity");
   assert.equal(proposalTask("conquest", {type: "build", building: "barracks"}, 10), "conquest.capacity");
+});
+
+test("early-game rollup includes the first conquest until it is captured", () => {
+  const c = context();
+  const capital = c.state.villages[0]!;
+  setProducers(c, 15);
+  capital.buildings.barracks = 5;
+  capital.buildings.wall = 5;
+  capital.buildings.hall = 10;
+  capital.units.home.pikeman = 200;
+
+  const projection = project(c, { memory: { missions: [mission()] } });
+  for (const key of ["early.economy", "early.barracks1", "early.wall5", "early.hall10", "early.barracks5", "early.producers15", "early.pikemen"])
+    assert.equal(node(projection, key).status, "satisfied", `${key} should be satisfied`);
+  assert.notEqual(node(projection, "conquest.first-achieved").status, "satisfied");
+  assert.notEqual(node(projection, "early-game").status, "satisfied");
 });
 
 test("d: producer milestones report their own progress without redundant ordering", () => {
