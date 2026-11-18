@@ -5,7 +5,7 @@ import progress
 
 class ExperimentTests(unittest.TestCase):
  def setUp(self):
-  self.temp=tempfile.TemporaryDirectory();self.root=pathlib.Path(self.temp.name);self.runs=self.root/'runs';self.work=self.root/'work'
+  self.temp=tempfile.TemporaryDirectory();self.root=pathlib.Path(self.temp.name);self.store=self.root/"runs";self.runs=self.store/"commit";self.work=self.root/'work'
   (self.work/'src/advisors').mkdir(parents=True);(self.work/'src/advisors/policy.ts').write_text('candidate')
   self.current=fingerprint(self.work)
   for name,fp in [('old','old-policy'),('new',self.current)]:
@@ -21,7 +21,7 @@ class ExperimentTests(unittest.TestCase):
   self.report={'taskId':'question','activate':False,'artifacts':[str(self.runs/n/'result.json') for n in ['old','new']],'verdict':'rejects-change','nextMeasure':'another question'}
  def tearDown(self):self.temp.cleanup()
  def assess(self,gameplay=False):
-  with patch.object(progress,'EXPERIMENT_RUNS',self.runs):
+  with patch.object(progress,'EXPERIMENT_RUNS',self.store):
    return assess(self.report,{**self.task,'delivery':'gameplay' if gameplay else 'research'},['src/advisors/policy.ts'] if gameplay else [],self.root,self.work,gameplay)
  def test_independent_verified_runs_complete_research(self):
   result=self.assess();self.assertEqual(result['kind'],'research-complete')

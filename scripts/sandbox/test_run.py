@@ -78,7 +78,7 @@ class SnapshotWorkerTests(unittest.TestCase):
         (repo/'scripts/sandbox/read.ts').write_text("export function privateRead(){throw new Error('Unexpected private read');}")
         (repo/'src/control/controller.ts').write_text(CONTROLLER)
         shutil.copyfile(ROOT/'scripts/sandbox/runner.mts',repo/'scripts/sandbox/runner.mts')
-        subprocess.run(['git','init','-q',str(repo)],check=True)
+        subprocess.run(['git','init','-q','-b','master',str(repo)],check=True)
         subprocess.run(['git','add','package.json','src','scripts'],cwd=repo,check=True)
         subprocess.run(['git','-c','user.name=Test','-c','user.email=test@localhost','commit','-qm','offline policy'],cwd=repo,check=True)
         return repo
@@ -105,6 +105,19 @@ class SnapshotWorkerTests(unittest.TestCase):
             self.assertEqual(spec['houseBots'],{'warden':2,'reaver':2,'sovereign':2})
             self.assertEqual(spec['status'],'complete');self.assertTrue(worker.valid_run(directory,spec))
             self.assertEqual(subprocess.check_output(['git','worktree','list','--porcelain'],cwd=repo,text=True).count('worktree '),1)
+            with patch.object(worker,'ROOT',repo),patch.object(worker,'DATA',root/'data'):
+                revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=repo,text=True).strip()
+                self.assertEqual(directory.parent,(root/'data/experiments/runs'/revision).resolve())
+                self.assertIn('-s73430-t600-',directory.name)
+                self.assertEqual(worker.find(directory.name),directory)
+                self.assertEqual(worker.run(hours=1/6),directory)
+                self.assertIsNone(worker.stored(revision,{'ticks':600,'snapshotTicks':300,'seed':1,'houseBots':spec['houseBots']}))
+                stale=directory.parent.parent/('0'*40);recent=stale/'recent';old=stale/'old';kept=stale/'kept'
+                for d,extra in [(recent,{'finishedAt':worker.time.time()}),(old,{'finishedAt':0}),(kept,{'finishedAt':0,'keep':True})]:
+                    d.mkdir(parents=True);(d/'run.json').write_text(json.dumps({'status':'complete',**extra}))
+                self.assertEqual(worker.prune(1),[old])
+                self.assertEqual(worker.prune(),[recent])
+                self.assertTrue(kept.exists() and directory.exists())
             (directory/'snapshots.jsonl').write_text('')
             self.assertFalse(worker.valid_run(directory,spec))
 
@@ -120,7 +133,7 @@ class SnapshotWorkerTests(unittest.TestCase):
                 self.assertEqual(json.loads((directory/'run.json').read_text())['houseBots'],{'warden':1,'reaver':1,'sovereign':0})
                 (repo/'src/control/controller.ts').write_text("export class Controller{static async create(){throw new Error('offline failure');}}")
                 with self.assertRaisesRegex(RuntimeError,'Sandbox run failed'):worker.run(hours=1/6,working_tree=repo)
-                failed=sorted((root/'data/experiments/runs').glob('*/run.json'))
+                failed=sorted((root/'data/experiments/runs').glob('*/*/run.json'))
                 self.assertEqual(sorted(json.loads(p.read_text())['status'] for p in failed),['complete','failed'])
 
     def test_action_quota_retry_preserves_pending_journal_and_snapshots(self):
@@ -155,7 +168,7 @@ class SnapshotWorkerTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,'paused'):worker.run()
                 with self.assertRaises(ValueError):worker.run(hours=0)
                 with self.assertRaises(ValueError):worker.run(snapshot_ticks=0)
-                command.assert_not_called()
+                self.assertFalse(any(call.args and call.args[0][0]=='node' for call in command.call_args_list))
 
     def test_early_round_end_preserves_final_state_without_more_writes(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -164,7 +177,7 @@ class SnapshotWorkerTests(unittest.TestCase):
             with patch.object(worker,'ROOT',repo),patch.object(worker,'DATA',root/'data'):
                 with self.assertRaisesRegex(RuntimeError,'Sandbox run failed'):
                     worker.run(hours=1/6,working_tree=repo)
-            directory=next((root/'data/experiments/runs').iterdir())
+            directory=next((root/'data/experiments/runs').glob('*/*'))
             value=json.loads((directory/'result.json').read_text())
             self.assertFalse(value['passed']);self.assertTrue(value['deleted'])
             self.assertEqual(value['lastTick'],125)
@@ -199,6 +212,6 @@ class SnapshotWorkerTests(unittest.TestCase):
                     return command(args,**kwargs)
                 with patch.object(worker.subprocess,'run',side_effect=fail_node):
                     with self.assertRaisesRegex(RuntimeError,'Sandbox run failed'):worker.run(hours=1/6)
-                manifests=list((root/'data/experiments/runs').glob('*/run.json'))
+                manifests=list((root/'data/experiments/runs').glob('*/*/run.json'))
                 failed=[p.parent for p in manifests if json.loads(p.read_text())['status']=='failed']
                 self.assertEqual(len(failed),1);self.assertFalse((failed[0]/'source').exists())

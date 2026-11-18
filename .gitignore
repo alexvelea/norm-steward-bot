@@ -11,3 +11,4 @@ data/
 *.pem
 *.key
 .DS_Store
+sandbox-results/

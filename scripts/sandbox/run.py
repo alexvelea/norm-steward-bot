@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Run committed policies in owner-only sandboxes: snapshots, action log, reports and a milestone timeline per run. See docs/sandbox.md."""
-import argparse, fcntl, json, os, pathlib, signal, subprocess, sys, time, uuid
+"""Run committed policies in owner-only sandboxes: snapshots, action log, reports and a milestone timeline per run,
+stored per commit in one shared results directory. See docs/sandbox.md."""
+import argparse, fcntl, json, os, pathlib, shutil, signal, subprocess, sys, time, uuid
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 sys.path[:0]=[str(ROOT/'scripts/sandbox'),str(ROOT/'scripts/review')]
 from deploy import atomic
 from broker import Broker, fingerprint
-DATA=pathlib.Path(os.environ.get('STEWARD_REVIEW_DIR','/var/lib/norm-steward-review'))
+DATA=pathlib.Path(os.environ.get('STEWARD_SANDBOX_DIR','/var/lib/norm-steward-sandbox'))
 DEFAULT_HOUSE_BOTS='warden=2,reaver=2,sovereign=2'
 HOUSE_BOT_KINDS=('warden','reaver','sovereign')
 MAX_HOUSE_BOTS=12
@@ -45,19 +46,36 @@ def valid_run(directory,spec):
         return ({'create','step'} if keep else {'create','step','delete'})<=ops
     except (OSError,ValueError,KeyError,TypeError):return False
 
-def run(ref='HEAD',hours=1,snapshot_ticks=300,seed=73430,working_tree=None,house_bots=None,keep=False):
+def runs_directory():return DATA.resolve()/'experiments/runs'
+
+def find(run_id):
+    found=list(runs_directory().glob('*/'+run_id))
+    if len(found)!=1 or '/' in run_id:raise ValueError(f'No sandbox run {run_id}')
+    return found[0]
+
+def stored(revision,wanted):
+    """The newest complete run of this commit with the same seed, horizon, cadence and house bots."""
+    for manifest in sorted((runs_directory()/revision).glob('*/run.json'),reverse=True):
+        try:spec=read(manifest)
+        except (OSError,ValueError):continue
+        if spec.get('status')=='complete' and not spec.get('workingTree') and all(spec.get(k)==v for k,v in wanted.items()) and valid_run(manifest.parent,spec):return manifest.parent
+
+def run(ref='HEAD',hours=1,snapshot_ticks=300,seed=73430,working_tree=None,house_bots=None,keep=False,rerun=False):
     if house_bots is None:house_bots=parse_house_bots(DEFAULT_HOUSE_BOTS)
     ticks=round(hours*3600)
     if keep:ticks=min(ticks,ROUND_TICKS-1)  # an ended world cannot be opened in the dashboard
     if not 600<=ticks<=10800:raise ValueError('Use a horizon of 600–10800 game ticks (up to 3 hours)')
     if not 1<=snapshot_ticks<=ticks:raise ValueError('snapshot-ticks must be between 1 and the horizon')
+    revision=subprocess.check_output(['git','rev-parse',ref+'^{commit}'],cwd=working_tree or ROOT,text=True).strip()
+    if working_tree is None and not keep and not rerun:
+        previous=stored(revision,{'ticks':ticks,'snapshotTicks':snapshot_ticks,'seed':seed,'houseBots':house_bots})
+        if previous:print('Reusing stored run',previous.name,file=sys.stderr);return previous
     DATA.mkdir(parents=True,exist_ok=True,mode=0o700)
     with (DATA/'experiment.lock').open('a') as lock:
         try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:raise RuntimeError('Another sandbox run is active') from None
         if (DATA/'paused').exists():raise RuntimeError('Sandbox runs are paused with strategic reviews')
-        revision=subprocess.check_output(['git','rev-parse',ref+'^{commit}'],cwd=working_tree or ROOT,text=True).strip()
-        directory=DATA.resolve()/'experiments/runs'/(time.strftime('%Y%m%dT%H%M%SZ',time.gmtime())+'-'+uuid.uuid4().hex[:6])
+        directory=runs_directory()/revision/(time.strftime('%Y%m%dT%H%M%SZ',time.gmtime())+f'-s{seed}-t{ticks}-'+uuid.uuid4().hex[:6])
         directory.mkdir(parents=True,mode=0o700);source=pathlib.Path(working_tree).resolve() if working_tree else directory/'source'
         spec={'id':directory.name,'status':'running','revision':revision,'ticks':ticks,'snapshotTicks':snapshot_ticks,'seed':seed,'houseBots':house_bots,'startedAt':time.time()}
         if working_tree is None:spec['ref']=ref
@@ -83,7 +101,7 @@ def run(ref='HEAD',hours=1,snapshot_ticks=300,seed=73430,working_tree=None,house
             raise RuntimeError(f'Sandbox run failed; inspect {directory}/worker.log and run.json') from error
         finally:
             try:
-                if spec.get('fingerprint'):Broker(directory,source).call({'op':'cleanup','kept':spec['status']!='complete'})
+                if spec.get('fingerprint'):Broker(directory,source,DATA).call({'op':'cleanup','kept':spec['status']!='complete'})
             except Exception:spec['cleanupError']='Owned sandbox cleanup needs retry with scripts/sandbox/broker-cli.mts'
             try:
                 if created and (source/'node_modules').is_symlink():(source/'node_modules').unlink()
@@ -92,14 +110,24 @@ def run(ref='HEAD',hours=1,snapshot_ticks=300,seed=73430,working_tree=None,house
                 spec['finishedAt']=time.time();atomic(directory/'run.json',spec)
         return directory
 
-def runs_directory():return DATA.resolve()/'experiments/runs'
-
 def delete(run_id):
     """Delete the world a --keep run left open."""
-    directory=runs_directory()/run_id
-    if not (directory/'sandboxes.json').exists():raise ValueError(f'No sandbox run {run_id}')
-    Broker(directory,ROOT).call({'op':'cleanup','kept':True})
+    directory=find(run_id)
+    Broker(directory,ROOT,DATA).call({'op':'cleanup','kept':True})
     spec=read(directory/'run.json');spec.pop('keep',None);spec['deletedAt']=time.time();atomic(directory/'run.json',spec)
+
+def prune(days=0):
+    """Remove stored runs of commits that are not on master and that ended at least `days` ago. Kept worlds stay."""
+    removed=[]
+    for directory in sorted(runs_directory().glob('*/*')):
+        try:spec=read(directory/'run.json')
+        except (OSError,ValueError):continue
+        if spec.get('status')=='running' or spec.get('keep') or time.time()-spec.get('finishedAt',0)<days*86400:continue
+        if subprocess.run(['git','merge-base','--is-ancestor',directory.parent.name,'master'],cwd=ROOT,capture_output=True).returncode==0:continue
+        shutil.rmtree(directory);removed.append(directory)
+    for commit in runs_directory().glob('*'):
+        if commit.is_dir() and not any(commit.iterdir()):commit.rmdir()
+    return removed
 
 def compare(directories):
     """One row per major milestone, one column per run; cells are the tick it was first reached."""
@@ -121,20 +149,25 @@ def main():
     selection.add_argument('--working-tree',action='store_true',help='Use the current directory, including uncommitted policy edits; do not edit it during the run')
     selection.add_argument('--compare',nargs='+',metavar='RUN',help='Print the comparison table for finished runs, by run id')
     selection.add_argument('--delete',metavar='RUN',help='Delete the world a --keep run left open')
+    selection.add_argument('--prune',nargs='?',type=float,const=0,metavar='DAYS',help='Remove stored runs of commits that are not on master, optionally only those that ended at least DAYS ago')
     parser.add_argument('--hours',type=float,default=1)
     parser.add_argument('--snapshot-ticks',type=int,default=300)
     parser.add_argument('--seed',type=int,nargs='+',default=[73430],help='World seeds; every ref runs on every seed')
     parser.add_argument('--house-bots',default=DEFAULT_HOUSE_BOTS,help='House bots as kind=N pairs (default blitz: warden=2,reaver=2,sovereign=2), or none')
+    parser.add_argument('--rerun',action='store_true',help='Run again even when this commit already has a stored run with the same seed and settings')
     parser.add_argument('--keep',action='store_true',help='Leave the world paused at the last tick for the dashboard; remove it later with --delete RUN')
     args=parser.parse_args()
     signal.signal(signal.SIGTERM,lambda *_:sys.exit('Sandbox runner interrupted'))
     try:
         if args.delete:delete(args.delete);return
-        if args.compare:print(compare([runs_directory()/run for run in args.compare]),end='');return
+        if args.prune is not None:
+            for directory in prune(args.prune):print('Removed',directory)
+            return
+        if args.compare:print(compare([find(run) for run in args.compare]),end='');return
         house_bots=parse_house_bots(args.house_bots);finished=[];failed=[]
         for ref in args.ref:
             for seed in args.seed:
-                try:directory=run(ref,args.hours,args.snapshot_ticks,seed,pathlib.Path.cwd() if args.working_tree else None,house_bots,args.keep)
+                try:directory=run(ref,args.hours,args.snapshot_ticks,seed,pathlib.Path.cwd() if args.working_tree else None,house_bots,args.keep,args.rerun)
                 except RuntimeError as error:
                     if len(args.ref)*len(args.seed)==1:raise
                     failed.append(f'{ref} @{seed}: {error}');continue

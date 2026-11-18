@@ -42,7 +42,7 @@ def run_agent(args,prompt,run,timeout=RUN_SECONDS):
     env=os.environ.copy()
     for key in ['OPENAI_API_KEY','CODEX_API_KEY','AZURE_OPENAI_API_KEY','STEWARD_KEY']:env.pop(key,None)
     env['STEWARD_REVIEW_RUN']=str(run.parent if run.name.startswith('attempt-') else run)
-    env['STEWARD_REVIEW_TOOLS']=str(ROOT)
+    env['STEWARD_REVIEW_TOOLS']=str(ROOT);env['STEWARD_SANDBOX_DIR']=str(DATA)
     process=subprocess.Popen(args,cwd=WORK,env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
     process.stdin.write(prompt.encode());process.stdin.close()
     selector=selectors.DefaultSelector()

@@ -12,7 +12,12 @@ to `scripts/sandbox/`.
 npm run sandbox -- --ref my-branch --hours 1
 
 # Compare: every ref runs on every seed, one after another, ending in one comparison table.
+# A commit that already has a stored run with the same seed and settings is reused, not run again,
+# so the baseline costs nothing the second time.
 npm run sandbox -- --ref master my-branch --seed 73430 73431 73432 --hours 2
+
+# Run again even though a stored run exists.
+npm run sandbox -- --ref my-branch --rerun
 
 # Uncommitted edits in the current dedicated worktree (do not edit it during the run).
 npm run sandbox -- --working-tree --hours 1
@@ -24,16 +29,26 @@ npm run sandbox -- --delete <run id>
 # Rebuild the comparison table for finished runs.
 npm run sandbox -- --compare <run id> <run id>
 
-# From a checkout on another machine: push HEAD to the server and run it there.
+# Remove stored runs of commits that are not on master (optionally only those ended N days ago).
+npm run sandbox -- --prune
+npm run sandbox -- --prune 7
+
+# From a checkout on another machine: push HEAD to the server, run it there, copy its results back.
 SANDBOX_HOST=root@host scripts/sandbox/remote.sh --hours 1 --seed 73430 73431
+
+# Copy stored results into ./sandbox-results/<commit>/<run id>/ (all commits, or the refs named).
+SANDBOX_HOST=root@host scripts/sandbox/fetch.sh master HEAD
 ```
 
 Other options: `--house-bots none` or `--house-bots warden=1,reaver=1` (default
 `warden=2,reaver=2,sovereign=2`, at most 12), `--snapshot-ticks N` (default 300) and `--hours`
 (600–10800 ticks, up to three game hours). The default ref is HEAD and the default seed is 73430.
 
-A one-hour run takes roughly half a minute. Runs are serialized by `experiment.lock`; a matrix
-simply runs its cells in order and keeps going if one fails.
+A one-hour run takes roughly 25 seconds and a two-hour run under two minutes. Run the command in
+the foreground and read its output; do not wrap it in polling loops. Runs are serialized by
+`experiment.lock`; a matrix simply runs its cells in order and keeps going if one fails. Runs are
+not parallel on purpose: the time is local CPU in the Controller, and four at once on the
+one-CPU server took four times as long and nearly all its memory.
 
 ## Strategy variants
 
@@ -44,16 +59,27 @@ delete them when the comparison is done.
 
 ## Where runs live
 
-Each run gets `$STEWARD_REVIEW_DIR/experiments/runs/<id>/` (default `/var/lib/norm-steward-review`).
-When reviews are paused (`paused` exists in that directory) the runner refuses to start. Do not
-remove the pause; use your own data directory and delete it when finished:
+All runs go to one shared store, by commit:
 
-```bash
-STEWARD_REVIEW_DIR=/root/nsb-<topic>-data npm run sandbox -- --ref my-branch
+```
+/var/lib/norm-steward-sandbox/experiments/runs/<commit hash>/<UTC time>-s<seed>-t<ticks>-<random>/
 ```
 
-Credentials are always read by the broker from `STEWARD_CONTROL_DIR`; the data directory only
-holds run output, the lock and pacing state.
+The last directory name is the run id used by `--compare` and `--delete`. Everything a run
+produced is kept there, so read an existing result before running anything: the baseline for
+`master` is `runs/$(git rev-parse master)/`. To analyse results on another machine, copy them
+with `fetch.sh` and read the files below; do not add analysis output to the store.
+
+A stored run is reused when the commit, seed, horizon, snapshot cadence and house bots all match
+and the run completed with its world deleted. `--keep` and `--working-tree` runs are stored under
+their HEAD commit but never reused. `--prune` removes runs of commits that are not ancestors of
+`master`; runs still in progress and worlds still kept are left alone. Do not use private data
+directories or delete the shared store by hand.
+
+Scheduled reviews keep their own store, lock and pause under `/var/lib/norm-steward-review`
+(the reviewer sets `STEWARD_SANDBOX_DIR` to it and always passes `--rerun`), so the review pause
+does not block the shared store. Credentials are always read by the broker from
+`STEWARD_CONTROL_DIR`; the store only holds run output, the lock and pacing state.
 
 | File | Contents |
 |---|---|

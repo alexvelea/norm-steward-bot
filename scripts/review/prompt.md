@@ -4,7 +4,7 @@ AUTHORITY AND TOOLS
 You are explicitly authorized to CREATE owner-only private sandboxes, submit ordinary test actions, step their clocks and delete them. Missing sandbox results are work YOU must perform, not evidence to wait for someone to supply. You may fetch battle details with `python3 scripts/review.py collect --output <run>/evidence --details`. Never read/print credentials. Helpers read credentials internally without exposing them. No other paid model, account creation, credential switching or quota purchase.
 
 Use the single-version runner, not one-off experiment scripts:
-  python3 "$STEWARD_REVIEW_TOOLS/scripts/sandbox/run.py" --ref <committed-ref> --hours 1 --seed 73430
+  python3 "$STEWARD_REVIEW_TOOLS/scripts/sandbox/run.py" --ref <committed-ref> --hours 1 --seed 73430 --rerun
 For uncommitted policy edits in your dedicated worktree, use --working-tree instead of --ref.
 It runs immediately, serializes sandbox use, and prints a private run directory containing run.json,
 result.json, snapshots.jsonl and checkpoints.md. Read snapshots across separate runs yourself;

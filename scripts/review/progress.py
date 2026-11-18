@@ -60,7 +60,7 @@ def recorded_research(report,task):
     root=EXPERIMENT_RUNS.resolve();runs={}
     for name in report.get('artifacts',[]):
         path=pathlib.Path(name).resolve()
-        if path.name not in ['run.json','result.json','snapshots.jsonl'] or path.parent.parent!=root:continue
+        if path.name not in ['run.json','result.json','snapshots.jsonl'] or path.parent.parent.parent!=root:continue
         directory=path.parent
         try:
             spec=json.loads((directory/'run.json').read_text());value=json.loads((directory/'result.json').read_text())

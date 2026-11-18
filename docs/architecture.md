@@ -95,7 +95,7 @@ health restores the prior release. Source HEAD and the active release can theref
 | `.../paused`, `.../installed.json` | Separate review pause and installation marker. |
 | `.../worktree/` | Dedicated Git branch with durable unfinished prototypes. Never reset it to discard progress. |
 | `.../runs/<UTC>/` | Redacted agent logs, evidence, sandbox ownership receipts, checks and reports. |
-| `.../experiments/runs/<id>/` | Single-run manifest, JSONL snapshots, result, checkpoint tables and receipts; ref worktree removed after execution. |
+| `.../experiments/runs/<commit>/<id>/` | Single-run manifest, JSONL snapshots, result, checkpoint tables and receipts; ref worktree removed after execution. |
 | `.../review.lock`, `.../experiment.lock` | Kernel flocks; stale files alone do not mean a lock is held. |
 | `/var/lib/norm-steward-deploy/current` | Symlink to active immutable release. |
 | `.../deployment.json`, `.../releases/<commit>/` | Actual release, prior release and rollback record. Runtime settings are shared, source is immutable. |

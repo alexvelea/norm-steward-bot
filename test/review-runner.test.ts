@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 test("scheduled reviewer quota, lock, timeout, continuity and activation guards", () => {
   for (const directory of ["scripts/review", "scripts/sandbox"])
     execFileSync("python3", ["-m", "unittest", "discover", "-s", directory, "-p", "test_*.py"], {
-      timeout: 15000,
+      timeout: 60000,
       stdio: "pipe",
     });
 });

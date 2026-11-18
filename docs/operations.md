@@ -54,7 +54,8 @@ systemctl status norm-steward-control caddy --no-pager
 systemctl list-timers norm-steward-review.timer --no-pager
 journalctl -u norm-steward-review.service -n 30 --no-pager
 python3 /root/norm-steward-bot/scripts/review.py status
-ls /var/lib/norm-steward-review/experiments/runs  # retained single-version runs
+ls /var/lib/norm-steward-review/experiments/runs  # reviewer runs, by commit
+ls /var/lib/norm-steward-sandbox/experiments/runs # shared sandbox store, by commit
 ss -lntp
 ```
 
