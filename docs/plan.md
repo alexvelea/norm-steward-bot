@@ -35,187 +35,186 @@ flowchart TD
   n13["Capacity and protection<br/><small>economy.capacity · group</small>"]
   n14["Farm capacity<br/><small>economy.farm · task</small>"]
   n15["Storehouse overflow<br/><small>economy.storehouse · task</small>"]
-  n16["Cellar protection<br/><small>economy.cellar · task</small>"]
-  n17["Great Hall<br/><small>economy.hall · task</small>"]
-  n18["Early-build successor window<br/><small>economy.successor-window · policy</small>"]
-  n19["Production payback<br/><small>economy.payback · policy</small>"]
-  n20["Round-end completion<br/><small>economy.round-end · policy</small>"]
-  n21["Great Hall push<br/><small>economy.hall-push · policy</small>"]
-  n22["Early game<br/><small>early-game · group</small>"]
-  n23["Early producer gate<br/><small>early.economy · milestone</small>"]
-  n24["Barracks 1<br/><small>early.barracks1 · task</small>"]
-  n25["Wall 5<br/><small>early.wall5 · task</small>"]
-  n26["Hall 10<br/><small>early.hall10 · task</small>"]
-  n27["Barracks 5<br/><small>early.barracks5 · task</small>"]
-  n28["Producers 15<br/><small>early.producers15 · milestone</small>"]
-  n29["250 home Pikemen<br/><small>early.pikemen · task</small>"]
-  n30["Military<br/><small>defense · mission</small>"]
-  n31["Scout-path Smithy<br/><small>defense.smithy1 · task</small>"]
-  n32["Military development work<br/><small>defense.development · task</small>"]
-  n33["Garrison<br/><small>military.garrison · group</small>"]
-  n34["Home Pikemen baseline<br/><small>military.pikemen-baseline · task</small>"]
-  n35["Capital holds 3× any city<br/><small>military.defence-scale · policy</small>"]
-  n36["Barracks grows when troops lag<br/><small>military.barracks-growth · task</small>"]
-  n37["Attack force<br/><small>military.army · group</small>"]
-  n38["Raider force<br/><small>military.raiders · task</small>"]
-  n39["Scouts<br/><small>military.scouts · task</small>"]
-  n40["Wall capped at 10<br/><small>military.wall-cap · policy</small>"]
-  n41["Workshop siege<br/><small>military.workshop · capability</small>"]
-  n42["First conquest<br/><small>first-conquest · mission</small>"]
-  n43["Conquest infrastructure<br/><small>conquest.infrastructure · group</small>"]
-  n44["Smithy 10<br/><small>conquest.smithy10 · task</small>"]
-  n45["Market 5<br/><small>conquest.market5 · task</small>"]
-  n46["Court<br/><small>conquest.court · task</small>"]
-  n47["Conquest capacity prerequisite<br/><small>conquest.capacity · task</small>"]
-  n48["Producer funding fallback<br/><small>conquest.producer-funding · policy</small>"]
-  n49["Conquest producer investment<br/><small>conquest.producer-investment · task</small>"]
-  n50["Conquest enabled<br/><small>conquest.enabled · milestone</small>"]
-  n51["Expansion<br/><small>expansion · mission</small>"]
-  n52["Prepare Raider escort<br/><small>conquest.escort · task</small>"]
-  n53["Prepare Envoy<br/><small>conquest.envoy · task</small>"]
-  n54["Dispatch conquest wave<br/><small>conquest.dispatch · task</small>"]
-  n55["Target owned<br/><small>conquest.target-owned · milestone</small>"]
-  n56["First city captured<br/><small>conquest.first-achieved · milestone</small>"]
-  n57["Recall the escort<br/><small>expansion.recall · task</small>"]
-  n58["Parallel mission budgets<br/><small>capability.parallel-budgets · capability</small>"]
-  n59["Multiple submissions per cycle<br/><small>capability.multi-submit · capability</small>"]
-  n60["City roles<br/><small>roles · policy</small>"]
-  n61["Supply economic cities<br/><small>logistics · mission</small>"]
-  n62["Fulfil requests<br/><small>logistics.fulfil · task</small>"]
-  n63["Economic city<br/><small>economic-city · mission</small>"]
-  n64["Build order<br/><small>econ.build-order · group</small>"]
-  n65["1. Cellar 3<br/><small>econ.cellar3 · task</small>"]
-  n66["2. Great Hall 5<br/><small>econ.hall5 · task</small>"]
-  n67["3. Cellar covers requested stock<br/><small>econ.cellar-cover · task</small>"]
-  n68["4. Great Hall 13<br/><small>econ.hall13 · task</small>"]
-  n69["5. Cellar 10<br/><small>econ.cellar10 · task</small>"]
-  n70["6. Storehouse 3<br/><small>econ.storehouse3 · task</small>"]
-  n71["Setup done<br/><small>econ.setup-done · milestone</small>"]
-  n72["Producers<br/><small>econ.producers · group</small>"]
-  n73["Lumberyard<br/><small>econ.lumberyard · task</small>"]
-  n74["Quarry<br/><small>econ.quarry · task</small>"]
-  n75["Iron mine<br/><small>econ.mine · task</small>"]
-  n76["Resource balance<br/><small>econ.balance · policy</small>"]
-  n77["Producers at level 5<br/><small>econ.producers.5 · milestone</small>"]
-  n78["Producers at level 10<br/><small>econ.producers.10 · milestone</small>"]
-  n79["Producers 11–25<br/><small>econ.producers-late · group</small>"]
-  n80["Lumberyard<br/><small>econ.lumberyard25 · task</small>"]
-  n81["Quarry<br/><small>econ.quarry25 · task</small>"]
-  n82["Iron mine<br/><small>econ.mine25 · task</small>"]
-  n83["Producers at level 25<br/><small>econ.producers.25 · milestone</small>"]
-  n84["Farm when blocked<br/><small>econ.farm · task</small>"]
-  n85["Storage grows when needed<br/><small>econ.storage-growth · policy</small>"]
-  n86["Storehouse<br/><small>econ.storehouse · task</small>"]
-  n87["Cellar follows storage<br/><small>econ.cellar · task</small>"]
-  n88["Market grows when needed<br/><small>econ.market-growth · policy</small>"]
-  n89["No military<br/><small>econ.no-military · policy</small>"]
-  n90["Market<br/><small>econ.market · task</small>"]
-  n91["Market grows when needed<br/><small>logistics.market-growth · task</small>"]
-  n92["Requests to the capital<br/><small>econ.requests · group</small>"]
-  n93["Request resources<br/><small>econ.request-resources · task</small>"]
-  n94["Request defenders<br/><small>econ.request-defenders · task</small>"]
-  n95["Request scouts<br/><small>econ.request-scouts · task</small>"]
-  n96["Producers at level 15<br/><small>econ.producers.15 · milestone</small>"]
-  n97["Send surplus to the capital<br/><small>econ.surplus · task</small>"]
-  n98["Wall 10<br/><small>econ.wall10 · task</small>"]
-  n99["Next cities<br/><small>expansion.next · group</small>"]
-  n100["Expansion readiness<br/><small>expansion.readiness · policy</small>"]
-  n101["Every city defended<br/><small>expansion.cities-defended · milestone</small>"]
-  n102["Train next Envoy<br/><small>expansion.envoy · task</small>"]
-  n103["Escort army at home<br/><small>expansion.escort · task</small>"]
-  n104["Dispatch waves<br/><small>expansion.dispatch · task</small>"]
-  n105["Target captured<br/><small>expansion.captured · milestone</small>"]
-  n106["4 cities owned<br/><small>expansion.cities4 · milestone</small>"]
-  n107["Enemy conquest<br/><small>expansion.enemy · group</small>"]
-  n108["Close and big<br/><small>expansion.enemy-target · policy</small>"]
-  n109["Scout the target<br/><small>expansion.enemy-scout · task</small>"]
-  n110["Attack at 2×<br/><small>expansion.decisive · policy</small>"]
-  n111["Dispatch conquest<br/><small>expansion.enemy-dispatch · task</small>"]
+  n16["Great Hall<br/><small>economy.hall · task</small>"]
+  n17["Early-build successor window<br/><small>economy.successor-window · policy</small>"]
+  n18["Production payback<br/><small>economy.payback · policy</small>"]
+  n19["Round-end completion<br/><small>economy.round-end · policy</small>"]
+  n20["Great Hall push<br/><small>economy.hall-push · policy</small>"]
+  n21["Early game<br/><small>early-game · group</small>"]
+  n22["Early producer gate<br/><small>early.economy · milestone</small>"]
+  n23["Barracks 1<br/><small>early.barracks1 · task</small>"]
+  n24["Wall 5<br/><small>early.wall5 · task</small>"]
+  n25["Hall 10<br/><small>early.hall10 · task</small>"]
+  n26["Barracks 5<br/><small>early.barracks5 · task</small>"]
+  n27["Producers 15<br/><small>early.producers15 · milestone</small>"]
+  n28["250 home Pikemen<br/><small>early.pikemen · task</small>"]
+  n29["Military<br/><small>defense · mission</small>"]
+  n30["Scout-path Smithy<br/><small>defense.smithy1 · task</small>"]
+  n31["Military development work<br/><small>defense.development · task</small>"]
+  n32["Garrison<br/><small>military.garrison · group</small>"]
+  n33["Home Pikemen baseline<br/><small>military.pikemen-baseline · task</small>"]
+  n34["Capital holds 3× any city<br/><small>military.defence-scale · policy</small>"]
+  n35["Barracks grows when troops lag<br/><small>military.barracks-growth · task</small>"]
+  n36["Attack force<br/><small>military.army · group</small>"]
+  n37["Raider force<br/><small>military.raiders · task</small>"]
+  n38["Scouts<br/><small>military.scouts · task</small>"]
+  n39["Wall capped at 10<br/><small>military.wall-cap · policy</small>"]
+  n40["Workshop siege<br/><small>military.workshop · capability</small>"]
+  n41["First conquest<br/><small>first-conquest · mission</small>"]
+  n42["Conquest infrastructure<br/><small>conquest.infrastructure · group</small>"]
+  n43["Smithy 10<br/><small>conquest.smithy10 · task</small>"]
+  n44["Market 5<br/><small>conquest.market5 · task</small>"]
+  n45["Court<br/><small>conquest.court · task</small>"]
+  n46["Conquest capacity prerequisite<br/><small>conquest.capacity · task</small>"]
+  n47["Producer funding fallback<br/><small>conquest.producer-funding · policy</small>"]
+  n48["Conquest producer investment<br/><small>conquest.producer-investment · task</small>"]
+  n49["Conquest enabled<br/><small>conquest.enabled · milestone</small>"]
+  n50["Expansion<br/><small>expansion · mission</small>"]
+  n51["Prepare Raider escort<br/><small>conquest.escort · task</small>"]
+  n52["Prepare Envoy<br/><small>conquest.envoy · task</small>"]
+  n53["Dispatch conquest wave<br/><small>conquest.dispatch · task</small>"]
+  n54["Target owned<br/><small>conquest.target-owned · milestone</small>"]
+  n55["First city captured<br/><small>conquest.first-achieved · milestone</small>"]
+  n56["Recall the escort<br/><small>expansion.recall · task</small>"]
+  n57["Parallel mission budgets<br/><small>capability.parallel-budgets · capability</small>"]
+  n58["Multiple submissions per cycle<br/><small>capability.multi-submit · capability</small>"]
+  n59["City roles<br/><small>roles · policy</small>"]
+  n60["Supply economic cities<br/><small>logistics · mission</small>"]
+  n61["Fulfil requests<br/><small>logistics.fulfil · task</small>"]
+  n62["Economic city<br/><small>economic-city · mission</small>"]
+  n63["Build order<br/><small>econ.build-order · group</small>"]
+  n64["1. Cellar 3<br/><small>econ.cellar3 · task</small>"]
+  n65["2. Great Hall 5<br/><small>econ.hall5 · task</small>"]
+  n66["3. Cellar covers requested stock<br/><small>econ.cellar-cover · task</small>"]
+  n67["4. Great Hall 13<br/><small>econ.hall13 · task</small>"]
+  n68["5. Cellar 10<br/><small>econ.cellar10 · task</small>"]
+  n69["6. Storehouse 3<br/><small>econ.storehouse3 · task</small>"]
+  n70["Setup done<br/><small>econ.setup-done · milestone</small>"]
+  n71["Producers<br/><small>econ.producers · group</small>"]
+  n72["Lumberyard<br/><small>econ.lumberyard · task</small>"]
+  n73["Quarry<br/><small>econ.quarry · task</small>"]
+  n74["Iron mine<br/><small>econ.mine · task</small>"]
+  n75["Resource balance<br/><small>econ.balance · policy</small>"]
+  n76["Producers at level 5<br/><small>econ.producers.5 · milestone</small>"]
+  n77["Producers at level 10<br/><small>econ.producers.10 · milestone</small>"]
+  n78["Producers 11–25<br/><small>econ.producers-late · group</small>"]
+  n79["Lumberyard<br/><small>econ.lumberyard25 · task</small>"]
+  n80["Quarry<br/><small>econ.quarry25 · task</small>"]
+  n81["Iron mine<br/><small>econ.mine25 · task</small>"]
+  n82["Producers at level 25<br/><small>econ.producers.25 · milestone</small>"]
+  n83["Farm when blocked<br/><small>econ.farm · task</small>"]
+  n84["Storage grows when needed<br/><small>econ.storage-growth · policy</small>"]
+  n85["Storehouse<br/><small>econ.storehouse · task</small>"]
+  n86["Cellar follows storage<br/><small>econ.cellar · task</small>"]
+  n87["Market grows when needed<br/><small>econ.market-growth · policy</small>"]
+  n88["No military<br/><small>econ.no-military · policy</small>"]
+  n89["Market<br/><small>econ.market · task</small>"]
+  n90["Market grows when needed<br/><small>logistics.market-growth · task</small>"]
+  n91["Requests to the capital<br/><small>econ.requests · group</small>"]
+  n92["Request resources<br/><small>econ.request-resources · task</small>"]
+  n93["Request defenders<br/><small>econ.request-defenders · task</small>"]
+  n94["Request scouts<br/><small>econ.request-scouts · task</small>"]
+  n95["Producers at level 15<br/><small>econ.producers.15 · milestone</small>"]
+  n96["Send surplus to the capital<br/><small>econ.surplus · task</small>"]
+  n97["Wall 10<br/><small>econ.wall10 · task</small>"]
+  n98["Next cities<br/><small>expansion.next · group</small>"]
+  n99["Expansion readiness<br/><small>expansion.readiness · policy</small>"]
+  n100["Every city defended<br/><small>expansion.cities-defended · milestone</small>"]
+  n101["Train next Envoy<br/><small>expansion.envoy · task</small>"]
+  n102["Escort army at home<br/><small>expansion.escort · task</small>"]
+  n103["Dispatch waves<br/><small>expansion.dispatch · task</small>"]
+  n104["Target captured<br/><small>expansion.captured · milestone</small>"]
+  n105["4 cities owned<br/><small>expansion.cities4 · milestone</small>"]
+  n106["Enemy conquest<br/><small>expansion.enemy · group</small>"]
+  n107["Close and big<br/><small>expansion.enemy-target · policy</small>"]
+  n108["Scout the target<br/><small>expansion.enemy-scout · task</small>"]
+  n109["Attack at 2×<br/><small>expansion.decisive · policy</small>"]
+  n110["Dispatch conquest<br/><small>expansion.enemy-dispatch · task</small>"]
   n0 -->|contains| n1
-  n0 -->|contains| n22
-  n0 -->|contains| n42
-  n0 -->|contains| n51
-  n0 -->|contains| n30
-  n0 -->|contains| n61
-  n0 -->|contains| n63
+  n0 -->|contains| n21
+  n0 -->|contains| n41
+  n0 -->|contains| n50
+  n0 -->|contains| n29
   n0 -->|contains| n60
-  n0 -->|contains| n58
+  n0 -->|contains| n62
   n0 -->|contains| n59
-  n61 -->|contains| n62
+  n0 -->|contains| n57
+  n0 -->|contains| n58
+  n60 -->|contains| n61
+  n62 -->|contains| n63
   n63 -->|contains| n64
-  n64 -->|contains| n65
-  n64 -->|contains| n66
-  n64 -->|contains| n67
-  n64 -->|contains| n68
-  n64 -->|contains| n69
-  n64 -->|contains| n70
-  n64 -->|contains| n71
-  n63 -->|contains| n72
-  n72 -->|contains| n73
-  n72 -->|contains| n74
-  n72 -->|contains| n75
-  n72 -->|contains| n76
-  n72 -->|contains| n77
-  n72 -->|contains| n78
-  n63 -->|contains| n98
-  n63 -->|contains| n79
-  n79 -->|contains| n80
-  n79 -->|contains| n81
-  n79 -->|contains| n82
-  n79 -->|contains| n83
-  n63 -->|contains| n84
-  n63 -->|contains| n85
-  n85 -->|contains| n86
-  n85 -->|contains| n87
-  n63 -->|contains| n88
-  n63 -->|contains| n89
-  n88 -->|contains| n90
-  n61 -->|contains| n91
-  n63 -->|contains| n92
-  n92 -->|contains| n93
-  n92 -->|contains| n94
-  n92 -->|contains| n95
-  n79 -->|contains| n96
-  n63 -->|contains| n97
-  n99 -->|contains| n100
+  n63 -->|contains| n65
+  n63 -->|contains| n66
+  n63 -->|contains| n67
+  n63 -->|contains| n68
+  n63 -->|contains| n69
+  n63 -->|contains| n70
+  n62 -->|contains| n71
+  n71 -->|contains| n72
+  n71 -->|contains| n73
+  n71 -->|contains| n74
+  n71 -->|contains| n75
+  n71 -->|contains| n76
+  n71 -->|contains| n77
+  n62 -->|contains| n97
+  n62 -->|contains| n78
+  n78 -->|contains| n79
+  n78 -->|contains| n80
+  n78 -->|contains| n81
+  n78 -->|contains| n82
+  n62 -->|contains| n83
+  n62 -->|contains| n84
+  n84 -->|contains| n85
+  n84 -->|contains| n86
+  n62 -->|contains| n87
+  n62 -->|contains| n88
+  n87 -->|contains| n89
+  n60 -->|contains| n90
+  n62 -->|contains| n91
+  n91 -->|contains| n92
+  n91 -->|contains| n93
+  n91 -->|contains| n94
+  n78 -->|contains| n95
+  n62 -->|contains| n96
+  n98 -->|contains| n99
+  n98 -->|contains| n100
   n99 -->|contains| n101
-  n100 -->|contains| n102
-  n101 -.->|requires| n102
-  n99 -->|contains| n103
-  n99 -->|contains| n104
-  n99 -->|contains| n105
-  n51 -->|contains| n57
-  n51 -->|contains| n106
-  n51 -->|contains| n107
-  n107 -->|contains| n108
-  n107 -->|contains| n109
-  n107 -->|contains| n110
-  n107 -->|contains| n111
+  n100 -.->|requires| n101
+  n98 -->|contains| n102
+  n98 -->|contains| n103
+  n98 -->|contains| n104
+  n50 -->|contains| n56
+  n50 -->|contains| n105
+  n50 -->|contains| n106
+  n106 -->|contains| n107
+  n106 -->|contains| n108
+  n106 -->|contains| n109
+  n106 -->|contains| n110
+  n64 -.->|requires| n65
   n65 -.->|requires| n66
   n66 -.->|requires| n67
   n67 -.->|requires| n68
   n68 -.->|requires| n69
   n69 -.->|requires| n70
   n70 -.->|requires| n71
-  n71 -.->|requires| n72
-  n71 -.->|requires| n85
-  n71 -.->|requires| n88
-  n77 -.->|requires| n90
-  n78 -.->|requires| n98
-  n98 -.->|requires| n79
-  n98 -.->|requires| n94
-  n90 -.->|requires| n97
-  n96 -.->|requires| n97
-  n45 -.->|requires| n61
-  n93 ==>|contributesTo| n62
-  n94 ==>|contributesTo| n62
-  n95 ==>|contributesTo| n62
-  n62 ==>|contributesTo| n63
-  n56 -.->|requires| n99
-  n102 -.->|requires| n104
-  n103 -.->|requires| n104
-  n104 ==>|contributesTo| n105
-  n105 ==>|contributesTo| n63
+  n70 -.->|requires| n84
+  n70 -.->|requires| n87
+  n76 -.->|requires| n89
+  n77 -.->|requires| n97
+  n97 -.->|requires| n78
+  n97 -.->|requires| n93
+  n89 -.->|requires| n96
+  n95 -.->|requires| n96
+  n44 -.->|requires| n60
+  n92 ==>|contributesTo| n61
+  n93 ==>|contributesTo| n61
+  n94 ==>|contributesTo| n61
+  n61 ==>|contributesTo| n62
+  n55 -.->|requires| n98
+  n101 -.->|requires| n103
+  n102 -.->|requires| n103
+  n103 ==>|contributesTo| n104
+  n104 ==>|contributesTo| n62
   n1 -->|contains| n2
   n2 -->|contains| n3
   n2 -->|contains| n4
@@ -230,76 +229,75 @@ flowchart TD
   n1 -->|contains| n13
   n13 -->|contains| n14
   n13 -->|contains| n15
-  n13 -->|contains| n16
+  n1 -->|contains| n16
   n1 -->|contains| n17
   n1 -->|contains| n18
   n1 -->|contains| n19
   n1 -->|contains| n20
-  n1 -->|contains| n21
-  n30 -->|contains| n31
-  n30 -->|contains| n32
-  n30 -->|contains| n33
-  n33 -->|contains| n34
-  n33 -->|contains| n35
-  n33 -->|contains| n36
-  n30 -->|contains| n37
-  n37 -->|contains| n38
-  n30 -->|contains| n39
-  n30 -->|contains| n40
-  n30 -->|contains| n41
-  n22 -->|contains| n23
-  n22 -->|contains| n24
-  n22 -->|contains| n25
-  n22 -->|contains| n26
-  n22 -->|contains| n27
-  n22 -->|contains| n28
-  n22 -->|contains| n29
+  n29 -->|contains| n30
+  n29 -->|contains| n31
+  n29 -->|contains| n32
+  n32 -->|contains| n33
+  n32 -->|contains| n34
+  n32 -->|contains| n35
+  n29 -->|contains| n36
+  n36 -->|contains| n37
+  n29 -->|contains| n38
+  n29 -->|contains| n39
+  n29 -->|contains| n40
+  n21 -->|contains| n22
+  n21 -->|contains| n23
+  n21 -->|contains| n24
+  n21 -->|contains| n25
+  n21 -->|contains| n26
+  n21 -->|contains| n27
+  n21 -->|contains| n28
+  n41 -->|contains| n42
   n42 -->|contains| n43
-  n43 -->|contains| n44
-  n43 -->|contains| n45
-  n43 -->|contains| n46
-  n43 -->|contains| n47
-  n42 -->|contains| n48
-  n42 -->|contains| n50
-  n51 -->|contains| n52
-  n51 -->|contains| n53
-  n51 -->|contains| n54
-  n51 -->|contains| n55
-  n51 -->|contains| n56
-  n51 -->|contains| n99
-  n106 -.->|requires| n107
-  n109 -.->|requires| n111
-  n48 -->|contains| n49
-  n8 -.->|requires| n17
-  n12 -.->|requires| n35
-  n12 -.->|requires| n21
+  n42 -->|contains| n44
+  n42 -->|contains| n45
+  n42 -->|contains| n46
+  n41 -->|contains| n47
+  n41 -->|contains| n49
+  n50 -->|contains| n51
+  n50 -->|contains| n52
+  n50 -->|contains| n53
+  n50 -->|contains| n54
+  n50 -->|contains| n55
+  n50 -->|contains| n98
+  n105 -.->|requires| n106
+  n108 -.->|requires| n110
+  n47 -->|contains| n48
+  n8 -.->|requires| n16
+  n12 -.->|requires| n34
+  n12 -.->|requires| n20
+  n22 -.->|requires| n23
   n23 -.->|requires| n24
   n24 -.->|requires| n25
   n25 -.->|requires| n26
   n26 -.->|requires| n27
-  n27 -.->|requires| n28
-  n24 -.->|requires| n29
-  n24 -.->|requires| n42
-  n22 -.->|requires| n31
-  n31 -.->|requires| n39
-  n11 -.->|requires| n43
-  n52 -.->|requires| n54
-  n53 -.->|requires| n54
-  n44 -.->|requires| n50
-  n45 -.->|requires| n50
-  n46 -.->|requires| n50
-  n50 -.->|requires| n51
-  n50 -.->|requires| n54
-  n54 ==>|contributesTo| n55
-  n55 -.->|requires| n56
-  n55 -.->|requires| n57
+  n23 -.->|requires| n28
+  n23 -.->|requires| n41
+  n21 -.->|requires| n30
+  n30 -.->|requires| n38
+  n11 -.->|requires| n42
+  n51 -.->|requires| n53
+  n52 -.->|requires| n53
+  n43 -.->|requires| n49
+  n44 -.->|requires| n49
+  n45 -.->|requires| n49
+  n49 -.->|requires| n50
+  n49 -.->|requires| n53
+  n53 ==>|contributesTo| n54
+  n54 -.->|requires| n55
+  n54 -.->|requires| n56
   class n0 objective;
-  class n1,n30,n42,n51,n61,n63 mission;
-  class n2,n13,n22,n33,n37,n43,n64,n72,n79,n92,n99,n107 group;
-  class n3,n4,n5,n14,n15,n16,n17,n24,n25,n26,n27,n29,n31,n32,n34,n36,n38,n39,n44,n45,n46,n47,n49,n52,n53,n54,n57,n62,n65,n66,n67,n68,n69,n70,n73,n74,n75,n80,n81,n82,n84,n86,n87,n90,n91,n93,n94,n95,n97,n98,n102,n103,n104,n109,n111 task;
-  class n7,n8,n9,n10,n11,n12,n23,n28,n50,n55,n56,n71,n77,n78,n83,n96,n101,n105,n106 milestone;
-  class n6,n18,n19,n20,n21,n35,n40,n48,n60,n76,n85,n88,n89,n100,n108,n110 policy;
-  class n41,n58,n59 capability;
+  class n1,n29,n41,n50,n60,n62 mission;
+  class n2,n13,n21,n32,n36,n42,n63,n71,n78,n91,n98,n106 group;
+  class n3,n4,n5,n14,n15,n16,n23,n24,n25,n26,n28,n30,n31,n33,n35,n37,n38,n43,n44,n45,n46,n48,n51,n52,n53,n56,n61,n64,n65,n66,n67,n68,n69,n72,n73,n74,n79,n80,n81,n83,n85,n86,n89,n90,n92,n93,n94,n96,n97,n101,n102,n103,n108,n110 task;
+  class n7,n8,n9,n10,n11,n12,n22,n27,n49,n54,n55,n70,n76,n77,n82,n95,n100,n104,n105 milestone;
+  class n6,n17,n18,n19,n20,n34,n39,n47,n59,n75,n84,n87,n88,n99,n107,n109 policy;
+  class n40,n57,n58 capability;
   linkStyle 0 stroke:#2563eb,stroke-width:2px;
   linkStyle 1 stroke:#2563eb,stroke-width:2px;
   linkStyle 2 stroke:#2563eb,stroke-width:2px;
@@ -435,10 +433,10 @@ flowchart TD
   linkStyle 132 stroke:#2563eb,stroke-width:2px;
   linkStyle 133 stroke:#2563eb,stroke-width:2px;
   linkStyle 134 stroke:#2563eb,stroke-width:2px;
-  linkStyle 135 stroke:#2563eb,stroke-width:2px;
+  linkStyle 135 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 136 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 137 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 138 stroke:#2563eb,stroke-width:2px;
+  linkStyle 137 stroke:#2563eb,stroke-width:2px;
+  linkStyle 138 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 139 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 140 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 141 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
@@ -458,10 +456,9 @@ flowchart TD
   linkStyle 155 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 156 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 157 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 158 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 159 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 158 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 159 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 160 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 161 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
 ```
 
 Contains edges are solid blue, requires edges are dashed red, and contributesTo edges are dashed purple.
@@ -484,7 +481,6 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | economy.capacity | group | Capacity and protection | Protect resources and maintain population and storage capacity. | — | — |
 | economy.farm | task | Farm capacity | Keep free population for queued work and Pikeman training; before a long build, offer the Farm first if the batches trained meanwhile wouldn't fit. | — | — |
 | economy.storehouse | task | Storehouse overflow | Prevent projected stock from exceeding storage. | — | — |
-| economy.cellar | task | Cellar protection | Protect the existing 60-tick production threshold. | — | — |
 | economy.hall | task | Great Hall | Use the existing bounded construction payback comparison. | — | economy.producers.8 |
 | economy.successor-window | policy | Early-build successor window | Allow only the existing strict construction-successor window. | remainingRealSecondsExclusive=10 | — |
 | economy.payback | policy | Production payback | Keep the existing round-end production return test and ceiling. | producerCeiling=20 | — |

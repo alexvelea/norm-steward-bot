@@ -4,23 +4,6 @@ import { completionWindow } from "../src/advisors/completion.js";
 import { evaluateEconomy } from "../src/advisors/economic.js";
 import { selectProposal } from "../src/advisors/president.js";
 import { context } from "./control-fixtures.js";
-test("round completion allows before/equal, rejects after, and preserves live costs", () => {
-  const c = context(),
-    v = c.state.villages[0],
-    o = v.options.build.find((o) => o.building === "cellar")!;
-  Object.assign(c, {cityRoles: new Map([[v.id, {role: "economic", reason: "fixture"}]])});
-  o.ticks = 8;
-  c.state.world.endsAtTick = 109;
-  assert.equal(completionWindow(c.state, v, o)!.fits, true);
-  c.state.world.endsAtTick = 108;
-  assert.equal(completionWindow(c.state, v, o)!.fits, true);
-  c.state.world.endsAtTick = 107;
-  const p = evaluateEconomy(c).find((p) => p.action.building === "cellar")!;
-  assert.equal(p.status, "not-needed");
-  assert.ok(p.blockers.includes("ROUND_END_TOO_SOON"));
-  assert.deepEqual(p.requirements, o.cost);
-  assert.notEqual(selectProposal(evaluateEconomy(c)).selected?.id, p.id);
-});
 test("resource wait and Council cooldown count toward the earliest completion", () => {
   const c = context(),
     v = c.state.villages[0],

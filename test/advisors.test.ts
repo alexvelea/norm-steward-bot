@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { balanceLags, balanceScore, stockMinutes } from "../src/advisors/balance.js";
-import { evaluateEconomy } from "../src/advisors/economic.js";
+import { ECONOMIC_BUILDINGS, evaluateEconomy } from "../src/advisors/economic.js";
 import { selectProposal } from "../src/advisors/president.js";
 import { context } from "./control-fixtures.js";
 
@@ -29,14 +29,15 @@ test("resource balance scores lag boundaries and skips zero-production resources
   assert.equal(balanceScore(balanceLags(v).iron!), null);
 });
 
-test("capital economic scores are deterministic and cover six buildings without Cellar proposals", () => {
+test("capital economic scores are deterministic and cover all six supported buildings", () => {
   const c = context();
   c.state.villages[0].production.iron = 20;
   c.state.villages[0].productionPerTickMilli.iron = 333;
   c.state.villages[0].resourcesMilli.iron = 0;
   const first = evaluateEconomy(c);
   assert.deepEqual(first, evaluateEconomy(c));
-  assert.equal(first.length, 6);
+  assert.equal(ECONOMIC_BUILDINGS.length, 6);
+  assert.equal(first.length, ECONOMIC_BUILDINGS.length);
   assert.ok(
     first.every(
       (p) => p.importance >= 0 && p.importance <= 100 && p.reason.length > 30,
@@ -164,10 +165,6 @@ test("maximum levels are omitted and mismatched live rule versions stop evaluati
 });
 
 const proposal = (c: ReturnType<typeof context>, building: string) => {
-  if (building === "cellar") {
-    const village = c.state.villages[0]!;
-    Object.assign(c, {cityRoles: new Map([[village.id, {role: "economic", reason: "cellar fixture"}]])});
-  }
   return evaluateEconomy(c).find((p) => p.action.building === building)!;
 };
 test("farm only expands below max(50, 20% capacity), including equality boundaries", () => {
@@ -191,16 +188,6 @@ test("storehouse requires stock plus five-minute production to exceed capacity",
   assert.equal(proposal(c, "storehouse").status, "not-needed");
   v.resourcesMilli.timber++;
   assert.notEqual(proposal(c, "storehouse").status, "not-needed");
-});
-test("cellar protects one minute of the fastest production, independent of stock", () => {
-  const c = context(),
-    v = c.state.villages[0];
-  v.buildings.lumberyard=v.buildings.quarry=v.buildings.mine=5;
-  v.productionPerTickMilli = { timber: 1000, stone: 2000, iron: 3000 };
-  v.hidden = 180;
-  assert.equal(proposal(c, "cellar").status, "not-needed");
-  v.hidden = 179;
-  assert.notEqual(proposal(c, "cellar").status, "not-needed");
 });
 test("producer priority weights projected stock by the next producer upgrade basket", () => {
   const c = context(),
@@ -259,7 +246,6 @@ test("Bramwell regression: abundant farm and storage never become cheap filler u
   }
   assert.equal(proposal(c, "farm").status, "not-needed");
   assert.equal(proposal(c, "storehouse").status, "not-needed");
-  assert.equal(proposal(c, "cellar").status, "not-needed");
   const ps = evaluateEconomy(c).filter((p) => p.action.building !== "hall");
   for (let i = 0; i < 10; i++) {
     assert.equal(selectProposal(ps).selected, null);

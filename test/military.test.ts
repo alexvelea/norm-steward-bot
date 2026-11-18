@@ -45,22 +45,6 @@ test("protection and storage emergencies retain priority", () => {
   assert.equal(selectProposal([...evaluateEconomy(c), ...evaluateMilitary(c)]).selected?.action.building, "storehouse");
 });
 
-test("the capital skips Cellar proposals while an economic city still receives one", () => {
-  const c = ready(), capital = c.state.villages[0]!;
-  capital.hidden = 0;
-  const economic = structuredClone(capital);
-  economic.id = "economic";
-  economic.name = "Economic";
-  economic.hidden = 0;
-  c.state.villages.push(economic);
-  Object.assign(c, {cityRoles: new Map([
-    [capital.id, {role: "capital", reason: "fixture"}],
-    [economic.id, {role: "economic", reason: "fixture"}],
-  ])});
-  const proposals = evaluateEconomy(c);
-  assert.equal(proposals.some(proposal => proposal.villageId === capital.id && proposal.action.building === "cellar"), false);
-  assert.equal(proposals.some(proposal => proposal.villageId === economic.id && proposal.action.building === "cellar"), true);
-});
 test("locked prerequisites, capacity and hard server blockers never reserve the economy", () => {
   for (const change of [
     (c: ReturnType<typeof ready>) => { c.state.villages[0].buildings.hall = 2; },

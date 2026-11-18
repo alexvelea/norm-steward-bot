@@ -11,7 +11,6 @@ import {
   type Proposal,
 } from "./types.js";
 import { proposalTask } from "../bot/plan/graph.js";
-import { cityRoles } from "../bot/strategy/roles.js";
 
 export const ECONOMIC_BUILDINGS = [
   "hall",
@@ -19,7 +18,6 @@ export const ECONOMIC_BUILDINGS = [
   "quarry",
   "mine",
   "storehouse",
-  "cellar",
   "farm",
 ] as const;
 const producers = {
@@ -99,7 +97,6 @@ export function evaluateEconomy(context: AdvisorContext): Proposal<Extract<Actio
   if (!metadata || rules.version !== state.world.rulesVersion)
     throw new Error("Live rules do not match this world's rules version.");
   const proposals: Proposal<Extract<Action, {type: "build"}>>[] = [];
-  const roles = context.cityRoles ?? cityRoles(context, []);
   for (const v of state.villages) {
     const producerCeiling = context.cityRoles?.get(v.id)?.role === "economic"
       ? v.buildings.wall >= 10 ? 25 : 10
@@ -121,16 +118,11 @@ export function evaluateEconomy(context: AdvisorContext): Proposal<Extract<Actio
     const storageTicks = Math.max(0, Math.min(300, state.world.endsAtTick - state.world.tick));
     const storageForecast = (r: keyof Resources) => v.resourcesMilli[r] + flow.availableMilli[r] * storageTicks;
     const needsStorage = resources.some((r) => storageForecast(r) > v.storage * 1000);
-    const cellarTarget = Math.max(
-      ...resources.map((r) => (v.productionPerTickMilli[r] / 1000) * 60),
-    );
-    const needsCellar = phaseLevel >= 5 && v.hidden < cellarTarget;
     const producerCoverages = Object.values(producers).map(
       (r) => f.coverage[r],
     );
     const hall = estimateHall(v, rules, state.world);
     for (const building of ECONOMIC_BUILDINGS) {
-      if (building === "cellar" && roles.get(v.id)?.role === "capital") continue;
       const option = v.options.build.find((o) => o.building === building),
         queued = v.buildQueue.find((q) => q.building === building);
       if (
@@ -169,10 +161,6 @@ export function evaluateEconomy(context: AdvisorContext): Proposal<Extract<Actio
             Math.min(9, Math.ceil((peak / Math.max(1, v.storage) - 1) * 10))
           : 25;
         reason = `Stock + ${storageTicks} ticks of income after reserved troop burn (at most 300, bounded by round end): timber ${round(storageForecast("timber") / 1000)}, stone ${round(storageForecast("stone") / 1000)}, iron ${round(storageForecast("iron") / 1000)}. Storage holds ${v.storage} of each. ${needed ? "At least one resource would overflow; upgrade storage." : "All resources fit; do not upgrade."}`;
-      } else if (building === "cellar") {
-        needed = needsCellar;
-        importance = needed ? 80 : 25;
-        reason = `One-minute production buffer (60 ticks): timber ${round(v.productionPerTickMilli.timber * 60 / 1000)}, stone ${round(v.productionPerTickMilli.stone * 60 / 1000)}, iron ${round(v.productionPerTickMilli.iron * 60 / 1000)}. Cellar hides ${v.hidden} of each; target is ${round(cellarTarget)} per resource. ${needed ? "Expand protection toward that target." : "One minute of production is covered; do not upgrade."}`;
       } else {
         needed = hall.needed;
         importance = defense ? Math.min(69, hall.importance) : hall.importance;

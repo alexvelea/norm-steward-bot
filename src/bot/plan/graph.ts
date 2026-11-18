@@ -60,7 +60,6 @@ export const PLAN = {
     { key: "economy.capacity", kind: "group", title: "Capacity and protection", summary: "Protect resources and maintain population and storage capacity.", scope: "village" },
     { key: "economy.farm", kind: "task", title: "Farm capacity", summary: "Keep free population for queued work and Pikeman training; before a long build, offer the Farm first if the batches trained meanwhile wouldn't fit.", advisor: "economic", scope: "village", predicateKey: "building.farm" },
     { key: "economy.storehouse", kind: "task", title: "Storehouse overflow", summary: "Prevent projected stock from exceeding storage.", advisor: "economic", scope: "village", predicateKey: "building.storehouse" },
-    { key: "economy.cellar", kind: "task", title: "Cellar protection", summary: "Protect the existing 60-tick production threshold.", advisor: "economic", scope: "village", predicateKey: "building.cellar" },
     { key: "economy.hall", kind: "task", title: "Great Hall", summary: "Use the existing bounded construction payback comparison.", advisor: "economic", scope: "village", predicateKey: "building.hall" },
     { key: "economy.successor-window", kind: "policy", title: "Early-build successor window", summary: "Allow only the existing strict construction-successor window.", scope: "village", thresholds: { remainingRealSecondsExclusive: 10 } },
     { key: "economy.payback", kind: "policy", title: "Production payback", summary: "Keep the existing round-end production return test and ceiling.", scope: "village", thresholds: { producerCeiling: producerLevels.ceiling } },
@@ -257,7 +256,6 @@ export const PLAN = {
     { from: "economy", to: "economy.capacity", kind: "contains" },
     { from: "economy.capacity", to: "economy.farm", kind: "contains" },
     { from: "economy.capacity", to: "economy.storehouse", kind: "contains" },
-    { from: "economy.capacity", to: "economy.cellar", kind: "contains" },
     { from: "economy", to: "economy.hall", kind: "contains" },
     { from: "economy", to: "economy.successor-window", kind: "contains" },
     { from: "economy", to: "economy.payback", kind: "contains" },
@@ -356,7 +354,6 @@ export function proposalTask(
   }
   if (action.building === "farm") return "economy.farm";
   if (action.building === "storehouse") return "economy.storehouse";
-  if (action.building === "cellar") return "economy.cellar";
   if (action.building === "hall") return "economy.hall";
   if (action.building === "lumberyard") return "economy.lumberyard";
   if (action.building === "quarry") return "economy.quarry";

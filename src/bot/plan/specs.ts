@@ -38,11 +38,6 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     eligible: ["Stock plus up to 300 ticks of income (after troop burn) exceeds storage for any resource."],
     priority: ["90 plus up to 9 by how far the forecast exceeds storage.", "25 otherwise (not executed)."],
   },
-  "economy.cellar": {
-    intent: "Hide one minute (60 ticks) of production from raids.",
-    eligible: ["All producers at least level 5.", "Cellar hides less than 60 ticks of the largest production."],
-    priority: ["80 when eligible.", "25 otherwise (not executed)."],
-  },
   "economy.hall": {
     intent: "Buy construction speed only when it pays back.",
     eligible: [
