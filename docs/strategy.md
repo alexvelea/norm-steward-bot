@@ -3,14 +3,19 @@
 > Historical experiment commands marked `retired-harness:` are archival evidence, not executable commands. Use the single-version sandbox runner documented in docs/reviews.md for new runs.
 
 
-## Current policy: staged growth, no starter quotas, sustainable military budget
+## Current policy: hardcoded early game and sustainable military budget
 
-Owner direction on 2026-11-16 supersedes the historical Barracks-10 rush and starter-force
-policies below. All-producer milestones mean Lumberyard/Quarry/Mine, not Cellar/Storehouse/Farm.
-Reach 5 first; use need-based capacity/protection while growing to 8; then Hall toward 5 and
-producers toward 10. At producer minimum 10, establish Barracks 3 and Smithy 1, then directly
-queue minute-long 3Pi1Sh cohorts. There are no 10-Pikeman, 5-Shieldman or 10-Raider prerequisites
-or a separate Raider recruitment path. Historical scripts import archived baselines explicitly.
+The capital grows producers to 5, then toward 8; after producers 8 it raises Great Hall toward 5
+and continues production growth. Its fixed early military order is Lumberyard 14, Quarry 14, Mine
+12 → Barracks 1 → Wall 5 → Hall 10 → Barracks 5 → producers 15. Pikemen training starts at
+Barracks 1 and runs in parallel until 250 are home. The capital never proposes a Cellar; economic
+cities keep their existing Cellar behavior.
+
+After producers 15 and 250 home Pikemen (`earlyGoalMet`), the capital starts the Scout path
+(Smithy 1, Stable 1). Barracks is capped at 5, and Raiders train from Barracks 5. Conquest then
+needs Smithy 10 → Market 5 → Court; Hall 10 and Barracks 5 are already complete. Economic-city
+military and producer behavior remains unchanged. Historical scripts import archived baselines
+explicitly.
 
 Recruit only when each resource's full-time troop demand consumes at most 80% of its gross
 production, and the full cohort is currently funded. Reserve at least 20% income for construction.
@@ -25,7 +30,8 @@ training throughput, rather than consume the money needed for current troops. Ex
 work remains tracked; existing higher building levels are not undone. Keep the producer-20 ceiling,
 round-end payback, population buffer, one President, parallel server queues and durable retries.
 
-A matched fresh-world comparison uses the pre-change 61d2d2a policy and the phased candidate,
+A historical matched fresh-world comparison of the superseded 2026-11-16 policy used the
+pre-change 61d2d2a baseline and phased candidate,
 seed 73430, no house bots, identical 1000/1000/1000 initial stocks and ordinary server actions.
 The 2400-tick prototype comparison reached all producers >=10 at tick 1218 versus 1954
 for the baseline. It finished at 87 Pikemen/28 Shieldmen, Barracks 3 and producers 12/12/10,
@@ -38,9 +44,8 @@ producers reach 10, with exact 3:1 cohort metadata and no Raider submissions. Pr
 `STEWARD_BASELINE_COMMIT=61d2d2a STEWARD_REVIEW_RUN=<private-review-subdirectory> node --import tsx retired-harness:experiment-phased-economy.ts`.
 
 Next reviews should measure full-round delivered troops, production and retained assets, resource
-spending shares and idle queues under this policy. Old experiments starting at producer 7 are now
-intentionally in the economy-only stage; do not call that recruitment starvation. Seed military
-throughput tests at producer >=10 with income sufficient for the live Barracks speed and the
+spending shares and idle queues under the current early-game policy. Seed military throughput tests
+at the 14/14/12 producer gate and Barracks 1 with income sufficient for the live Barracks speed and the
 construction allowance. Threat response, opportunity cost and the 20% allowance remain to evaluate.
 
 ## Queue continuity and bounded Raider funding (2026-11-17)
@@ -49,11 +54,11 @@ The owner requests one construction successor below ten real seconds of remainin
 executor uses live world speed, keeps at most one waiting successor and refreshes before writes.
 Paid levels are considered only for building selection; current stock, population and server
 prerequisite blockers remain authoritative. Reaching a queued milestone must not buy an extra
-level (Hall 13 queues Barracks next, rather than Hall 14). Uncertain append retries retain their IDs.
+level (Hall 10 is the early-game target, not Hall 11). Uncertain append retries retain their IDs.
 
 The initial conquest implementation incorrectly reserved the entire 140-Raider escort in one
 purchase, preventing affordable Smithy construction. Fund Raiders in roughly one-minute batches
-at Barracks 10, capped by the remaining escort goal. While a batch trains, the President may fund
+at Barracks 5, capped by the remaining escort goal. While a batch trains, the President may fund
 construction. This preserves the total escort target without treating it as one upfront bill.
 
 ## Owner correction: incoming attacks do not suspend conquest (2026-11-17)
@@ -102,6 +107,8 @@ Population-runway research and delivery are complete. Gameplay execution prefere
 The owner requested a transition after 150 home Pikemen and producer minimum 15:
 finish the paid defensive cohort, then divert routine growth/defence spending to Hall 13,
 Barracks 10, Smithy 10, Market 5, Court, one bounded Raider escort and one reusable Envoy.
+This describes the original 2026-11-17 release; the current opening replaces those Hall 13 and
+Barracks 10 requirements with Hall 10 and Barracks 5.
 The integrated candidate uses the existing President and durable executor. It retains existing
 buildings and troops; it does not remove live fortifications or cancel accepted work.
 Research `conquest-transition-economics` supports this bounded peaceful capture objective.

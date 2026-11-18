@@ -84,7 +84,13 @@ Run a committed policy immediately on the configured host:
 npm run sandbox -- --ref HEAD --hours 1 --snapshot-ticks 300 --seed 73430
 # For uncommitted policy edits in the current dedicated worktree:
 npm run sandbox -- --working-tree --hours 1
+npm run sandbox -- --ref HEAD --hours 1 --house-bots none
+npm run sandbox -- --ref HEAD --hours 1 --house-bots warden=1,reaver=1
 ```
+
+Sandbox runs default to blitz opponents (2 wardens, 2 reavers, 2 sovereigns). House bots attack
+after new-player protection ends at 900 ticks, so results are no longer comparable to earlier
+zero-bot runs.
 
 The default ref is HEAD. The runner creates a detached Git worktree for a ref, links the existing
 node_modules, runs the real Controller with a sandbox-only transport, then removes that worktree.

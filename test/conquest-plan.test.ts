@@ -1,11 +1,11 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {nextConquestBuilding,conquestLoyalty,safeEnvoyAttack} from '../src/review/conquest-plan.js';
 import {developedContext} from './control-fixtures.js';
-test('conquest opening follows Hall13 then Barracks10, respecting live prerequisites',()=>{
- const c=developedContext(),v=c.state.villages[0];v.buildings.hall=5;v.buildings.barracks=3;
- assert.equal(nextConquestBuilding(v.buildings,c.rules),'hall');v.buildings.hall=13;
- assert.equal(nextConquestBuilding(v.buildings,c.rules),'barracks');v.buildings.barracks=10;v.buildings.smithy=1;
- assert.equal(nextConquestBuilding(v.buildings,c.rules),'smithy');v.buildings.smithy=10;v.buildings.market=0;v.buildings.storehouse=1;
+test('conquest starts at Smithy after the early Hall 10 and Barracks 5 opening',()=>{
+ const c=developedContext(),v=c.state.villages[0];
+ Object.assign(v.buildings,{hall:10,barracks:5,smithy:0,market:0,storehouse:1,court:0});
+ assert.equal(nextConquestBuilding(v.buildings,c.rules),'smithy');
+ v.buildings.smithy=10;
  assert.equal(nextConquestBuilding(v.buildings,c.rules),'storehouse');v.buildings.storehouse=5;v.buildings.market=5;
  assert.equal(nextConquestBuilding(v.buildings,c.rules),'court');v.buildings.court=1;assert.equal(nextConquestBuilding(v.buildings,c.rules),null);
 });

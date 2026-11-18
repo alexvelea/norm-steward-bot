@@ -150,6 +150,11 @@ python3 scripts/review.py pause
 python3 scripts/review.py resume
 ```
 
+Sandbox runs default to blitz opponents (2 wardens, 2 reavers, 2 sovereigns); use
+`--house-bots none` to disable them or `--house-bots warden=1,reaver=1` to customize the roster.
+House bots attack after new-player protection ends at 900 ticks, so results are no longer comparable
+to earlier zero-bot runs.
+
 Reviews start around UTC :00/:30; the experiment queue is checked every two minutes. A shared review
 lock prevents concurrent developer reviews and long sandbox jobs, while ordinary gameplay continues.
 A quota pause stops model work, not deterministic gameplay or an already scheduled experiment.

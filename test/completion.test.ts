@@ -8,6 +8,7 @@ test("round completion allows before/equal, rejects after, and preserves live co
   const c = context(),
     v = c.state.villages[0],
     o = v.options.build.find((o) => o.building === "cellar")!;
+  Object.assign(c, {cityRoles: new Map([[v.id, {role: "economic", reason: "fixture"}]])});
   o.ticks = 8;
   c.state.world.endsAtTick = 109;
   assert.equal(completionWindow(c.state, v, o)!.fits, true);

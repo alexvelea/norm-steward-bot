@@ -10,10 +10,11 @@ function ready() {
   const village = c.state.villages[0];
   village.buildings.hall = 5;
   village.hidden = 1000;
-  for (const producer of ["mine", "quarry", "lumberyard"] as const) {
-    village.buildings[producer] = 12;
-    village.options.build.find(option => option.building === producer)!.level = 13;
-  }
+  village.buildings.lumberyard = 14;
+  village.buildings.quarry = 14;
+  village.buildings.mine = 12;
+  for (const producer of ["mine", "quarry", "lumberyard"] as const)
+    village.options.build.find(option => option.building === producer)!.level = village.buildings[producer] + 1;
   return c;
 }
 test("first Barracks uses live costs and outranks discretionary economy through the President", () => {
@@ -28,20 +29,37 @@ test("first Barracks uses live costs and outranks discretionary economy through 
   v.population.used = v.population.max;
   assert.equal(selectProposal([...evaluateEconomy(c), ...evaluateMilitary(c)]).selected?.action.building, "farm");
 });
-test("first Barracks waits until all capital producers reach level 12", () => {
+test("first Barracks waits for the exact 14/14/12 capital producer gate", () => {
   const c = ready(), v = c.state.villages[0];
-  for (const producer of ["mine", "quarry", "lumberyard"] as const) v.buildings[producer] = 11;
-  assert.equal(evaluateMilitary(c).some(proposal => proposal.task === "defense.barracks1"), false);
-  for (const producer of ["mine", "quarry", "lumberyard"] as const) v.buildings[producer] = 12;
-  const proposal = evaluateMilitary(c).find(value => value.task === "defense.barracks1");
+  v.buildings.lumberyard = 13;
+  assert.equal(evaluateMilitary(c).some(proposal => proposal.task === "early.barracks1"), false);
+  v.buildings.lumberyard = 14;
+  const proposal = evaluateMilitary(c).find(value => value.task === "early.barracks1");
   assert.equal(proposal?.targetLevel, 1);
 });
 test("protection and storage emergencies retain priority", () => {
   const c = ready(), v = c.state.villages[0];
   v.hidden = 0;
-  assert.equal(selectProposal([...evaluateEconomy(c), ...evaluateMilitary(c)]).selected?.action.building, "cellar");
+  assert.equal(evaluateEconomy(c).some(proposal => proposal.action.building === "cellar"), false);
   v.storage = 1100;
   assert.equal(selectProposal([...evaluateEconomy(c), ...evaluateMilitary(c)]).selected?.action.building, "storehouse");
+});
+
+test("the capital skips Cellar proposals while an economic city still receives one", () => {
+  const c = ready(), capital = c.state.villages[0]!;
+  capital.hidden = 0;
+  const economic = structuredClone(capital);
+  economic.id = "economic";
+  economic.name = "Economic";
+  economic.hidden = 0;
+  c.state.villages.push(economic);
+  Object.assign(c, {cityRoles: new Map([
+    [capital.id, {role: "capital", reason: "fixture"}],
+    [economic.id, {role: "economic", reason: "fixture"}],
+  ])});
+  const proposals = evaluateEconomy(c);
+  assert.equal(proposals.some(proposal => proposal.villageId === capital.id && proposal.action.building === "cellar"), false);
+  assert.equal(proposals.some(proposal => proposal.villageId === economic.id && proposal.action.building === "cellar"), true);
 });
 test("locked prerequisites, capacity and hard server blockers never reserve the economy", () => {
   for (const change of [

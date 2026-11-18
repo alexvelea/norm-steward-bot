@@ -8,30 +8,28 @@ No LLM, model key, prompt or inference service participates in economic decision
 
 ## Current phased economy and recruitment policy
 
-The three producer levels (Lumberyard, Quarry, Iron Mine) define the stages; Farm, Cellar and
-Storehouse do not have forced level milestones.
+The capital opens by growing producers to 5, then toward 8; after producers 8 it raises the
+Great Hall toward 5 and continues production growth. Its military opening is fixed: Lumberyard
+14, Quarry 14, Mine 12 unlock Barracks 1; Wall 5 follows before any further military building;
+then Hall 10, Barracks 5, and all three producers to 15. The capital never proposes a Cellar.
+Pikemen training starts from Barracks 1 and continues alongside this sequence until 250 are home.
+Economic cities retain their Cellar policy and never train troops.
 
-1. Bring all three producers to 5. Defer Cellar and military investment; necessary population or
-   storage capacity remains allowed.
-2. Grow them toward 8, expanding Storehouse only for projected overflow and Cellar only for one
-   minute of gross production. No initial troop quotas.
-3. Once all three reach 8, bring Great Hall toward 5; continue producers to 10.
-4. At all three producers >=10, unlock Barracks 3 and Smithy 1 and train Pikemen only. The
-   capital keeps 250 Pikemen at home before producer 20; after that, the home target is
-   `max(250, 3 × strongest economic-city stationed Pikemen)`. Each economic city with Wall 10
-   targets `max(250, floor(capital home Pikemen / 3))` stationed Pikemen and requests a top-up
-   only below 80% of that target. The capital fulfils requests only when its home reserve covers
-   its own target plus the request. Economic cities never train troops.
-5. Train Raiders in the Barracks toward 140 owned Raiders, counting home, away and queued.
-   Retrain losses. A conquest attack waits for 140 Raiders at home and sends all home Raiders
-   plus one Envoy.
-6. Keep 20 Scouts at the capital per owned city, counting home and queued. Wall-10 economic
-   cities request 20 stationed Scouts; the capital fulfils them from its home reserve. Stable 1
-   is only for Scouts. The runtime follows the live building requirements; the current rules
-   require Barracks 5 and Smithy 5, beyond the initial Barracks 3 and Smithy 1 path.
-7. Economic-city producers stop at level 10 until Wall 10 is complete, then can grow to 25.
-   Economic cities build only Wall 10 as a military building; the capital never builds Walls
-   above level 10.
+After the early goal (producers 15 plus 250 home Pikemen), the Scout path builds Smithy 1 and
+Stable 1, subject to live building requirements. Barracks stops at level 5; Raiders train from
+Barracks 5 toward 140 owned Raiders, counting home, away and queued, and losses are retrained.
+A first conquest requires the remaining Smithy 10, Market 5 and Court infrastructure; Hall 10
+and Barracks 5 are already part of the opening. The capital keeps at least 250 Pikemen at home;
+after producer 20 its target is `max(250, 3 × strongest economic-city stationed Pikemen)`.
+Each economic city with Wall 10 targets `max(250, floor(capital home Pikemen / 3))` stationed
+Pikemen and requests a top-up only below 80% of that target. The capital fulfils requests only
+when its home reserve covers its own target plus the request.
+
+Keep 20 Scouts at the capital per owned city, counting home and queued. Wall-10 economic cities
+request 20 stationed Scouts; the capital fulfils them from its home reserve. Stable 1 is only for
+Scouts. Economic-city producers stop at level 10 until Wall 10 is complete, then can grow to 25.
+Economic cities build only Wall 10 as a military building; the capital never builds Walls above
+level 10.
 
 For each resource, full-time Pikeman training demand must be <=80% of gross production: at least
 20% of income remains for construction. One complete minute-long Pikeman batch must also be
@@ -95,7 +93,7 @@ Scores are deterministic integers:
 | Storehouse | 90–99 **only** if current stock + production over min(300, remaining round ticks) exceeds capacity for any resource; otherwise not-needed (25) |
 | Cellar | 80 **only** if protection per resource is below the largest 60-tick production amount (one minute); otherwise not-needed (25) |
 | First Barracks | 79 when unlocked and usable, below capacity/protection and ahead of discretionary Hall/production investment (ties prefer Barracks); no further military levels |
-| Military development | 76 for the capital's Barracks 3 → Smithy 1 → Stable 1 Scout path; 79 for the first Barracks/Hall prerequisite step |
+| Military development | 88 for Wall 5, 90 for Hall 10, 76 for later military steps; 79 for Barracks 1/Hall prerequisites |
 | Capital Pikemen | 75 while below the home target plus active requests; 50 for a minute-long batch after producer 20 when the target is met |
 | Economic-city defender request | 80 when stationed Pikemen are below 80% of target; capital sends only with its own reserve plus the full request |
 | Raiders | 72 to train toward 140 owned, counting home + away + queued; attacks require all 140 at home |
@@ -163,10 +161,11 @@ estimate and its tick range, and shows each village's inventory, projected suppl
 
 ## Allocation and waiting
 
-The Military Advisor builds Barracks 1 only in the capital, then follows the affordable Barracks 3,
-Smithy 1 and Stable 1 path. Stable 1 is for Scouts only. After Barracks 10 and Smithy 2, Raider
-training targets 140 owned troops; the capital's home-Pikeman and Scout targets use home plus
-queued counts as specified above. Live training options determine costs, batch limits, duration and
+The Military Advisor builds Barracks 1 only in the capital, then the Wall 5 → Hall 10 → Barracks 5
+opening. After producers 15 and 250 home Pikemen, it follows the Smithy 1 and Stable 1 Scout path.
+Stable 1 is for Scouts only. After Barracks 5 and Smithy 2, Raider training targets 140 owned troops;
+the capital's home-Pikeman and Scout targets use home plus queued counts as specified above. Live
+training options determine costs, batch limits, duration and
 population. The population buffer stays at max(50, 20% of capacity); external orders, busy queues,
 unavailable options and round-end timing prevent submission. Barracks growth is proposed at
 importance 65 when queued and needed Pikeman/Raider training exceeds 600 ticks.
@@ -237,11 +236,11 @@ The last 100 decisions and any pending request survive restarts in `control.json
 ## Bounded first-conquest transition
 
 The live conquest transition uses this same
-President and durable executor. After 150 home Pikemen,
-it preserves the Pikeman garrison, catches all three producers up to 15, then funds
-Hall 13, Barracks 10, Smithy 10, Market 5 and Court. Capacity remains an ordinary paid
-prerequisite. It prepares one bounded Raider escort in approximately minute-long batches once Barracks 10 is
-ready, plus one Envoy, retaining home infantry. At four ticks per Raider, each full batch contains
+President and durable executor. After the early opening has reached producers 15 and 250 home
+Pikemen, it preserves the Pikeman garrison and funds Smithy 10, Market 5 and Court; Hall 10 and
+Barracks 5 are already complete. Capacity remains an ordinary paid prerequisite. It prepares one
+bounded Raider escort in approximately minute-long batches once Barracks 5 is ready, plus one Envoy,
+retaining home infantry. At four ticks per Raider, each full batch contains
 16 Raiders (64 game seconds); the last batch is capped at the remaining escort count. An occupied
 Barracks queue releases the construction budget instead of reserving the whole escort cost.
 It targets an unowned town and rechecks ownership and the server battle simulation before

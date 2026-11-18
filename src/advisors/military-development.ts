@@ -2,7 +2,7 @@ import type {Action,BuildingId,Resources} from "../shared/api.js";
 import type {AdvisorContext,Proposal} from "./types.js";
 import { proposalTask } from "../bot/plan/graph.js";
 import {completionWindow} from "./completion.js";
-import {defenseBudget} from "./defense-budget.js";
+import { BARRACKS_CAP, EARLY_HALL, EARLY_WALL, defenseBudget, earlyGoalMet, hallRushActive, militaryUnlocked } from "./defense-budget.js";
 import {RECRUIT_USE_TICKS} from "./defense-budget.js";
 import {evaluateSustainedDefense} from "./sustained-defense.js";
 import {cityRoles} from "../bot/strategy/roles.js";
@@ -10,7 +10,7 @@ import {cityRoles} from "../bot/strategy/roles.js";
 function isCapital(context:AdvisorContext,villageId:string):boolean {
  return (context.cityRoles??cityRoles(context,[])).get(villageId)?.role==="capital";
 }
-/** One affordable step toward sustainable military prerequisites from producer level 10. */
+/** One affordable step through military development after the early capital opening. */
 export function evaluateMilitaryDevelopment(context:AdvisorContext):Proposal<Extract<Action,{type:"build"}>>[]{
  const {state,rules}=context;
  if(rules.version!==state.world.rulesVersion)throw new Error("Live rules do not match this world's rules version.");
@@ -18,8 +18,9 @@ export function evaluateMilitaryDevelopment(context:AdvisorContext):Proposal<Ext
  const proposals:Proposal<Extract<Action,{type:"build"}>>[]=[];
  for(const v of state.villages){
   if(!isCapital(context,v.id))continue;
-  if([v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard].some(n=>n<10)||!v.buildings.barracks)continue;
+  if(!militaryUnlocked(v)||!v.buildings.barracks||v.buildings.wall<EARLY_WALL||hallRushActive(v))continue;
   let building:BuildingId=v.buildings.barracks<3?"barracks":v.buildings.smithy<1?"smithy":"stable";
+  if(v.buildings.barracks>=3&&!earlyGoalMet(v))continue;
   const goal=building==="barracks"?3:1;
   if(v.buildings[building]>=goal)continue;
   // Follow only this step's actual missing prerequisite, rather than buying unrelated buildings.
@@ -44,7 +45,7 @@ export function evaluateMilitaryDevelopment(context:AdvisorContext):Proposal<Ext
   const completion=completionWindow(state,v,o);if(completion&&completion.completionTick+600>state.world.endsAtTick){needed=false;blockers.push("ROUND_END_TOO_SOON");}
   if(state.world.status!=="running")blockers.push("WORLD_NOT_RUNNING");if((state.player.nextActTick??state.world.tick)>state.world.tick)blockers.push("COUNCIL_COOLDOWN");
   proposals.push({id:`${state.world.epoch}:${v.id}:development:${building}:${o.level}`,task:proposalTask("military",{type:"build",building},o.level),advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building},buildingName:metadata[building].name,currentLevel:v.buildings[building],targetLevel:o.level,importance:76,
-   reason:`Military construction path: Barracks 3 → Smithy 1 → Stable 1 for Scouts. Next: ${metadata[building].name} ${o.level}${missing?` to unlock ${metadata[destination].name}`:""}. Fund this step now, retain the population buffer and at least 600 ticks after construction. Training continues in its own queue. For resources produced below the sustained Pikeman demand, retain funding for one complete next batch before this construction.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
+   reason:`Military development after the Wall 5 and Hall 10 opening. Next: ${metadata[building].name} ${o.level}${missing?` to unlock ${metadata[destination].name}`:""}. Fund this step now, retain the population buffer and at least 600 ticks after construction. Training continues in its own queue. For resources produced below the sustained Pikeman demand, retain funding for one complete next batch before this construction.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
  }
  return proposals;
 }
@@ -55,11 +56,35 @@ export function evaluateWalls(context:AdvisorContext):Proposal<Extract<Action,{t
  const combat=rules.rules.COMBAT as {villageBaseDefense:number;wallFlat:number;wallMultBase:number};
  const units=rules.rules.UNITS as Record<string,{defense:Record<string,number>;cost:Resources}>;
  const proposals:Proposal<Extract<Action,{type:"build"}>>[]=[];
+ function hallRushProposal(v:AdvisorContext["state"]["villages"][number]):Proposal<Extract<Action,{type:"build"}>>|null{
+  const hall=v.options.build.find(option=>option.building==="hall");
+  if(!hall||hall.level!==v.buildings.hall+1||hall.level>EARLY_HALL)return null;
+  const blockers:string[]=[...hall.blockers];let needed=hall.ok||blockers.includes("INSUFFICIENT_RESOURCES");
+  if(v.buildQueue.length&&!blockers.includes("BUILD_QUEUE_BUSY"))blockers.push("BUILD_QUEUE_BUSY");
+  if(v.orders.build.length&&!blockers.includes("EXTERNAL_BUILD_ORDERS"))blockers.push("EXTERNAL_BUILD_ORDERS");
+  if(v.population.max-v.population.used<hall.pop&&!blockers.includes("POPULATION_CAPACITY")){needed=false;blockers.push("POPULATION_CAPACITY");}
+  for(const r of ["timber","stone","iron"] as const){
+   if(hall.cost[r]>v.storage&&!blockers.includes("STORAGE_CAPACITY")){needed=false;blockers.push("STORAGE_CAPACITY");}
+   if(v.resourcesMilli[r]<hall.cost[r]*1000&&!blockers.includes("INSUFFICIENT_RESOURCES"))blockers.push("INSUFFICIENT_RESOURCES");
+  }
+  const completion=completionWindow(state,v,hall);
+  if(completion&&completion.completionTick+300>state.world.endsAtTick&&!blockers.includes("ROUND_END_TOO_SOON")){needed=false;blockers.push("ROUND_END_TOO_SOON");}
+  if(state.world.status!=="running"&&!blockers.includes("WORLD_NOT_RUNNING"))blockers.push("WORLD_NOT_RUNNING");
+  if((state.player.nextActTick??state.world.tick)>state.world.tick&&!blockers.includes("COUNCIL_COOLDOWN"))blockers.push("COUNCIL_COOLDOWN");
+  return {id:`${state.world.epoch}:${v.id}:hall-rush:${hall.level}`,task:proposalTask("military",{type:"build",building:"hall"},hall.level),advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"hall"},buildingName:"Great Hall",currentLevel:v.buildings.hall,targetLevel:hall.level,importance:90,
+   reason:`Complete the Hall ${EARLY_HALL} opening before further Barracks growth or military development.`,requirements:hall.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:hall.affordableAtTick};
+ }
  for(const v of state.villages){
   if(!isCapital(context,v.id))continue;
-  if([v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard].some(n=>n<13))continue;
+  if(hallRushActive(v)){
+   const hall=hallRushProposal(v);
+   if(hall)proposals.push(hall);
+  }
+  const wallRush=v.buildings.barracks>=1&&v.buildings.wall<EARLY_WALL;
+  if(!wallRush&&[v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard].some(n=>n<13))continue;
   if(v.buildings.wall>=10)continue;
   const o=v.options.build.find(o=>o.building==="wall");if(!o||o.level<=v.buildings.wall||o.level>10)continue;
+  if(wallRush&&o.level>EARLY_WALL)continue;
   const cost=Object.values(o.cost).reduce((a,b)=>a+b,0),bundleCost=Object.values(units.pikeman.cost).reduce((a,b)=>a+b,0);
   const troops={...v.units.home};for(const stack of v.supportHere)for(const [u,n] of Object.entries(stack.units))troops[u as keyof typeof troops]=(troops[u as keyof typeof troops]??0)+n;
   const gains:Record<string,number>={},ratios:number[]=[];
@@ -70,15 +95,15 @@ export function evaluateWalls(context:AdvisorContext):Proposal<Extract<Action,{t
    const bundle=units.pikeman.defense[type]*combat.wallMultBase**v.buildings.wall;
    ratios.push((gains[type]/Math.max(1,cost))/(bundle/Math.max(1,bundleCost)));
   }
-  const efficiency=Math.min(...ratios),blockers:string[]=[...o.blockers];let needed=efficiency>=1.1&&o.ok&&!blockers.length;
-  if(efficiency<1.1)blockers.push("TROOPS_BETTER_VALUE");
+  const efficiency=Math.min(...ratios),rush=wallRush&&o.level<=EARLY_WALL,blockers:string[]=[...o.blockers];let needed=(rush||efficiency>=1.1)&&o.ok&&!blockers.length;
+  if(!rush&&efficiency<1.1)blockers.push("TROOPS_BETTER_VALUE");
   if(v.population.max-v.population.used<o.pop){needed=false;blockers.push("POPULATION_CAPACITY");}
   for(const r of ["timber","stone","iron"] as const)if(o.cost[r]*1000>v.resourcesMilli[r]||o.cost[r]>v.storage){needed=false;blockers.push("INSUFFICIENT_RESOURCES");break;}
   if(v.buildQueue.length)blockers.push("BUILD_QUEUE_BUSY");if(v.orders.build.length)blockers.push("EXTERNAL_BUILD_ORDERS");
   const completion=completionWindow(state,v,o);if(completion&&completion.completionTick+120>state.world.endsAtTick){needed=false;blockers.push("ROUND_END_TOO_SOON");}
   if(state.world.status!=="running")blockers.push("WORLD_NOT_RUNNING");if((state.player.nextActTick??state.world.tick)>state.world.tick)blockers.push("COUNCIL_COOLDOWN");
-  proposals.push({id:`${state.world.epoch}:${v.id}:wall:${o.level}`,task:proposalTask("military",{type:"build",building:"wall"},o.level),advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"wall"},buildingName:"Wall",currentLevel:v.buildings.wall,targetLevel:o.level,importance:84,
-   reason:`All resource producers have reached 13; Wall ${o.level} adds ${Object.entries(gains).map(([t,n])=>`${Math.round(n)} ${t}`).join(", ")} defence from troops at home/support plus base defence and the wall multiplier. Worst-type defence per resource is ${efficiency.toFixed(2)}x another Pikeman at the current wall; require at least 1.10x. Away troops excluded. Static comparison assumes no attacking Rams; it is not a battle prediction.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
+  proposals.push({id:`${state.world.epoch}:${v.id}:wall:${o.level}`,task:proposalTask("military",{type:"build",building:"wall"},o.level),advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"wall"},buildingName:"Wall",currentLevel:v.buildings.wall,targetLevel:o.level,importance:rush?88:84,
+   reason:rush?`Build Wall ${o.level} immediately after Barracks 1, before further military development.`:`All resource producers have reached 13; Wall ${o.level} adds ${Object.entries(gains).map(([t,n])=>`${Math.round(n)} ${t}`).join(", ")} defence from troops at home/support plus base defence and the wall multiplier. Worst-type defence per resource is ${efficiency.toFixed(2)}x another Pikeman at the current wall; require at least 1.10x. Away troops excluded. Static comparison assumes no attacking Rams; it is not a battle prediction.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
  }
  return proposals;
 }
@@ -86,7 +111,7 @@ export function evaluateBarracksGrowth(context:AdvisorContext):Proposal<Extract<
  const proposals:Proposal<Extract<Action,{type:"build"}>>[]=[];
  for(const v of context.state.villages){
   if(!isCapital(context,v.id))continue;
-  if(v.buildings.barracks<1)continue;
+  if(v.buildings.barracks<1||v.buildings.barracks>=BARRACKS_CAP||v.buildings.wall<EARLY_WALL||hallRushActive(v))continue;
   const pikes=evaluateSustainedDefense(context).find(p=>p.villageId===v.id&&p.action.type==="train"&&p.action.unit==="pikeman");
   const pikeDeficit=pikes&&pikes.importance===75?Math.max(0,pikes.targetLevel-pikes.currentLevel):0;
   const raiderOption=v.options.train.find(o=>o.unit==="raider");

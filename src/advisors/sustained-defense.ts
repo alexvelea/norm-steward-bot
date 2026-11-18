@@ -1,6 +1,6 @@
 import type { Action, Resources, VillageState } from "../shared/api.js";
 import type { AdvisorContext, CityRoles, Proposal } from "./types.js";
-import { defenseBudget, defenseReady, defenseSustainable } from "./defense-budget.js";
+import { EARLY_PIKEMEN_TARGET, PRODUCER_CEILING, defenseBudget, defenseReady, defenseSustainable, earlyGoalMet, militaryUnlocked } from "./defense-budget.js";
 import { minuteTrainingProposal } from "./military-training.js";
 import { cityRoles } from "../bot/strategy/roles.js";
 
@@ -91,7 +91,7 @@ export function evaluateSustainedDefense(context: AdvisorContext): Proposal[] {
   });
   const strongestCity = cities.reduce((maximum, city) => Math.max(maximum, pikemenAtCity(context, capital.id, city)), 0);
   const producers = Math.min(capital.buildings.mine, capital.buildings.quarry, capital.buildings.lumberyard);
-  const ownTarget = producers < 12 ? 0 : producers < 20 ? 250 : Math.max(250, 3 * strongestCity);
+  const ownTarget = !militaryUnlocked(capital) ? 0 : producers < PRODUCER_CEILING ? EARLY_PIKEMEN_TARGET : Math.max(EARLY_PIKEMEN_TARGET, 3 * strongestCity);
   const requestTotal = defenderRequests.reduce((sum, request) => sum + request.amount, 0);
   const pikeTarget = ownTarget + requestTotal;
   const proposals: Proposal[] = [];
@@ -102,10 +102,10 @@ export function evaluateSustainedDefense(context: AdvisorContext): Proposal[] {
     const queued = capital.training.barracks.filter(batch => batch.unit === "pikeman")
       .reduce((sum, batch) => sum + batch.remaining, 0);
     const deficit = pikeTarget - (capital.units.home.pikeman ?? 0) - queued;
-    const growth = deficit <= 0 && producers >= 20;
+    const growth = deficit <= 0 && producers >= PRODUCER_CEILING;
     const batch = growth ? Math.ceil(61 / budget.ticks) : Math.max(0, deficit);
     if (batch > 0 && (!growth || defenseSustainable(capital))) {
-      const pikeTask = producers >= 20 ? "military.defence-scale" : "military.pikemen-baseline";
+      const pikeTask = producers >= PRODUCER_CEILING ? "military.defence-scale" : earlyGoalMet(capital) ? "military.pikemen-baseline" : "early.pikemen";
       const proposal = minuteTrainingProposal(context, capital, "pikeman", batch, pikeTask,
         growth ? 50 : 75,
         growth ? "Grow the Pikemen garrison after its current target is met." :

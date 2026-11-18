@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {applyConquest, conquestCaptureTick, conquestScope, evaluateRecall, type ConquestContext} from '../src/advisors/conquest.js';
 import {selectProposal} from '../src/advisors/president.js';
 import {allocateWithPresident} from '../src/bot/allocation/president.js';
-import {economicAdvisor} from '../src/advisors/economic.js';
 import type {AdvisorContext, Proposal} from '../src/advisors/types.js';
 import {developedContext} from './control-fixtures.js';
 import {Controller} from '../src/control/controller.js';
@@ -11,6 +10,7 @@ import {RemoteError, type Remote} from '../src/control/remote.js';
 import type {SavedControl, Settings} from '../src/control/types.js';
 import type {Action, Report} from '../src/shared/api.js';
 import { conquestMission } from '../src/bot/strategy/missions/conquest.js';
+import { evaluateMilitaryDevelopment } from '../src/advisors/military-development.js';
 
 function fixture(){
  const context:AdvisorContext=developedContext(),v=context.state.villages[0];
@@ -63,18 +63,21 @@ test('standing orders, scheduled actions and a non-running world preserve propos
   assert.strictEqual(applyConquest(x.context,proposals,x.c),proposals);
  }
 });
-test('conquest keeps only the more important proposal for a duplicate village build',()=>{
- const {context,v,c}=fixture();v.buildings.hall=12;
- const economyHall=economicAdvisor.evaluate(context).find(p=>p.villageId===v.id&&
-  p.action.type==='build'&&p.action.building==='hall')!;
- economyHall.importance=95;
- let halls=applyConquest(context,[economyHall],c).filter(p=>p.villageId===v.id&&
-  p.action.type==='build'&&p.action.building==='hall');
- assert.equal(halls.length,1);assert.equal(halls[0],economyHall);
- economyHall.importance=80;
- halls=applyConquest(context,[economyHall],c).filter(p=>p.villageId===v.id&&
-  p.action.type==='build'&&p.action.building==='hall');
- assert.equal(halls.length,1);assert.equal(halls[0].advisor,'conquest');assert.equal(halls[0].importance,88);
+test('conquest keeps only the more important proposal when its Smithy step duplicates military development',()=>{
+ const {context,v,c}=fixture();
+ Object.assign(v.buildings,{hall:10,barracks:5,wall:5,smithy:0,market:0,court:0});
+ v.units.home.pikeman=250;
+ for(const option of v.options.build)option.level=v.buildings[option.building]+1;
+ const routine=evaluateMilitaryDevelopment(context).find(p=>p.villageId===v.id&&
+  p.action.type==='build'&&p.action.building==='smithy')!;
+ routine.importance=95;
+ let smithies=applyConquest(context,[routine],c).filter(p=>p.villageId===v.id&&
+  p.action.type==='build'&&p.action.building==='smithy');
+ assert.equal(smithies.length,1);assert.equal(smithies[0],routine);
+ routine.importance=80;
+ smithies=applyConquest(context,[routine],c).filter(p=>p.villageId===v.id&&
+  p.action.type==='build'&&p.action.building==='smithy');
+ assert.equal(smithies.length,1);assert.equal(smithies[0].advisor,'conquest');assert.equal(smithies[0].importance,88);
 });
 test('transition funds producer 15 before the Court path and saves through the President',()=>{
  const {context,v,c}=fixture();v.buildings.mine=14;
@@ -84,6 +87,24 @@ test('transition funds producer 15 before the Court path and saves through the P
  assert.equal(selection.selected,null);assert.equal(selection.reservations.length,1);
  assert.equal(proposals[0].action.type,'build');if(proposals[0].action.type==='build')assert.equal(proposals[0].action.building,'mine');
  assert.ok(!proposals.some(p=>p.action.type==='train'));
+});
+test('after producers 15 and the early Hall 10 opening, conquest starts with Smithy',()=>{
+ const {context,v,c}=fixture();
+ Object.assign(v.buildings,{hall:10,barracks:5,smithy:0,market:0,court:0});
+ for(const option of v.options.build)option.level=v.buildings[option.building]+1;
+ const proposal=applyConquest(context,[],c).find(value=>value.advisor==='conquest'&&value.action.type==='build');
+ assert.equal(proposal?.action.type,'build');
+ if(proposal?.action.type==='build')assert.equal(proposal.action.building,'smithy');
+ assert.ok(!applyConquest(context,[],c).some(value=>value.action.type==='build'&&
+  (value.action.building==='hall'||value.action.building==='barracks')));
+});
+test('an active Hall rush skips the conquest producer-15 floor',()=>{
+ const {context,v,c}=fixture();
+ Object.assign(v.buildings,{lumberyard:12,quarry:12,mine:12,hall:6,barracks:1,wall:5,smithy:0,market:0,court:0});
+ for(const option of v.options.build)option.level=v.buildings[option.building]+1;
+ const proposals=applyConquest(context,[],c);
+ assert.ok(!proposals.some(value=>value.advisor==='conquest'&&value.action.type==='build'&&
+  ['lumberyard','quarry','mine'].includes(value.action.building)));
 });
 test('conquest develops the producer with the least stock first',()=>{
  const {context,v,c}=fixture();
@@ -248,12 +269,15 @@ test('authoritative capture survives a missing report or a lost final send respo
  }
 });
 
-test('incoming attacks leave affordable Hall construction eligible',()=>{
- const {context,v,c}=fixture();v.buildings.hall=11;
- const o=v.options.build.find(o=>o.building==='hall')!;o.level=12;o.ok=true;o.blockers=[];o.cost={timber:100,stone:100,iron:100};
+test('incoming attacks leave affordable Smithy construction eligible',()=>{
+ const {context,v,c}=fixture();
+ Object.assign(v.buildings,{hall:10,barracks:5,wall:5,smithy:0,market:0,court:0});
+ v.units.home.pikeman=250;
+ for(const option of v.options.build)option.level=v.buildings[option.building]+1;
+ c.assessment=undefined;
  context.state.commands.incoming=[{kind:'attack',to:{id:v.id}} as any];
  const selected=selectProposal(applyConquest(context,[],c)).selected;
- assert.equal(selected?.action.type,'build');if(selected?.action.type==='build')assert.equal(selected.action.building,'hall');
+ assert.equal(selected?.action.type,'build');if(selected?.action.type==='build')assert.equal(selected.action.building,'smithy');
  assert.ok(!applyConquest(context,[],c).some(p=>p.action.type==='send'));
 });
 
@@ -305,7 +329,7 @@ test('recurring conquest tops up the surviving escort before dispatch',()=>{
 });
 
 test('recurring conquest waits for defended economic cities before training an Envoy',()=>{
- const {context,v,c}=fixture();c.plan.sequence=2;v.units.home.envoy=0;v.units.away.envoy=0;
+ const {context,v,c}=fixture();c.plan.sequence=2;v.units.home.pikeman=250;v.units.home.envoy=0;v.units.away.envoy=0;
  const economic=structuredClone(v);economic.id='economic';economic.name='Larkdale';
  economic.buildings.hall=10;economic.buildings.wall=9;economic.units.home.pikeman=200;
  context.state.villages.push(economic);context.state.world.villages=2;
@@ -321,6 +345,7 @@ test('recurring conquest waits for defended economic cities before training an E
 test('recurring conquest starts only after every capital and economic-city gate is met',async()=>{
  for(const block of ['hall','wall','court','pikemen','orders','active'] as const){
   const x=await executor();
+  x.v.units.home.pikeman=250;
   const previous=structuredClone(x.c.plan);previous.status='captured';
   x.saved().missions=[conquestMission(previous)];
   const economic=structuredClone(x.v);economic.id='economic';economic.name='Economic';economic.buildings.hall=10;
@@ -339,6 +364,7 @@ test('recurring conquest starts only after every capital and economic-city gate 
 
 test('a completed first conquest starts a sequenced recurring mission with a new identity',async()=>{
  const x=await executor();
+ x.v.units.home.pikeman=250;
  const previous=structuredClone(x.c.plan);previous.status='captured';
  x.saved().missions=[conquestMission(previous)];
  const economic=structuredClone(x.v);economic.id='economic';economic.name='Economic';economic.buildings.hall=10;
@@ -357,6 +383,9 @@ test('a completed first conquest starts a sequenced recurring mission with a new
 
 test('a recurring mission leaves capital economy selectable while waiting for its home escort',async()=>{
  const x=await executor();
+ x.v.units.home.pikeman=250;
+ x.v.resourcesMilli.timber=x.v.storage*1000+1000;
+ x.v.resources.timber=x.v.storage+1;
  x.c.plan.sequence=2;x.c.plan.escort=200;
  x.v.units.home.raider=100;x.c.assessment!.raiders=100;
  x.saved().missions=[conquestMission(structuredClone(x.c.plan))];

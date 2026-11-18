@@ -29,14 +29,14 @@ test("resource balance scores lag boundaries and skips zero-production resources
   assert.equal(balanceScore(balanceLags(v).iron!), null);
 });
 
-test("economic scores are deterministic, explain production bottlenecks and cover exactly seven buildings", () => {
+test("capital economic scores are deterministic and cover six buildings without Cellar proposals", () => {
   const c = context();
   c.state.villages[0].production.iron = 20;
   c.state.villages[0].productionPerTickMilli.iron = 333;
   c.state.villages[0].resourcesMilli.iron = 0;
   const first = evaluateEconomy(c);
   assert.deepEqual(first, evaluateEconomy(c));
-  assert.equal(first.length, 7);
+  assert.equal(first.length, 6);
   assert.ok(
     first.every(
       (p) => p.importance >= 0 && p.importance <= 100 && p.reason.length > 30,
@@ -163,8 +163,13 @@ test("maximum levels are omitted and mismatched live rule versions stop evaluati
   assert.throws(() => evaluateEconomy(c), /rules/);
 });
 
-const proposal = (c: ReturnType<typeof context>, building: string) =>
-  evaluateEconomy(c).find((p) => p.action.building === building)!;
+const proposal = (c: ReturnType<typeof context>, building: string) => {
+  if (building === "cellar") {
+    const village = c.state.villages[0]!;
+    Object.assign(c, {cityRoles: new Map([[village.id, {role: "economic", reason: "cellar fixture"}]])});
+  }
+  return evaluateEconomy(c).find((p) => p.action.building === building)!;
+};
 test("farm only expands below max(50, 20% capacity), including equality boundaries", () => {
   const c = context(),
     v = c.state.villages[0];
@@ -284,11 +289,11 @@ test("President skips storage for post-round production but preserves real overf
   assert.equal(proposal(c, "storehouse").status, "not-needed", "normal horizon remains capped at 300 ticks");
 });
 
-test("production-first opening outranks Cellar, Hall and military until each producer reaches five", () => {
+test("production-first capital opening proceeds without Cellar until each producer reaches five", () => {
   const c = context(), v = c.state.villages[0];
   v.buildings.lumberyard = 5; v.buildings.quarry = 5; v.buildings.mine = 1;
   const ps = evaluateEconomy(c), p = ps.find(p => p.action.building === "mine")!;
-  assert.ok(p.importance > ps.find(p => p.action.building === "cellar")!.importance);
+  assert.equal(ps.some(proposal => proposal.action.building === "cellar"), false);
   assert.equal(selectProposal(ps).selected?.id, p.id);
   assert.match(p.reason, /Production-first opening/);
   v.population.used = v.population.max;

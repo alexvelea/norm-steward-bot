@@ -11,7 +11,9 @@ import type {Action, BuildQueueItem} from '../src/shared/api.js';
 
 function fixture(){
  const c=developedContext(),v=c.state.villages[0];
- v.buildings.barracks=3;v.buildings.smithy=1;v.hidden=1000;
+ Object.assign(v.buildings,{lumberyard:14,quarry:14,mine:12,hall:10,wall:5,barracks:5,smithy:1});
+ for(const o of v.options.build)o.level=v.buildings[o.building]+1;
+ v.hidden=1000;
  v.population={used:125,max:200};v.resources={timber:1000,stone:1000,iron:1000};
  v.options.train=[{unit:'pikeman',cost:{timber:45,stone:35,iron:15},pop:1,ticksEach:6,maxCount:100,ok:true,blockers:[],affordableAtTick:null}];
  v.options.build.find(o=>o.building==='farm')!.ticks=50;

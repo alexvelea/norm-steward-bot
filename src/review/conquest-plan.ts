@@ -1,6 +1,6 @@
 /** Experimental opening helpers. Not installed in the live advisor list. */
 import type {BuildingId,BuildingLevels,Resources,RulesResponse,SimulateBattleResponse} from '../shared/api.js';
-export const CONQUEST_GOALS: readonly [BuildingId,number][]=[['hall',13],['barracks',10],['smithy',10],['market',5],['court',1]];
+export const CONQUEST_GOALS: readonly [BuildingId,number][]=[['smithy',10],['market',5],['court',1]];
 export function nextConquestBuilding(levels:BuildingLevels,rules:RulesResponse):BuildingId|null{
  const metadata=rules.rules.BUILDINGS as Record<BuildingId,{requires:Partial<Record<BuildingId,number>>}>;
  function prerequisite(b:BuildingId,seen:Set<BuildingId>):BuildingId{

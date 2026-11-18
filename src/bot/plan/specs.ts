@@ -53,13 +53,13 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     never: ["Never deferred because an attack is incoming."],
   },
   "first-conquest": {
-    intent: "Meet every building requirement for conquest in the capital.",
-    eligible: ["Producers at level 15."],
+    intent: "After the early game, meet the remaining conquest requirements in the capital.",
+    eligible: ["Lumberyard 14, Quarry 14 and Mine 12.", "Wall 5, Hall 10, Barracks 5, producers 15 and 250 home Pikemen are complete."],
     priority: ["Mission tasks compete with every other task through the President (88 to 96); the capital saves for them when they are its top need."],
     never: ["Never pause or exclude the capital's other tasks; conquest is an operation on top of normal production."],
   },
   "conquest.enabled": {
-    intent: "Hall 13, Barracks 10, Smithy 10, Market 5 and Court all built; the Envoy can be trained.",
+    intent: "Smithy 10, Market 5 and Court built; Hall 10 and Barracks 5 are completed in the early game.",
   },
   "conquest.dispatch": {
     intent: "Capture the nearest unowned village with the Envoy and escort.",
@@ -225,18 +225,46 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     eligible: ["All three resource producers reach level 20."],
     priority: ["Score: to be decided when codified."],
   },
+  "early.economy": {
+    intent: "Reach the capital's early military producer gate: Lumberyard 14, Quarry 14, Mine 12.",
+    eligible: ["Lumberyard is at least level 14.", "Quarry is at least level 14.", "Mine is at least level 12."],
+  },
+  "early.barracks1": {
+    intent: "Build Barracks 1 after the early producer gate.",
+    eligible: ["Lumberyard 14, Quarry 14 and Mine 12 are complete."],
+    priority: ["Score: to be decided when codified."],
+  },
+  "early.wall5": {
+    intent: "Rush Wall 5 immediately after Barracks 1, ahead of further military development.",
+    eligible: ["Barracks 1 is built.", "Wall is below 5."],
+    priority: ["Score 88, ignoring the producer-13 floor and Pikeman value comparison until Wall 5."],
+  },
+  "early.hall10": {
+    intent: "Complete Hall 10 after Wall 5 and before further Barracks growth.",
+    eligible: ["Wall 5 and Barracks 1 are built.", "Hall is below 10."],
+    priority: ["Score 90; save for Hall 10 when only resources are missing.", "Block Barracks growth and military development while active."],
+  },
+  "early.barracks5": {
+    intent: "Grow Barracks to level 5 after Hall 10, then cap it there.",
+    eligible: ["Hall 10 and Wall 5 are complete.", "Barracks is below level 5."],
+    never: ["Never build Barracks above level 5."],
+  },
+  "early.producers15": {
+    intent: "Bring all three capital producers to level 15 after Barracks 5.",
+    eligible: ["Barracks 5 is complete.", "Lumberyard, Quarry and Mine are each at least level 15."],
+  },
+  "early.pikemen": {
+    intent: "Train 250 home Pikemen from Barracks 1 in parallel with the early military buildings.",
+    eligible: ["Barracks 1 is built.", "Home Pikemen reach 250; queued troops do not count toward this early goal."],
+    priority: ["Continue bounded Pikeman training alongside Wall 5, Hall 10, Barracks growth and producer upgrades."],
+  },
   "military.garrison": {
     intent: "Organize the capital's garrison requirements and growth.",
     priority: ["Score: to be decided when codified."],
   },
-  "defense.barracks1": {
-    intent: "Build the capital's first Barracks only after all three resource producers reach level 12.",
-    eligible: ["The mine, quarry, and lumberyard are each at level 12 or higher."],
-    priority: ["Score: to be decided when codified."],
-  },
   "military.pikemen-baseline": {
-    intent: "After all three capital producers reach level 12, keep 250 Pikemen at home; economic-city defender requests remain additive. Pikemen only; no Shieldmen.",
-    eligible: ["The capital home target is 0 while the lowest producer is below level 12, then 250 until producer level 20.", "At producer level 20, target at least 250 or three times the strongest economic city's Pikemen.", "Economic-city defender requests remain additive regardless of the capital baseline gate."],
+    intent: "After the early goal, maintain 250 home Pikemen; economic-city defender requests remain additive.",
+    eligible: ["Train from Barracks 1 toward 250 home Pikemen during the early game.", "At producer level 20, target at least 250 or three times the strongest economic city's Pikemen.", "Economic-city defender requests remain additive."],
     priority: ["Score: to be decided when codified."],
     never: ["Never use Shieldmen for this baseline."],
   },
@@ -246,10 +274,10 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     priority: ["Set the home Pikemen target to 3× the strongest other city's defence; economic-city targets use one third of the capital target.", "Score: to be decided when codified."],
   },
   "military.barracks-growth": {
-    intent: "Raise Barracks when the Pikemen target or the 140 Raiders can't be trained fast enough; both train there. No level cap.",
-    eligible: ["The Pikemen target or the 140 Raiders cannot be trained fast enough."],
+    intent: "Raise Barracks when the Pikemen target or the 140 Raiders can't be trained fast enough, up to level 5.",
+    eligible: ["The Pikemen target or the 140 Raiders cannot be trained fast enough.", "Barracks is below level 5."],
     priority: ["Score 92 (above Storehouse overflow and producer builds, below Farm capacity) while every resource covers twice the upgrade plus two Pikemen batches; otherwise 65, so it never takes what Pikemen need."],
-    never: ["Never impose a Barracks level cap."],
+    never: ["Never build Barracks above level 5."],
   },
   "military.army": {
     intent: "The capital's Raider force and its size.",

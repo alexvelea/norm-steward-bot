@@ -91,7 +91,9 @@ class SnapshotWorkerTests(unittest.TestCase):
             self.assertIn('Outpost',(directory/'checkpoints.md').read_text())
             self.assertFalse((directory/'source').exists())
             self.assertFalse((directory/'comparison.json').exists())
+            self.assertEqual(json.loads((directory/'result.json').read_text())['houseBots'],{'warden':2,'reaver':2,'sovereign':2})
             spec=json.loads((directory/'run.json').read_text())
+            self.assertEqual(spec['houseBots'],{'warden':2,'reaver':2,'sovereign':2})
             self.assertEqual(spec['status'],'complete');self.assertTrue(worker.valid_run(directory,spec))
             self.assertEqual(subprocess.check_output(['git','worktree','list','--porcelain'],cwd=repo,text=True).count('worktree '),1)
             (directory/'snapshots.jsonl').write_text('')
@@ -101,10 +103,12 @@ class SnapshotWorkerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=pathlib.Path(tmp);repo=self.fixture(root)
             with patch.object(worker,'ROOT',repo),patch.object(worker,'DATA',root/'data'):
-                directory=worker.run(hours=1/6,snapshot_ticks=150,working_tree=repo)
+                directory=worker.run(hours=1/6,snapshot_ticks=150,working_tree=repo,house_bots={'warden':1,'reaver':1,'sovereign':0})
                 rows=json.loads((directory/'result.json').read_text())['checkpoints']
                 self.assertEqual([r['tick'] for r in rows],[0,150,300,450,600])
                 self.assertTrue((repo/'node_modules').is_symlink())
+                self.assertEqual(json.loads((directory/'result.json').read_text())['houseBots'],{'warden':1,'reaver':1,'sovereign':0})
+                self.assertEqual(json.loads((directory/'run.json').read_text())['houseBots'],{'warden':1,'reaver':1,'sovereign':0})
                 (repo/'src/control/controller.ts').write_text("export class Controller{static async create(){throw new Error('offline failure');}}")
                 with self.assertRaisesRegex(RuntimeError,'Sandbox run failed'):worker.run(hours=1/6,working_tree=repo)
                 failed=sorted((root/'data/experiments/runs').glob('*/run.json'))

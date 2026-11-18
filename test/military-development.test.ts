@@ -4,6 +4,8 @@ import {developedContext} from "./control-fixtures.js";
 import type {AdvisorContext} from "../src/advisors/types.js";
 import {evaluateMilitaryDevelopment, evaluateWalls, evaluateBarracksGrowth} from "../src/advisors/military-development.js";
 import {evaluateRaiders} from "../src/advisors/military.js";
+import {evaluateEconomy} from "../src/advisors/economic.js";
+import {selectProposal} from "../src/advisors/president.js";
 
 function ready() {
   const context: AdvisorContext = developedContext();
@@ -71,6 +73,48 @@ test("capital Walls stop at level 10 and economic cities are excluded", () => {
   assert.ok(evaluateWalls(context).every(proposal => proposal.villageId === capital.id));
 });
 
+test("the early Wall rush outranks Hall and Barracks builds after Barracks 1", () => {
+  const context = ready();
+  const village = context.state.villages[0]!;
+  Object.assign(village.buildings, {lumberyard: 14, quarry: 14, mine: 12, barracks: 1, wall: 2, hall: 10, smithy: 0});
+  for (const option of village.options.build) option.level = village.buildings[option.building] + 1;
+  const proposals = [
+    ...evaluateEconomy(context),
+    ...evaluateMilitaryDevelopment(context),
+    ...evaluateBarracksGrowth(context),
+    ...evaluateWalls(context),
+  ];
+  const wall = proposals.find(proposal => proposal.action.type === "build" && proposal.action.building === "wall");
+  assert.equal(wall?.importance, 88);
+  assert.equal(wall?.targetLevel, 3);
+  assert.equal(selectProposal(proposals).selected?.id, wall?.id);
+  assert.ok(proposals.filter(proposal => proposal.action.type === "build" && ["barracks", "hall"].includes(proposal.action.building))
+    .every(proposal => proposal.importance < (wall?.importance ?? 0)));
+});
+
+test("Hall 10 rush waits on resources at importance 90 and blocks other military development", () => {
+  const context = ready();
+  const village = context.state.villages[0]!;
+  Object.assign(village.buildings, {lumberyard: 14, quarry: 14, mine: 12, barracks: 1, wall: 5, hall: 6, smithy: 0});
+  for (const option of village.options.build) option.level = village.buildings[option.building] + 1;
+  village.resourcesMilli = {timber: 0, stone: 0, iron: 0};
+  const hall = evaluateWalls(context).find(proposal => proposal.action.type === "build" && proposal.action.building === "hall");
+  assert.equal(hall?.importance, 90);
+  assert.equal(hall?.status, "waiting");
+  assert.deepEqual(hall?.blockers, ["INSUFFICIENT_RESOURCES"]);
+  assert.deepEqual(evaluateBarracksGrowth(context), []);
+  assert.deepEqual(evaluateMilitaryDevelopment(context), []);
+});
+
+test("Barracks growth stops at level 5", () => {
+  const context = ready();
+  const village = context.state.villages[0]!;
+  village.buildings.barracks = 5;
+  village.options.build.find(option => option.building === "barracks")!.level = 6;
+  village.units.home = {};
+  assert.deepEqual(evaluateBarracksGrowth(context), []);
+});
+
 test("Barracks grows at importance 92 with idle stock, 65 otherwise, when Pikeman and Raider training backlog exceeds 600 ticks", () => {
   const context = ready();
   const village = context.state.villages[0]!;
@@ -90,7 +134,7 @@ test("Barracks grows at importance 92 with idle stock, 65 otherwise, when Pikema
 test("Raiders train toward 140 owned, counting home, away and queued troops", () => {
   const context = ready();
   const village = context.state.villages[0]!;
-  village.buildings.barracks = 10;
+  village.buildings.barracks = 5;
   village.buildings.smithy = 2;
   village.units.home.raider = 100;
   village.units.away.raider = 15;

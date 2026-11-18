@@ -8,7 +8,7 @@ import { militaryAdvisor } from "../src/advisors/military.js";
 import { allocateWithPresident } from "../src/bot/allocation/president.js";
 import type { PlanningMemory } from "../src/bot/plan/evaluate.js";
 import { effectiveRoles, evaluatePlanning } from "../src/bot/plan/evaluate.js";
-import { isTaskKey, PLAN, type TaskKey } from "../src/bot/plan/graph.js";
+import { isTaskKey, PLAN, proposalTask, type TaskKey } from "../src/bot/plan/graph.js";
 import type { MissionInstance } from "../src/bot/strategy/missions/conquest.js";
 import { cityRoles, filterProposalsByRole } from "../src/bot/strategy/roles.js";
 import type { AdvisorContext, Proposal } from "../src/advisors/types.js";
@@ -103,9 +103,10 @@ function mission(
 
 test("a: explicit level thresholds are goals and observed levels satisfy tasks", () => {
   const c = context();
-  setProducers(c, 12);
+  setProducers(c, 14);
+  c.state.villages[0]!.buildings.mine = 12;
   c.state.villages[0]!.buildings.barracks = 1;
-  const barracks = node(project(c), "defense.barracks1");
+  const barracks = node(project(c), "early.barracks1");
   assert.equal(barracks.progress.goal, 1);
   assert.equal(barracks.progress.observed, 1);
   assert.equal(barracks.status, "satisfied");
@@ -149,20 +150,56 @@ test("b: tasks without level thresholds are continuous and idle without a candid
 test("c: requires edges gate candidate-free nodes; candidate blockers take precedence", () => {
   const c = context();
   c.state.villages[0]!.buildings.barracks = 0;
-  const blocked = node(project(c), "defense.barracks1");
+  const blocked = node(project(c), "early.barracks1");
   assert.equal(blocked.status, "waiting");
   assert.deepEqual(blocked.primaryBlocker, {
     reasonCode: "REQUIRES_PREREQUISITE",
-    nodeKey: "economy.producers.12",
+    nodeKey: "early.economy",
   });
 
-  const waitingCandidate = candidate("defense.barracks1", {
+  const waitingCandidate = candidate("early.barracks1", {
     status: "waiting",
     blockers: ["COUNCIL_COOLDOWN"],
   });
-  const candidateState = node(project(c, { candidates: [waitingCandidate] }), "defense.barracks1");
+  const candidateState = node(project(c, { candidates: [waitingCandidate] }), "early.barracks1");
   assert.equal(candidateState.status, "waiting");
   assert.deepEqual(candidateState.primaryBlocker, { reasonCode: "COUNCIL_COOLDOWN" });
+});
+
+test("the early producer milestone tracks the separate 14/14/12 thresholds", () => {
+  const c = context();
+  Object.assign(c.state.villages[0]!.buildings, {lumberyard: 14, quarry: 13, mine: 12});
+  const partial = node(project(c), "early.economy");
+  assert.deepEqual(partial.progress, {observed: 2, goal: 3});
+  assert.equal(partial.status, "waiting");
+  c.state.villages[0]!.buildings.quarry = 14;
+  const complete = node(project(c), "early.economy");
+  assert.deepEqual(complete.progress, {observed: 3, goal: 3});
+  assert.equal(complete.status, "satisfied");
+});
+
+test("early-game graph orders its opening and removes the old conquest Hall and Barracks tasks", () => {
+  const keys = new Set<string>(PLAN.nodes.map(value => value.key));
+  assert.ok(keys.has("early-game"));
+  for (const key of ["early.economy", "early.barracks1", "early.wall5", "early.hall10", "early.barracks5", "early.producers15", "early.pikemen"])
+    assert.ok(keys.has(key), `missing ${key}`);
+  assert.equal(keys.has("conquest.hall13"), false);
+  assert.equal(keys.has("conquest.barracks10"), false);
+  const requires = new Set(PLAN.edges.filter(edge => edge.kind === "requires").map(edge => `${edge.from}->${edge.to}`));
+  assert.ok(requires.has("early.economy->early.barracks1"));
+  assert.ok(requires.has("early.barracks1->early.wall5"));
+  assert.ok(requires.has("early.wall5->early.hall10"));
+  assert.ok(requires.has("early.hall10->early.barracks5"));
+  assert.ok(requires.has("early.barracks5->early.producers15"));
+  assert.ok(requires.has("early-game->first-conquest"));
+  assert.ok(requires.has("early-game->defense.smithy1"));
+  assert.ok(PLAN.edges.some(edge => edge.kind === "contains" && edge.from === "early-game" && edge.to === "early.pikemen"));
+  assert.equal(proposalTask("military", {type: "build", building: "barracks"}, 1), "early.barracks1");
+  assert.equal(proposalTask("military", {type: "build", building: "barracks"}, 2), "early.barracks5");
+  assert.equal(proposalTask("military", {type: "build", building: "wall"}, 5), "early.wall5");
+  assert.equal(proposalTask("military", {type: "build", building: "hall"}, 10), "early.hall10");
+  assert.equal(proposalTask("conquest", {type: "build", building: "hall"}, 13), "conquest.capacity");
+  assert.equal(proposalTask("conquest", {type: "build", building: "barracks"}, 10), "conquest.capacity");
 });
 
 test("d: producer milestones report their own progress without redundant ordering", () => {

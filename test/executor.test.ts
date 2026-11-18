@@ -746,10 +746,9 @@ test("Military Advisor uses the durable shared executor and confirms its first B
   const x = await setup(),
     v = x.c.state.villages[0];
   completeOpening(x.c);
-  for (const producer of ["mine", "quarry", "lumberyard"] as const) {
-    v.buildings[producer] = 12;
-    v.options.build.find(option => option.building === producer)!.level = 13;
-  }
+  Object.assign(v.buildings,{mine:12,quarry:14,lumberyard:14});
+  for (const producer of ["mine", "quarry", "lumberyard"] as const)
+    v.options.build.find(option => option.building === producer)!.level = v.buildings[producer] + 1;
   v.buildings.hall = 5;
   v.hidden = 1000;
   await x.controller.cycle();
@@ -780,10 +779,9 @@ test("fresh military revalidation catches a lost prerequisite before spending", 
   const x = await setup(),
     v = x.c.state.villages[0];
   completeOpening(x.c);
-  for (const producer of ["mine", "quarry", "lumberyard"] as const) {
-    v.buildings[producer] = 12;
-    v.options.build.find(option => option.building === producer)!.level = 13;
-  }
+  Object.assign(v.buildings,{mine:12,quarry:14,lumberyard:14});
+  for (const producer of ["mine", "quarry", "lumberyard"] as const)
+    v.options.build.find(option => option.building === producer)!.level = v.buildings[producer] + 1;
   v.buildings.hall = 5;
   v.hidden = 1000;
   let reads = 0;
@@ -855,13 +853,8 @@ test("fresh revalidation stops a producer whose payback crosses round end while 
 function allowRecruitment(x: Awaited<ReturnType<typeof setup>>) {
   const v = x.c.state.villages[0];
   completeOpening(x.c);
-  for (const producer of ["mine", "quarry", "lumberyard"] as const) {
-    v.buildings[producer] = 12;
-    v.options.build.find(option => option.building === producer)!.level = 13;
-  }
-  v.buildings.hall = 5;
-  v.buildings.smithy = 1;
-  v.buildings.barracks = 3;
+  Object.assign(v.buildings,{mine:12,quarry:14,lumberyard:14,hall:10,wall:5,smithy:1,barracks:3});
+  for (const option of v.options.build) option.level = v.buildings[option.building] + 1;
   v.hidden = 1000;
   v.options.train = [
     {

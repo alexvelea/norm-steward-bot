@@ -42,6 +42,18 @@ function milestoneProgress(
   mission: MissionInstance | undefined,
   missions: readonly MissionInstance[],
 ): { observed: number | null; goal: number | null; satisfied: boolean } {
+  if (node.key === "early.economy") {
+    const village = context.state.villages.find(value => value.id === villageId);
+    const levels = [
+      ["lumberyard", node.thresholds?.lumberyard ?? 14],
+      ["quarry", node.thresholds?.quarry ?? 14],
+      ["mine", node.thresholds?.mine ?? 12],
+    ] as const;
+    const observed = village
+      ? levels.filter(([building, goal]) => village.buildings[building] >= goal).length
+      : null;
+    return { observed, goal: levels.length, satisfied: observed === levels.length };
+  }
   if (node.predicateKey === "producers.minimum") {
     const goal = node.thresholds?.minimum ?? null;
     const village = context.state.villages.find(value => value.id === villageId);
@@ -84,6 +96,8 @@ function taskProgress(
   } else if (predicate === "troops.pikeman" && village) {
     observed = (village.units.home.pikeman ?? 0) +
       village.training.barracks.filter(batch => batch.unit === "pikeman").reduce((sum, batch) => sum + batch.remaining, 0);
+  } else if (predicate === "troops.home-pikeman" && village) {
+    observed = village.units.home.pikeman ?? 0;
   } else if (predicate === "troops.scout" && village) {
     observed = (village.units.home.scout ?? 0) +
       village.training.stable.filter(batch => batch.unit === "scout").reduce((sum, batch) => sum + batch.remaining, 0);
@@ -100,7 +114,7 @@ function taskProgress(
     candidate.action.type === "send" ||
     candidate.action.type === "recall"
   ) ? candidate.targetLevel : undefined;
-  const goal = candidateGoal ?? explicitGoal ?? null;
+  const goal = predicate === "troops.home-pikeman" ? explicitGoal ?? null : candidateGoal ?? explicitGoal ?? null;
   return {
     observed,
     goal,

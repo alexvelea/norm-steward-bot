@@ -7,7 +7,7 @@ import {militaryAdvisor} from "../src/advisors/military.js";
 function ready() {
   const context = developedContext();
   const village = context.state.villages[0]!;
-  Object.assign(village.buildings, {lumberyard: 12, quarry: 12, mine: 12, barracks: 3, smithy: 1});
+  Object.assign(village.buildings, {lumberyard: 14, quarry: 14, mine: 12, barracks: 1, smithy: 0});
   village.units.home = {};
   village.units.away = {};
   village.population = {max: 1000, used: 200};
@@ -21,12 +21,12 @@ function ready() {
   return context;
 }
 
-test("after producers 12, a zero-Pikeman capital starts a bounded batch toward its 250 target", () => {
+test("after Barracks 1 and the 14/14/12 producer gate, a zero-Pikeman capital starts toward 250", () => {
   const context = ready();
   const proposal = evaluateSustainedDefense(context).find(value =>
     value.action.type === "train",
   );
-  assert.equal(proposal?.task, "military.pikemen-baseline");
+  assert.equal(proposal?.task, "early.pikemen");
   assert.equal(proposal?.importance, 75);
   assert.equal(proposal?.targetLevel, 250);
   assert.equal(proposal?.action.type, "train");
@@ -36,17 +36,17 @@ test("after producers 12, a zero-Pikeman capital starts a bounded batch toward i
   ));
 });
 
-test("the capital's own Pikemen baseline waits for all producers to reach level 12", () => {
+test("Pikeman training waits for the exact early producer gate", () => {
   const context = ready();
   const capital = context.state.villages[0]!;
-  Object.assign(capital.buildings, {lumberyard: 11, quarry: 11, mine: 11});
+  Object.assign(capital.buildings, {lumberyard: 13, quarry: 14, mine: 12});
   assert.equal(evaluateSustainedDefense(context).some(value =>
-    value.task === "military.pikemen-baseline",
+    value.task === "early.pikemen",
   ), false);
 
-  Object.assign(capital.buildings, {lumberyard: 12, quarry: 12, mine: 12});
+  Object.assign(capital.buildings, {lumberyard: 14, quarry: 14, mine: 12});
   const proposal = evaluateSustainedDefense(context).find(value =>
-    value.task === "military.pikemen-baseline",
+    value.task === "early.pikemen",
   );
   assert.equal(proposal?.targetLevel, 250);
 });

@@ -8,6 +8,7 @@ import { cityRoles } from "../bot/strategy/roles.js";
 import { stockMinutes } from "./balance.js";
 import { expansionReadiness } from "./sustained-defense.js";
 import {nextConquestBuilding, fundingUpgrade, conquestLoyalty} from '../review/conquest-plan.js';
+import { BARRACKS_CAP, CONQUEST_PRODUCER_FLOOR, EARLY_HALL, RAIDER_MIN_BARRACKS, hallRushActive } from "./defense-budget.js";
 
 export interface ConquestPlan {
  scope: string;
@@ -85,7 +86,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   if(funded+o.ticks+60>state.world.endsAtTick)b.push('ROUND_END_TOO_SOON');
   return {id:`${state.world.epoch}:${v!.id}:conquest:build:${building}:${o.level}`,task:proposalTask('conquest',{type:'build',building},o.level),advisor:'conquest',villageId:v!.id,villageName:v!.name,
    action:{type:'build',village:v!.id,building},buildingName:metadata[building].name,currentLevel:v!.buildings[building],targetLevel:o.level,
-   importance,reason:'Bounded conquest transition: retain the paid home defence, producers 15, Hall 13, Barracks 10, Smithy 10, Market 5 and Court; fund capacity as needed.',requirements:o.cost,blockers:[...new Set(b)],
+   importance,reason:`Bounded conquest transition: retain the paid home defence, producers ${CONQUEST_PRODUCER_FLOOR}, Hall ${EARLY_HALL}, Barracks ${BARRACKS_CAP}, Smithy 10, Market 5 and Court; fund capacity as needed.`,requirements:o.cost,blockers:[...new Set(b)],
    status:b.length?'waiting':'ready',affordableAtTick:Number.isFinite(funded)?funded:null};
  }
  function train(unit: 'raider'|'envoy',goal:number): Proposal | null {
@@ -116,8 +117,8 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
    blockers:[...new Set(b)],status:b.length?'waiting':'ready',affordableAtTick:funded};
  }
  const producers=['lumberyard','quarry','mine'] as const;
- const deficient=producers.filter(b=>v.buildings[b]<15).sort((a,b)=>stockMinutes(v,producerResources[a])-stockMinutes(v,producerResources[b])||v.buildings[a]-v.buildings[b]||a.localeCompare(b));
- if(deficient.length){const p=build(deficient[0]);if(p)retained.push(p);return deduplicateBuilds(retained);}
+ const deficient=producers.filter(b=>v.buildings[b]<CONQUEST_PRODUCER_FLOOR).sort((a,b)=>stockMinutes(v,producerResources[a])-stockMinutes(v,producerResources[b])||v.buildings[a]-v.buildings[b]||a.localeCompare(b));
+ if(deficient.length&&!hallRushActive(v)){const p=build(deficient[0]);if(p)retained.push(p);return deduplicateBuilds(retained);}
  let next=nextConquestBuilding(v.buildings,rules);
  let construction=next?build(next):null;
  // Saved prototype's funding fallback: compare paying for a producer with saving for this bill.
@@ -132,7 +133,7 @@ export function applyConquest(context: AdvisorContext,proposals: Proposal[],c?: 
   if(best)construction=best.p;
  }
  if(construction)retained.push(construction);
- if(plan.escort&&v.buildings.barracks>=10){const p=train('raider',Math.max(140,plan.escort));if(p)retained.push(p);}
+ if(plan.escort&&v.buildings.barracks>=RAIDER_MIN_BARRACKS){const p=train('raider',Math.max(140,plan.escort));if(p)retained.push(p);}
  if(!next&&(sequence<2||expansionReadiness(context,roles).ready)){const p=train('envoy',1);if(p)retained.push(p);}
  const raiders=v.units.home.raider??0;
  const escortGoal=Math.max(140,plan.escort??Infinity);

@@ -11,6 +11,7 @@ import {
   type Proposal,
 } from "./types.js";
 import { proposalTask } from "../bot/plan/graph.js";
+import { cityRoles } from "../bot/strategy/roles.js";
 
 export const ECONOMIC_BUILDINGS = [
   "hall",
@@ -98,6 +99,7 @@ export function evaluateEconomy(context: AdvisorContext): Proposal<Extract<Actio
   if (!metadata || rules.version !== state.world.rulesVersion)
     throw new Error("Live rules do not match this world's rules version.");
   const proposals: Proposal<Extract<Action, {type: "build"}>>[] = [];
+  const roles = context.cityRoles ?? cityRoles(context, []);
   for (const v of state.villages) {
     const producerCeiling = context.cityRoles?.get(v.id)?.role === "economic"
       ? v.buildings.wall >= 10 ? 25 : 10
@@ -128,6 +130,7 @@ export function evaluateEconomy(context: AdvisorContext): Proposal<Extract<Actio
     );
     const hall = estimateHall(v, rules, state.world);
     for (const building of ECONOMIC_BUILDINGS) {
+      if (building === "cellar" && roles.get(v.id)?.role === "capital") continue;
       const option = v.options.build.find((o) => o.building === building),
         queued = v.buildQueue.find((q) => q.building === building);
       if (

@@ -7,6 +7,7 @@ import type { Advisor, AdvisorContext, Proposal } from "./types.js";
 import { proposalTask } from "../bot/plan/graph.js";
 import { cityRoles } from "../bot/strategy/roles.js";
 import { evaluateRecall } from "./conquest.js";
+import { EARLY_GATE, EARLY_HALL, EARLY_WALL, RAIDER_MIN_BARRACKS, militaryUnlocked } from "./defense-budget.js";
 
 /** Bounded military proposals share the President and its durable executor. */
 export const militaryAdvisor: Advisor = { id: "military", evaluate: context => {
@@ -25,7 +26,7 @@ export const militaryAdvisor: Advisor = { id: "military", evaluate: context => {
 export function evaluateRaiders(context: AdvisorContext): Proposal<Extract<Action, {type:"train"}>>[] {
   const roles = context.cityRoles ?? cityRoles(context, []);
   const capital = context.state.villages.find(village => roles.get(village.id)?.role === "capital") ?? context.state.villages[0];
-  if (!capital || capital.buildings.barracks < 10 || capital.buildings.smithy < 2) return [];
+  if (!capital || capital.buildings.barracks < RAIDER_MIN_BARRACKS || capital.buildings.smithy < 2) return [];
   const queued = capital.training.barracks.filter(batch => batch.unit === "raider").reduce((sum,batch) => sum + batch.remaining, 0);
   const current = (capital.units.home.raider ?? 0) + (capital.units.away.raider ?? 0) + queued;
   const deficit = 140 - current;
@@ -53,7 +54,7 @@ export function evaluateMilitary(context: AdvisorContext): Proposal<Extract<Acti
   const proposals: Proposal<Extract<Action, {type: "build"}>>[] = [];
   for (const v of state.villages) {
     if (v.id !== capitalId) continue;
-    if (Math.min(v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard)<12) continue;
+    if (!militaryUnlocked(v)) continue;
     // Never buy further levels or duplicate an existing military training path.
     const facilities = ["barracks", "stable", "workshop", "court"] as const;
     if (facilities.some((b) => v.buildings[b] > 0 || v.buildQueue.some((q) => q.building === b))) continue;
@@ -95,7 +96,7 @@ export function evaluateMilitary(context: AdvisorContext): Proposal<Extract<Acti
       action: { type: "build", village: v.id, building: "barracks" },
       buildingName: metadata.name, currentLevel: 0, targetLevel: 1,
       importance: 79,
-      reason: `After all three resource producers reach level 12, enable the first foot-soldier training path with Barracks 1; reserve ${useTicks} ticks after construction for use. Recruitment is a subsequent step; this construction alone adds no troops.${needed ? "" : " Skip unavailable or unusable infrastructure so economic investment can continue."}`,
+      reason: `After Lumberyard ${EARLY_GATE.lumberyard}, Quarry ${EARLY_GATE.quarry} and Mine ${EARLY_GATE.mine}, enable Pikeman training with Barracks 1; reserve ${useTicks} ticks after construction for use. Recruitment continues in parallel.${needed ? "" : " Skip unavailable or unusable infrastructure so economic investment can continue."}`,
       requirements: option.cost, blockers,
       status: !needed ? "not-needed" : blockers.length ? "waiting" : "ready",
       affordableAtTick: option.affordableAtTick,
@@ -104,7 +105,7 @@ export function evaluateMilitary(context: AdvisorContext): Proposal<Extract<Acti
   return [...proposals, ...evaluateMilitaryHall({state,rules})];
 }
 
-/** Close the initial Hall prerequisite chain after the production-only opening. */
+/** Close the live Hall prerequisite chain after the early producer gate. */
 export function evaluateMilitaryHall(context:AdvisorContext): Proposal<Extract<Action,{type:"build"}>>[] {
   const {state,rules}=context;
   const roles=context.cityRoles??cityRoles(context,[]);
@@ -115,9 +116,10 @@ export function evaluateMilitaryHall(context:AdvisorContext): Proposal<Extract<A
   const proposals:Proposal<Extract<Action,{type:"build"}>>[]=[];
   for(const v of state.villages){
     if(v.id!==capitalId)continue;
+    if(v.buildings.barracks>=1&&v.buildings.wall>=EARLY_WALL&&v.buildings.hall<EARLY_HALL)continue;
     const facility=v.buildings.barracks<1?"barracks":v.buildings.smithy<1?"smithy":null;
     const required=facility?buildings[facility].requires.hall:undefined;
-    if(!required||v.buildings.hall>=required||[v.buildings.mine,v.buildings.quarry,v.buildings.lumberyard].some(n=>n<10))continue;
+    if(!required||v.buildings.hall>=required||!militaryUnlocked(v))continue;
     const o=v.options.build.find(o=>o.building==="hall");if(!o)continue;
     const blockers:string[]=[...o.blockers];let needed=o.ok&&!blockers.length;
     if(v.buildQueue.length)blockers.push("BUILD_QUEUE_BUSY");
@@ -129,7 +131,7 @@ export function evaluateMilitaryHall(context:AdvisorContext): Proposal<Extract<A
     if(v.population.max-v.population.used<o.pop){needed=false;blockers.push("POPULATION_CAPACITY");}
     for(const r of ["timber","stone","iron"] as const)if(v.resourcesMilli[r]<o.cost[r]*1000){needed=false;if(!blockers.includes("INSUFFICIENT_RESOURCES"))blockers.push("INSUFFICIENT_RESOURCES");}
     proposals.push({id:`${state.world.epoch}:${v.id}:military-hall:${o.level}`,task:proposalTask("military",{type:"build",building:"hall"},o.level),advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"hall"},buildingName:`Great Hall for ${facility}`,currentLevel:v.buildings.hall,targetLevel:o.level,importance:79,
-      reason:`Production opening complete. Reach the live ${facility} Hall prerequisite (${required}) to convert income into troops; stop this unlock chain once that facility is available. Only currently affordable steps, with 300 ticks left for use.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
+      reason:`Early producer gate complete. Reach the live ${facility} Hall prerequisite (${required}) to unlock the first Barracks or Scout-path Smithy; stop this unlock chain once that facility is available. Only currently affordable steps, with 300 ticks left for use.`,requirements:o.cost,blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
   }
   return proposals;
 }
