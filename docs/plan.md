@@ -55,13 +55,13 @@ flowchart TD
   n33["Home Pikemen baseline<br/><small>military.pikemen-baseline · task</small>"]
   n34["Capital holds 3× any city<br/><small>military.defence-scale · policy</small>"]
   n35["Barracks grows when troops lag<br/><small>military.barracks-growth · task</small>"]
-  n36["Attack force<br/><small>military.army · group</small>"]
-  n37["Raider force<br/><small>military.raiders · task</small>"]
-  n38["Scouts<br/><small>military.scouts · task</small>"]
-  n39["Wall capped at 10<br/><small>military.wall-cap · policy</small>"]
-  n40["Workshop siege<br/><small>military.workshop · capability</small>"]
-  n41["First conquest<br/><small>first-conquest · mission</small>"]
-  n42["Conquest infrastructure<br/><small>conquest.infrastructure · group</small>"]
+  n36["Scouts<br/><small>military.scouts · task</small>"]
+  n37["Wall capped at 10<br/><small>military.wall-cap · policy</small>"]
+  n38["Workshop siege<br/><small>military.workshop · capability</small>"]
+  n39["Conquest<br/><small>conquest · mission</small>"]
+  n40["Raider force<br/><small>military.raiders · task</small>"]
+  n41["First conquest<br/><small>first-conquest · group</small>"]
+  n42["Conquest enabled<br/><small>conquest.infrastructure · group</small>"]
   n43["Smithy 10<br/><small>conquest.smithy10 · task</small>"]
   n44["Market 5<br/><small>conquest.market5 · task</small>"]
   n45["Court<br/><small>conquest.court · task</small>"]
@@ -69,7 +69,7 @@ flowchart TD
   n47["Producer funding fallback<br/><small>conquest.producer-funding · policy</small>"]
   n48["Conquest producer investment<br/><small>conquest.producer-investment · task</small>"]
   n49["Conquest enabled<br/><small>conquest.enabled · milestone</small>"]
-  n50["Expansion<br/><small>expansion · mission</small>"]
+  n50["Next cities<br/><small>expansion · mission</small>"]
   n51["Prepare Raider escort<br/><small>conquest.escort · task</small>"]
   n52["Prepare Envoy<br/><small>conquest.envoy · task</small>"]
   n53["Dispatch conquest wave<br/><small>conquest.dispatch · task</small>"]
@@ -117,7 +117,7 @@ flowchart TD
   n95["Producers at level 15<br/><small>econ.producers.15 · milestone</small>"]
   n96["Send surplus to the capital<br/><small>econ.surplus · task</small>"]
   n97["Wall 10<br/><small>econ.wall10 · task</small>"]
-  n98["Next cities<br/><small>expansion.next · group</small>"]
+  n98["Next conquest<br/><small>expansion.next · group</small>"]
   n99["Expansion readiness<br/><small>expansion.readiness · policy</small>"]
   n100["Every city defended<br/><small>expansion.cities-defended · milestone</small>"]
   n101["Train next Envoy<br/><small>expansion.envoy · task</small>"]
@@ -132,7 +132,7 @@ flowchart TD
   n110["Dispatch conquest<br/><small>expansion.enemy-dispatch · task</small>"]
   n0 -->|contains| n1
   n0 -->|contains| n21
-  n0 -->|contains| n50
+  n0 -->|contains| n39
   n0 -->|contains| n29
   n0 -->|contains| n60
   n0 -->|contains| n62
@@ -240,10 +240,8 @@ flowchart TD
   n32 -->|contains| n34
   n32 -->|contains| n35
   n29 -->|contains| n36
-  n36 -->|contains| n37
+  n29 -->|contains| n37
   n29 -->|contains| n38
-  n29 -->|contains| n39
-  n29 -->|contains| n40
   n21 -->|contains| n22
   n21 -->|contains| n23
   n21 -->|contains| n24
@@ -251,14 +249,16 @@ flowchart TD
   n21 -->|contains| n26
   n21 -->|contains| n27
   n21 -->|contains| n28
-  n21 -->|contains| n41
-  n41 -->|contains| n42
+  n21 -->|contains| n42
+  n39 -->|contains| n40
+  n39 -->|contains| n41
+  n39 -->|contains| n50
   n42 -->|contains| n43
   n42 -->|contains| n44
   n42 -->|contains| n45
   n42 -->|contains| n46
-  n41 -->|contains| n47
-  n41 -->|contains| n49
+  n42 -->|contains| n47
+  n42 -->|contains| n49
   n41 -->|contains| n51
   n41 -->|contains| n52
   n41 -->|contains| n53
@@ -280,7 +280,7 @@ flowchart TD
   n23 -.->|requires| n41
   n27 -.->|requires| n30
   n28 -.->|requires| n30
-  n30 -.->|requires| n38
+  n30 -.->|requires| n36
   n11 -.->|requires| n42
   n51 -.->|requires| n53
   n52 -.->|requires| n53
@@ -293,12 +293,12 @@ flowchart TD
   n54 -.->|requires| n55
   n54 -.->|requires| n56
   class n0 objective;
-  class n1,n29,n41,n50,n60,n62 mission;
-  class n2,n13,n21,n32,n36,n42,n63,n71,n78,n91,n98,n106 group;
-  class n3,n4,n5,n14,n15,n16,n23,n24,n25,n26,n28,n30,n31,n33,n35,n37,n38,n43,n44,n45,n46,n48,n51,n52,n53,n56,n61,n64,n65,n66,n67,n68,n69,n72,n73,n74,n79,n80,n81,n83,n85,n86,n89,n90,n92,n93,n94,n96,n97,n101,n102,n103,n108,n110 task;
+  class n1,n29,n39,n50,n60,n62 mission;
+  class n2,n13,n21,n32,n41,n42,n63,n71,n78,n91,n98,n106 group;
+  class n3,n4,n5,n14,n15,n16,n23,n24,n25,n26,n28,n30,n31,n33,n35,n36,n40,n43,n44,n45,n46,n48,n51,n52,n53,n56,n61,n64,n65,n66,n67,n68,n69,n72,n73,n74,n79,n80,n81,n83,n85,n86,n89,n90,n92,n93,n94,n96,n97,n101,n102,n103,n108,n110 task;
   class n7,n8,n9,n10,n11,n12,n22,n27,n49,n54,n55,n70,n76,n77,n82,n95,n100,n104,n105 milestone;
-  class n6,n17,n18,n19,n20,n34,n39,n47,n59,n75,n84,n87,n88,n99,n107,n109 policy;
-  class n40,n57,n58 capability;
+  class n6,n17,n18,n19,n20,n34,n37,n47,n59,n75,n84,n87,n88,n99,n107,n109 policy;
+  class n38,n57,n58 capability;
   linkStyle 0 stroke:#2563eb,stroke-width:2px;
   linkStyle 1 stroke:#2563eb,stroke-width:2px;
   linkStyle 2 stroke:#2563eb,stroke-width:2px;
@@ -488,7 +488,7 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | economy.payback | policy | Production payback | Keep the existing round-end production return test and ceiling. | producerCeiling=20 | — |
 | economy.round-end | policy | Round-end completion | Keep current affordability, construction, and use deadlines. | — | — |
 | economy.hall-push | policy | Great Hall push | After producers 20 the capital keeps the Great Hall growing alongside military growth. | — | economy.producers.20 |
-| early-game | group | Early game | From the opening to the first captured city: Barracks 1, Wall 5, Hall 10, Barracks 5, producers 15 and 200 home Pikemen, with the first conquest running in parallel. | — | — |
+| early-game | group | Early game | Grow producers to 14/14/12, then build Barracks 1, Wall 5, Hall 10 and Barracks 5 before reaching producers 15. Train toward 200 home Pikemen alongside the build order and complete the infrastructure that enables conquest. | — | — |
 | early.economy | milestone | Early producer gate | Reach Lumberyard 14, Quarry 14 and Mine 12. | lumberyard=14, quarry=14, mine=12 | — |
 | early.barracks1 | task | Barracks 1 | Build Barracks 1 after the early producer gate. | level=1 | early.economy |
 | early.wall5 | task | Wall 5 | Rush Wall 5 after Barracks 1, before further military development. | level=5 | early.barracks1 |
@@ -502,22 +502,22 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | military.garrison | group | Garrison | Organize the capital's garrison requirements and growth. | — | — |
 | military.pikemen-baseline | task | Home Pikemen baseline | After the early goal is met, maintain 200 home Pikemen and add economic-city defender requests; recruitment starts at Barracks 1. | count=200 | — |
 | military.defence-scale | policy | Capital holds 3× any city | Once the capital's producers reach 20, the capital's home Pikemen grow to 3× the strongest other city's; economic cities follow via their ÷3 defender target. | multiplier=3 | economy.producers.20 |
-| military.barracks-growth | task | Barracks grows when troops lag | Raise Barracks when the Pikemen target or the 150 Raiders can't be trained fast enough; Barracks is capped at level 5. | — | — |
-| military.army | group | Attack force | The capital's Raider force and its size. | — | — |
-| military.raiders | task | Raider force | Keep 150 Raiders trained; losses are retrained. An attack (hamlet or enemy) needs at least 100 at home and takes every Raider at home. | count=150 | — |
+| military.barracks-growth | task | Barracks grows when troops lag | Raise Barracks when it cannot train enough Pikemen or conquest Raiders in time; Barracks is capped at level 5. | — | — |
 | military.scouts | task | Scouts | The capital keeps 20 Scouts at home per city it owns, and stations 20 in each economic city on request. The Stable is only for Scouts (Stable 1). | perCity=20 | defense.smithy1 |
 | military.wall-cap | policy | Wall capped at 10 | Capital Walls stop at level 10. | maxLevel=10 | — |
 | military.workshop | capability | Workshop siege | Skipped: we win on numbers, not Rams or Trebuchets. | — | — |
-| first-conquest | mission | First conquest | Starts as soon as the capital has 150 home Pikemen, alongside the rest of the early game: Smithy 10, Market 5 and Court, then Raiders, an Envoy and waves until the city is captured. | originVillages=1, homePikemen=150, standingOrders=0 | early.barracks1 |
-| conquest.infrastructure | group | Conquest infrastructure | Complete current building requirements and ordinary capacity prerequisites. | — | economy.producers.15 |
+| conquest | mission | Conquest | Capture the first city once per round, then prepare for the next cities. | — | — |
+| military.raiders | task | Raider force | Keep 150 Raiders for conquest, counting home, away and queued troops; replace losses. Each wave needs at least 100 at home and takes every Raider at home. | count=150 | — |
+| first-conquest | group | First conquest | Starts at 150 home Pikemen alongside the early game. Prepare the escort and Envoy and dispatch waves until the city is captured; later captures belong to Next cities. | originVillages=1, homePikemen=150, standingOrders=0 | early.barracks1 |
+| conquest.infrastructure | group | Conquest enabled | Build Smithy 10, Market 5 and Court, with capacity and funding as needed. | — | economy.producers.15 |
 | conquest.smithy10 | task | Smithy 10 | Build the conquest Smithy requirement. | level=10 | — |
 | conquest.market5 | task | Market 5 | Build the conquest Market requirement. | level=5 | — |
 | conquest.court | task | Court | Build the next conquest building returned by current rules. | level=1 | — |
-| conquest.capacity | task | Conquest capacity prerequisite | Fund farm and storage capacity as ordinary paid prerequisites. | — | — |
+| conquest.capacity | task | Conquest capacity prerequisite | Propose a Farm (96) when a conquest build or Raider/Envoy batch would leave less than max(50, 20% of the population limit rounded up) free. Propose a Storehouse (96) if any resource cost exceeds storage. | — | — |
 | conquest.producer-funding | policy | Producer funding fallback | Compare the existing bounded producer investment against saving for the next conquest building. | — | — |
 | conquest.producer-investment | task | Conquest producer investment | Build the selected producer when the bounded funding fallback applies. | — | — |
 | conquest.enabled | milestone | Conquest enabled | Smithy 10, Market 5 and Court are complete; the Court needs the early-game Hall 10. | — | conquest.smithy10, conquest.market5, conquest.court |
-| expansion | mission | Expansion | After the first capture, conquer the next cities one at a time once existing cities are developed. | — | conquest.enabled |
+| expansion | mission | Next cities | After the first capture, conquer the next cities one at a time once existing cities are developed. | — | conquest.enabled |
 | conquest.escort | task | Prepare Raider escort | Prepare the simulated bounded escort without replacing surviving waves. | — | — |
 | conquest.envoy | task | Prepare Envoy | Prepare one reusable Envoy for the bounded mission. | count=1 | — |
 | conquest.dispatch | task | Dispatch conquest wave | Recheck ownership and simulation before each of at most six waves. | maximumWaves=6 | conquest.escort, conquest.envoy, conquest.enabled |
@@ -565,7 +565,7 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | econ.producers.15 | milestone | Producers at level 15 | All three producers reach level 15. | minimum=15 | — |
 | econ.surplus | task | Send surplus to the capital | Once all producers are 15+, ship stock above the next build's cost (at least 4,000 of each kept) to the capital, bounded by merchants and the capital's free storage. | producers=15, reserve=4000, minimumMerchants=5 | econ.market, econ.producers.15 |
 | econ.wall10 | task | Wall 10 | Built after producers reach 10; the only military building an economic city builds. | level=10 | econ.producers.10 |
-| expansion.next | group | Next cities | After the first capture, keep taking one new city at a time when existing cities are developed enough. | — | conquest.first-achieved |
+| expansion.next | group | Next conquest | After the first capture, keep taking one new city at a time when existing cities are developed enough. | — | conquest.first-achieved |
 | expansion.readiness | policy | Expansion readiness | Start the next mission after capital readiness and Great Hall 10 in every economic city; train its Envoy only after Every city defended. | economicHall=10, homePikemen=150 | — |
 | expansion.cities-defended | milestone | Every city defended | Every economic city has Wall 10 and at least 80% of its Pikemen target stationed. | economicWall=10, defenderShare=0.8 | — |
 | expansion.envoy | task | Train next Envoy | Train one Envoy for the next target once the next conquest has started. | — | expansion.cities-defended |

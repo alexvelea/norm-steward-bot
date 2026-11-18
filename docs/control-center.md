@@ -16,8 +16,8 @@ Pikemen training starts from Barracks 1 and continues alongside this sequence un
 Economic cities retain their Cellar policy and never train troops.
 
 After the early goal (producers 15 plus 200 home Pikemen), the Scout path builds Smithy 1 and
-Stable 1, subject to live building requirements. Barracks stops at level 5; Raiders train from
-Barracks 5 toward 150 owned Raiders, counting home, away and queued, and losses are retrained.
+Stable 1, subject to live building requirements. Barracks stops at level 5. **Conquest → Raider
+force** trains toward 150 Raiders, counting home, away and queued troops; losses are retrained.
 A first conquest requires the remaining Smithy 10, Market 5 and Court infrastructure; Hall 10
 and Barracks 5 are already part of the opening. The capital keeps at least 200 Pikemen at home;
 after producer 20 its target is `max(200, 3 × strongest economic-city stationed Pikemen)`.
@@ -163,10 +163,10 @@ estimate and its tick range, and shows each village's inventory, projected suppl
 
 The Military Advisor builds Barracks 1 only in the capital, then the Wall 5 → Hall 10 → Barracks 5
 opening. After producers 15 and 200 home Pikemen, it follows the Smithy 1 and Stable 1 Scout path.
-Stable 1 is for Scouts only. After Barracks 5 and Smithy 2, Raider training targets 150 owned troops;
-the capital's home-Pikeman and Scout targets use home plus queued counts as specified above. Live
-training options determine costs, batch limits, duration and
-population. The population buffer stays at max(50, 20% of capacity); external orders, busy queues,
+Stable 1 is for Scouts only. After Barracks 5 and Smithy 2, the capital trains toward its conquest
+target of 150 Raiders; the capital's home-Pikeman and Scout targets use home plus queued counts as
+specified above. Live training options determine costs, batch limits, duration and population.
+The population buffer stays at max(50, 20% of capacity); external orders, busy queues,
 unavailable options and round-end timing prevent submission. Barracks growth is proposed at
 importance 65 when queued and needed Pikeman/Raider training exceeds 600 ticks.
 
@@ -235,11 +235,23 @@ The last 100 decisions and any pending request survive restarts in `control.json
 
 ## Bounded first-conquest transition
 
-The live conquest transition uses this same
-President and durable executor. After the early opening has reached producers 15 and 200 home
-Pikemen, it preserves the Pikeman garrison and funds Smithy 10, Market 5 and Court; Hall 10 and
-Barracks 5 are already complete. Capacity remains an ordinary paid prerequisite. It prepares one
-bounded Raider escort in approximately minute-long batches once Barracks 5 is ready, plus one Envoy,
+The live conquest transition uses the same President and durable executor. Its first mission
+can start at 150 home Pikemen, in parallel with the opening's 200-Pikeman goal. It preserves
+the garrison and funds Smithy 10, Market 5 and Court, shown under **Early game → Conquest enabled**.
+Hall 10 and Barracks 5 remain opening goals. **Conquest → First conquest** tracks the first
+capture as a one-shot milestone; later conquest missions are tracked under **Next cities**.
+
+**Conquest capacity prerequisite.** While preparing conquest, the advisor can propose an ordinary
+paid Farm or Storehouse upgrade at score 96 so a specific build (such as Smithy 10, Market 5 or
+Court) or Raider/Envoy batch can fit. It proposes a Farm when free population is below the
+action's population cost plus a buffer of `max(50, ceil(20% of the population limit))`.
+It proposes a Storehouse if any one resource cost exceeds the storage limit, not merely
+the resources currently on hand. The population check comes first, but a Farm whose own cost
+exceeds storage can require a Storehouse first. This is separate from routine Farm and Storehouse
+upkeep, and “No need this cycle” means there was no prerequisite proposal for this evaluation.
+
+The conquest advisor prepares a Raider escort of 150 or the simulated requirement if higher,
+in approximately minute-long batches once Barracks 5 is ready, plus one Envoy,
 retaining home infantry. At four ticks per Raider, each full batch contains
 16 Raiders (64 game seconds); the last batch is capped at the remaining escort count. An occupied
 Barracks queue releases the construction budget instead of reserving the whole escort cost.

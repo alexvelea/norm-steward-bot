@@ -1,3 +1,5 @@
+import { RAIDER_TARGET } from "../../advisors/defense-budget.js";
+
 /** Written rules per plan node: what an action under this node may do and why.
  * Agents audit journalled actions against this text; code should follow it. */
 export interface NodeSpec {
@@ -55,6 +57,14 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
   },
   "conquest.enabled": {
     intent: "Smithy 10, Market 5 and Court built; the Court needs the early-game Hall 10.",
+  },
+  "conquest.capacity": {
+    intent: "Make room for a specific conquest build or Raider/Envoy batch, independently of routine capacity upkeep.",
+    eligible: [
+      "Farm: free population is below the action's population cost plus the greater of 50 slots or 20% of the population limit rounded up.",
+      "Storehouse: any one resource cost exceeds the storage limit. The population check comes first, but a Farm that cannot fit in storage can require a Storehouse first.",
+    ],
+    priority: ["96 for either paid prerequisite."],
   },
   "conquest.dispatch": {
     intent: "Capture the nearest unowned village with the Envoy and escort.",
@@ -197,9 +207,9 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     ],
   },
   "expansion.escort": {
-    intent: "Before every wave, train up to max(150, simulated escort) Raiders; earlier survivors count.",
-    eligible: ["Train the missing Raiders when owned count is below max(150, simulated escort)."],
-    never: ["Never send Pikemen that are part of the home-defence target.", "Never dispatch below the home Raider target."],
+    intent: `Before every wave, train up to max(${RAIDER_TARGET}, simulated escort) Raiders; earlier survivors count.`,
+    eligible: [`Train the missing Raiders when the count at home, away and queued is below max(${RAIDER_TARGET}, simulated escort).`],
+    never: ["Never send Pikemen that are part of the home-defence target.", "Never dispatch with fewer than 100 home Raiders."],
   },
   "expansion.dispatch": {
     intent: "Same dispatch rules as the first conquest, with at least 100 Raiders at home.",
@@ -269,19 +279,15 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     priority: ["Set the home Pikemen target to 3× the strongest other city's defence; economic-city targets use one third of the capital target.", "Score: to be decided when codified."],
   },
   "military.barracks-growth": {
-    intent: "Raise Barracks when the Pikemen target or the 150 Raiders can't be trained fast enough, up to level 5.",
-    eligible: ["The Pikemen target or the 150 Raiders cannot be trained fast enough.", "Barracks is below level 5."],
+    intent: "Raise Barracks when it cannot train enough Pikemen or conquest Raiders in time, up to level 5.",
+    eligible: [`The Pikemen target or the conquest training target of ${RAIDER_TARGET} Raiders cannot be reached fast enough.`, "Barracks is below level 5."],
     priority: ["Score 92 (above Storehouse overflow and producer builds, below Farm capacity) while every resource covers twice the upgrade plus two Pikemen batches; otherwise 65, so it never takes what Pikemen need."],
     never: ["Never build Barracks above level 5."],
   },
-  "military.army": {
-    intent: "The capital's Raider force and its size.",
-    priority: ["Score: to be decided when codified."],
-  },
   "military.raiders": {
-    intent: "Keep 150 Raiders trained; losses are retrained. An attack (hamlet or enemy) needs at least 100 at home and takes every Raider at home.",
-    eligible: ["Owned Raiders below 150 → train the missing ones.", "A conquest wave needs at least 100 Raiders at home and takes every Raider at home."],
-    priority: ["Score: to be decided when codified."],
+    intent: `Keep ${RAIDER_TARGET} Raiders for conquest and replace losses.`,
+    eligible: [`Train when Raiders at home, away and queued total fewer than ${RAIDER_TARGET}.`, "A conquest wave needs at least 100 Raiders at home and takes every Raider at home."],
+    priority: ["72 for baseline Raider training."],
     never: ["Never wait for Raiders that are not being trained."],
   },
   "military.scouts": {

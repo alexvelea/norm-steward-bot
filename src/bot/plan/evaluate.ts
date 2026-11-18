@@ -271,7 +271,7 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
       const progress = node.kind === "milestone"
         ? milestoneProgress(node, context, village.id, firstMission, memory.missions)
         : isActionNode(node)
-          ? taskProgress(node, context, village.id, mission, candidate)
+          ? taskProgress(node, context, village.id, node.key === "conquest.dispatch" ? firstMission : mission, candidate)
           : { observed: null, goal: null, satisfied: false };
       let status: TaskState = "idle";
       let primaryBlocker: PlanningBlocker | null = null;
@@ -356,6 +356,11 @@ export function evaluatePlanning(input: PlanningInput): PlanningProjection {
             state.status="running";
             state.primaryBlocker=rollupState(node.key,states).primaryBlocker;
           }
+          continue;
+        }
+        if (node.key === "first-conquest" && states.get("conquest.first-achieved")?.status === "satisfied") {
+          state.status = "satisfied";
+          state.primaryBlocker = null;
           continue;
         }
         const rollup = rollupState(node.key, states);

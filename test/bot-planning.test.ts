@@ -185,6 +185,7 @@ test("early-game graph orders its opening and removes the old conquest Hall and 
     assert.ok(keys.has(key), `missing ${key}`);
   assert.equal(keys.has("conquest.hall13"), false);
   assert.equal(keys.has("conquest.barracks10"), false);
+  assert.equal(keys.has("military.army"), false);
   const requires = new Set(PLAN.edges.filter(edge => edge.kind === "requires").map(edge => `${edge.from}->${edge.to}`));
   assert.ok(requires.has("early.economy->early.barracks1"));
   assert.ok(requires.has("early.barracks1->early.wall5"));
@@ -197,7 +198,16 @@ test("early-game graph orders its opening and removes the old conquest Hall and 
   assert.ok(!requires.has("early-game->defense.smithy1"));
   const contains = new Set(PLAN.edges.filter(edge => edge.kind === "contains").map(edge => `${edge.from}->${edge.to}`));
   assert.ok(contains.has("early-game->early.pikemen"));
-  assert.ok(contains.has("early-game->first-conquest"));
+  assert.ok(contains.has("early-game->conquest.infrastructure"));
+  assert.ok(!contains.has("early-game->first-conquest"));
+  assert.ok(contains.has("defense->defense.smithy1"));
+  assert.ok(contains.has("round->conquest"));
+  for (const key of ["military.raiders", "first-conquest", "expansion"])
+    assert.ok(contains.has(`conquest->${key}`), `Conquest must contain ${key}`);
+  for (const key of ["conquest.smithy10", "conquest.market5", "conquest.court", "conquest.capacity", "conquest.producer-funding", "conquest.enabled"])
+    assert.ok(contains.has(`conquest.infrastructure->${key}`), `Conquest enabled must contain ${key}`);
+  assert.ok(contains.has("conquest.producer-funding->conquest.producer-investment"));
+  assert.ok(requires.has("economy.producers.15->conquest.infrastructure"));
   for (const key of ["conquest.escort", "conquest.envoy", "conquest.dispatch", "conquest.target-owned", "conquest.first-achieved"])
     assert.ok(contains.has(`first-conquest->${key}`), `first-conquest must contain ${key}`);
   assert.ok(!contains.has("round->first-conquest"));
@@ -208,9 +218,11 @@ test("early-game graph orders its opening and removes the old conquest Hall and 
   assert.equal(proposalTask("military", {type: "build", building: "hall"}, 10), "early.hall10");
   assert.equal(proposalTask("conquest", {type: "build", building: "hall"}, 13), "conquest.capacity");
   assert.equal(proposalTask("conquest", {type: "build", building: "barracks"}, 10), "conquest.capacity");
+  assert.equal(proposalTask("military", {type: "train", unit: "raider"}, 150), "military.raiders");
+  assert.equal(node(project(), "military.raiders").progress.goal, 150);
 });
 
-test("early-game rollup includes the first conquest until it is captured", () => {
+test("early game finishes when conquest is enabled without waiting for the first capture", () => {
   const c = context();
   const capital = c.state.villages[0]!;
   setProducers(c, 15);
@@ -223,7 +235,29 @@ test("early-game rollup includes the first conquest until it is captured", () =>
   for (const key of ["early.economy", "early.barracks1", "early.wall5", "early.hall10", "early.barracks5", "early.producers15", "early.pikemen"])
     assert.equal(node(projection, key).status, "satisfied", `${key} should be satisfied`);
   assert.notEqual(node(projection, "conquest.first-achieved").status, "satisfied");
+  assert.notEqual(node(projection, "first-conquest").status, "satisfied");
+  assert.notEqual(node(projection, "conquest.enabled").status, "satisfied");
   assert.notEqual(node(projection, "early-game").status, "satisfied");
+
+  Object.assign(capital.buildings, { smithy: 10, market: 5, court: 1 });
+  const enabled = project(c, { memory: { missions: [mission()] } });
+  assert.equal(node(enabled, "conquest.enabled").status, "satisfied");
+  assert.equal(node(enabled, "early-game").status, "satisfied");
+  assert.notEqual(node(enabled, "conquest.first-achieved").status, "satisfied");
+});
+
+test("first conquest stays done during later conquests", () => {
+  const c = context();
+
+  const later = project(c, { memory: { missions: [
+    mission("completed"),
+    { ...mission(), id: "mission-2", definition: "conquest", sequence: 2, startedTick: 80, memory: { waves: 0 } },
+  ] } });
+  assert.equal(node(later, "conquest.first-achieved").status, "satisfied");
+  assert.equal(node(later, "first-conquest").status, "satisfied");
+  assert.equal(node(later, "conquest.dispatch").progress.observed, 2);
+  assert.equal(node(later, "expansion.dispatch").progress.observed, 0);
+  assert.equal(node(later, "expansion").status, "running");
 });
 
 test("d: producer milestones report their own progress without redundant ordering", () => {
