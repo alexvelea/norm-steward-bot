@@ -61,7 +61,7 @@ flowchart TD
   n39["Scouts<br/><small>military.scouts · task</small>"]
   n40["Wall capped at 10<br/><small>military.wall-cap · policy</small>"]
   n41["Workshop siege<br/><small>military.workshop · capability</small>"]
-  n42["Enable conquest<br/><small>first-conquest · mission</small>"]
+  n42["First conquest<br/><small>first-conquest · mission</small>"]
   n43["Conquest infrastructure<br/><small>conquest.infrastructure · group</small>"]
   n44["Smithy 10<br/><small>conquest.smithy10 · task</small>"]
   n45["Market 5<br/><small>conquest.market5 · task</small>"]
@@ -132,13 +132,15 @@ flowchart TD
   n110["Attack at 2×<br/><small>expansion.decisive · policy</small>"]
   n111["Dispatch conquest<br/><small>expansion.enemy-dispatch · task</small>"]
   n0 -->|contains| n1
-  n0 -->|contains| n30
+  n0 -->|contains| n22
   n0 -->|contains| n42
-  n0 -->|contains| n58
-  n0 -->|contains| n59
-  n0 -->|contains| n60
+  n0 -->|contains| n51
+  n0 -->|contains| n30
   n0 -->|contains| n61
   n0 -->|contains| n63
+  n0 -->|contains| n60
+  n0 -->|contains| n58
+  n0 -->|contains| n59
   n61 -->|contains| n62
   n63 -->|contains| n64
   n64 -->|contains| n65
@@ -245,7 +247,6 @@ flowchart TD
   n30 -->|contains| n39
   n30 -->|contains| n40
   n30 -->|contains| n41
-  n0 -->|contains| n22
   n22 -->|contains| n23
   n22 -->|contains| n24
   n22 -->|contains| n25
@@ -260,7 +261,6 @@ flowchart TD
   n43 -->|contains| n47
   n42 -->|contains| n48
   n42 -->|contains| n50
-  n0 -->|contains| n51
   n51 -->|contains| n52
   n51 -->|contains| n53
   n51 -->|contains| n54
@@ -347,9 +347,9 @@ flowchart TD
   linkStyle 44 stroke:#2563eb,stroke-width:2px;
   linkStyle 45 stroke:#2563eb,stroke-width:2px;
   linkStyle 46 stroke:#2563eb,stroke-width:2px;
-  linkStyle 47 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 47 stroke:#2563eb,stroke-width:2px;
   linkStyle 48 stroke:#2563eb,stroke-width:2px;
-  linkStyle 49 stroke:#2563eb,stroke-width:2px;
+  linkStyle 49 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 50 stroke:#2563eb,stroke-width:2px;
   linkStyle 51 stroke:#2563eb,stroke-width:2px;
   linkStyle 52 stroke:#2563eb,stroke-width:2px;
@@ -358,8 +358,8 @@ flowchart TD
   linkStyle 55 stroke:#2563eb,stroke-width:2px;
   linkStyle 56 stroke:#2563eb,stroke-width:2px;
   linkStyle 57 stroke:#2563eb,stroke-width:2px;
-  linkStyle 58 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 59 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 58 stroke:#2563eb,stroke-width:2px;
+  linkStyle 59 stroke:#2563eb,stroke-width:2px;
   linkStyle 60 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 61 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 62 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
@@ -374,17 +374,17 @@ flowchart TD
   linkStyle 71 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 72 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 73 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 74 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 75 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 74 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 75 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 76 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 77 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 78 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 79 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 78 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 79 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 80 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 81 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 82 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
-  linkStyle 83 stroke:#2563eb,stroke-width:2px;
-  linkStyle 84 stroke:#2563eb,stroke-width:2px;
+  linkStyle 81 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 82 stroke:#dc2626,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 83 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
+  linkStyle 84 stroke:#7c3aed,stroke-width:2px,stroke-dasharray:5 5;
   linkStyle 85 stroke:#2563eb,stroke-width:2px;
   linkStyle 86 stroke:#2563eb,stroke-width:2px;
   linkStyle 87 stroke:#2563eb,stroke-width:2px;
@@ -510,7 +510,7 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | military.scouts | task | Scouts | The capital keeps 20 Scouts at home per city it owns, and stations 20 in each economic city on request. The Stable is only for Scouts (Stable 1). | perCity=20 | defense.smithy1 |
 | military.wall-cap | policy | Wall capped at 10 | Capital Walls stop at level 10. | maxLevel=10 | — |
 | military.workshop | capability | Workshop siege | Skipped: we win on numbers, not Rams or Trebuchets. | — | — |
-| first-conquest | mission | Enable conquest | Starts as soon as the capital has 150 home Pikemen, in parallel with the rest of the early game: Smithy 10, Market 5 and a Court. | originVillages=1, homePikemen=150, standingOrders=0 | early.barracks1 |
+| first-conquest | mission | First conquest | Starts as soon as the capital has 150 home Pikemen, in parallel with the rest of the early game: Smithy 10, Market 5 and a Court. | originVillages=1, homePikemen=150, standingOrders=0 | early.barracks1 |
 | conquest.infrastructure | group | Conquest infrastructure | Complete current building requirements and ordinary capacity prerequisites. | — | economy.producers.15 |
 | conquest.smithy10 | task | Smithy 10 | Build the conquest Smithy requirement. | level=10 | — |
 | conquest.market5 | task | Market 5 | Build the conquest Market requirement. | level=5 | — |
