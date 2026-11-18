@@ -947,7 +947,7 @@ test("economic city ships surplus to the capital from producers 15 and grows its
   assert.equal(trade.status, "ready");
   const market = evaluateEconomicCities(c).find(value =>
     value.task === "econ.market" && value.action.type === "build");
-  assert.equal(market?.importance, 55);
+  assert.equal(market?.importance, 95);
 
   capital.storage = capital.resources.timber + 2000;
   assert.equal(surplus().length, 0, "capital has no room for a full shipment");

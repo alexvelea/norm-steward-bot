@@ -99,6 +99,8 @@ export function evaluateBarracksGrowth(context:AdvisorContext):Proposal<Extract<
    Math.max(0,140-raiderOwned-raiderQueued)*(raiderOption?.ticksEach??0);
   if(backlog<=600)continue;
   const o=v.options.build.find(option=>option.building==="barracks");if(!o||o.level<=v.buildings.barracks)continue;
+  const batch=pikes?.requirements;
+  const idle=(["timber","stone","iron"] as const).every(r=>v.resources[r]>=2*(o.cost[r]??0)+2*(batch?.[r]??0));
   const blockers:string[]=[...o.blockers];let needed=o.ok&&!blockers.length;
   if(v.buildQueue.length)blockers.push("BUILD_QUEUE_BUSY");
   if(v.orders.build.length)blockers.push("EXTERNAL_BUILD_ORDERS");
@@ -108,8 +110,8 @@ export function evaluateBarracksGrowth(context:AdvisorContext):Proposal<Extract<
   if((context.state.player.nextActTick??context.state.world.tick)>context.state.world.tick)blockers.push("COUNCIL_COOLDOWN");
   proposals.push({id:`${context.state.world.epoch}:${v.id}:barracks-growth:${o.level}`,task:"military.barracks-growth",
    advisor:"military",villageId:v.id,villageName:v.name,action:{type:"build",village:v.id,building:"barracks"},
-   buildingName:"Barracks",currentLevel:v.buildings.barracks,targetLevel:o.level,importance:65,
-   reason:`Barracks work backlog is ${Math.ceil(backlog)} ticks, over the 600-tick threshold.`,requirements:o.cost,
+   buildingName:"Barracks",currentLevel:v.buildings.barracks,targetLevel:o.level,importance:idle?92:65,
+   reason:`Barracks work backlog is ${Math.ceil(backlog)} ticks, over the 600-tick threshold. ${idle?"Stock covers twice the upgrade plus two Pikemen batches, so it outranks other builds.":"Stock is below twice the upgrade plus two Pikemen batches, so it waits behind other builds."}`,requirements:o.cost,
    blockers,status:!needed?"not-needed":blockers.length?"waiting":"ready",affordableAtTick:o.affordableAtTick});
  }
  return proposals;

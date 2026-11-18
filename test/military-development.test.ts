@@ -71,7 +71,7 @@ test("capital Walls stop at level 10 and economic cities are excluded", () => {
   assert.ok(evaluateWalls(context).every(proposal => proposal.villageId === capital.id));
 });
 
-test("Barracks grows at importance 65 when Pikeman and Raider training backlog exceeds 600 ticks", () => {
+test("Barracks grows at importance 92 with idle stock, 65 otherwise, when Pikeman and Raider training backlog exceeds 600 ticks", () => {
   const context = ready();
   const village = context.state.villages[0]!;
   village.buildings.barracks = 1;
@@ -80,8 +80,11 @@ test("Barracks grows at importance 65 when Pikeman and Raider training backlog e
   village.options.build.find(option => option.building === "barracks")!.level = 2;
   const proposal = evaluateBarracksGrowth(context)[0];
   assert.equal(proposal?.task, "military.barracks-growth");
-  assert.equal(proposal?.importance, 65);
   assert.match(proposal?.reason ?? "", /over the 600-tick threshold/);
+  village.resources = { timber: 1e6, stone: 1e6, iron: 1e6 };
+  assert.equal(evaluateBarracksGrowth(context)[0]?.importance, 92);
+  village.resources = { timber: 0, stone: 0, iron: 0 };
+  assert.equal(evaluateBarracksGrowth(context)[0]?.importance, 65);
 });
 
 test("Raiders train toward 140 owned, counting home, away and queued troops", () => {

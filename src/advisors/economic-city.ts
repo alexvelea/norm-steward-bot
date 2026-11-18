@@ -284,7 +284,7 @@ function surplusProposals(
   const wanted = Math.floor(total / carry);
   const proposals: Proposal[] = [];
   if (wanted > village.merchants.total) {
-    const proposal = buildOrUnblock(context, village, "econ.market", "market", 55,
+    const proposal = buildOrUnblock(context, village, "econ.market", "market", 95,
       `Surplus for the capital needs ${wanted} merchants; the Market has ${village.merchants.total}.`);
     if (proposal) proposals.push(proposal);
   }

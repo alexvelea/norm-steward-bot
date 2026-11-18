@@ -121,7 +121,7 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
   },
   "econ.market-growth": {
     intent: "Merchant capacity follows shipping demand.",
-    eligible: ["Market 1 once producers reach level 5.", "Further levels when the surplus for the capital needs more whole merchants than the Market has in total (score 55).", "Game requirements: Great Hall 3 and Storehouse 2; level L has round(0.4·L² + 0.6·L) merchants carrying 1,000 each."],
+    eligible: ["Market 1 once producers reach level 5.", "Further levels when the surplus for the capital needs more whole merchants than the Market has in total (score 95: above producer and Storehouse builds, so shipping is never capped by merchants).", "Game requirements: Great Hall 3 and Storehouse 2; level L has round(0.4·L² + 0.6·L) merchants carrying 1,000 each."],
   },
   "logistics.market-growth": {
     intent: "Raise the capital's Market when merchants are the bottleneck for fulfilling requests.",
@@ -248,7 +248,7 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
   "military.barracks-growth": {
     intent: "Raise Barracks when the Pikemen target or the 140 Raiders can't be trained fast enough; both train there. No level cap.",
     eligible: ["The Pikemen target or the 140 Raiders cannot be trained fast enough."],
-    priority: ["Score: to be decided when codified."],
+    priority: ["Score 92 (above Storehouse overflow and producer builds, below Farm capacity) while every resource covers twice the upgrade plus two Pikemen batches; otherwise 65, so it never takes what Pikemen need."],
     never: ["Never impose a Barracks level cap."],
   },
   "military.army": {
