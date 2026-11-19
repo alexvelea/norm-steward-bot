@@ -15,7 +15,7 @@ export const CONQUEST_PRODUCER_FLOOR = 15;
 /** Per-tick cost of one Pikeman at this village's live Barracks speed. */
 export function defenseBudget(v: VillageState) {
   const p = v.options.train.find(o => o.unit === "pikeman");
-  if (!p || ![p.ticksEach,p.pop].every(n => Number.isSafeInteger(n) && n > 0)) return null;
+  if (!p || !Number.isFinite(p.ticksEach) || p.ticksEach <= 0 || !Number.isSafeInteger(p.pop) || p.pop <= 0) return null;
   const ticks = p.ticksEach;
   const cost = { ...p.cost };
   if (Object.values(cost).some(n => !Number.isFinite(n) || n < 0)) return null;

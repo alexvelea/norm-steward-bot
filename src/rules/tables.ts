@@ -125,7 +125,7 @@ export const watchtowerRadius = (level: number): number => at(TABLES.watchtowerR
 
 const trainTicksTable = {} as Record<UnitId, number[]>;
 for (const unit of UNIT_IDS) {
-  trainTicksTable[unit] = TABLES.trainSpeed.map((speed) => Math.max(1, round(UNITS[unit].trainTime * speed)));
+  trainTicksTable[unit] = TABLES.trainSpeed.map((speed) => Math.max(1, round(UNITS[unit].trainTime * 1000 * speed)) / 1000);
 }
 
 /** Ticks to train one unit with its producing building at `level`. */

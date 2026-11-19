@@ -814,7 +814,7 @@ test("fresh military revalidation catches a lost prerequisite before spending", 
 
 test("fresh revalidation stops a producer whose payback crosses round end while its build still fits", async () => {
   const x = await setup();
-  x.c.state.world.endsAtTick = 724;
+  x.c.state.world.endsAtTick = 962;
   x.c.state.villages[0].hidden = 1000;
   let reads = 0;
   const remote: Remote = async <T>(

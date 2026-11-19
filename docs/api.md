@@ -18,6 +18,9 @@ lag upstream. The server publishes a machine-readable description at `GET /api/v
   `tick`; `speed` says how many ticks pass per real second, and it can change (sandboxes). The tick
   rules (when an action applies, when a command arrives) are in
   [design.md § The tick](design.md#the-tick).
+  Training durations (`options.train[].ticksEach`) and batch `nextTick`/`endTick` have milli-tick
+  precision (up to three decimals). Units due within a tick appear when that integer tick is processed;
+  completion events use that processing tick. Waiting-batch end times are estimates at today's level.
 - **Ids** are opaque strings with a type prefix (`p_`, `v_`, `c_`, `t_`, `b_`, `q_`, `r_`, `s_`),
   unique within a world, deterministic for replays but not sequential. Keep them, don't parse them.
 - **Not yours is not found.** An id that exists but isn't yours answers exactly like one that doesn't

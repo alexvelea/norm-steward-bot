@@ -144,13 +144,18 @@ Real numbers, from [`src/rules/config.ts`](../src/rules/config.ts). A tick is on
 time; a blitz round is 10,800 ticks (three hours at speed 1).
 
 **The start.** A new village has the Great Hall, farm, storehouse, lumberyard, quarry and mine at
-level 1 and 1,000 of each resource. A level-1 resource building makes 112 a minute, and each level
-multiplies that by 1.165 (206 at level 5, 443 at level 10). The storehouse holds 3,600 of each at
+level 1 and 1,000 of each resource. A level-1 resource building makes 80 a minute, and each level
+multiplies that by 1.165 (147.365 at level 5, 316.245 at level 10); level 0 makes 14/minute. The storehouse holds 3,600 of each at
 level 1, ×1.22 a level (7,975 at level 5); anything over is lost. The farm feeds 200 at level 1,
 ×1.18 a level, and buildings eat population too, so a stalled queue is usually a farm you didn't
 build.
 
-**The hall pays for itself.** Every build takes `0.952^hall` of its base time: at hall 10, 61%.
+**Training.** Every unit's base training time is halved. A unit takes
+`max(1, round(trainTime * 1000 * 0.94^(max(1, level)-1))) / 1000` ticks, locked when it
+starts. Fractional `ticksEach`, `nextTick` and training `endTick` are valid; several units may
+complete in one tick. Read live options rather than rounding durations to whole ticks.
+
+**The hall pays for itself.** All building base times are halved; builds still round to whole ticks. Every build takes `0.952^hall` of its base time: at hall 10, 61%.
 
 **The unlock path.** Barracks needs hall 3. Shieldmen need smithy 1, raiders smithy 2. The smithy
 needs hall 5 and barracks 1. Lancers need stable 3 and smithy 3, and the stable needs hall 10,

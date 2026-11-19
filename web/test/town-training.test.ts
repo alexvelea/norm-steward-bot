@@ -19,3 +19,10 @@ test("Town training progress handles active, waiting, completed and invalid empt
   assert.equal(trainingProgress({ ...batch, remaining: 0 }, 100), 1);
   assert.equal(trainingProgress({ ...batch, count: 0 }, 15), 0);
 });
+
+test("Town training progress preserves sub-tick next and end times", () => {
+  const batch: TrainBatch = { id: "milli", unit: "pikeman", count: 10, remaining: 6,
+    nextTick: 20.453, endTick: 24.983, costEach: { timber: 45, stone: 35, iron: 15 } };
+  assert.ok(Math.abs(trainingProgress(batch, 20) - 0.45) < 1e-12);
+  assert.equal(trainingProgress({ ...batch, nextTick: null }, 20), 0);
+});

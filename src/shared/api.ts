@@ -226,9 +226,9 @@ export interface TrainBatch {
   remaining: number;
   /** What was paid per unit (envoys: with the multiplier). */
   costEach: Resources;
-  /** When the next unit comes out; null while an earlier batch in this building is running. */
+  /** Exact tick (three decimal places); processed at ceil(nextTick). Null while an earlier batch in this building is running. */
   nextTick: number | null;
-  /** When the last unit comes out, at today's building level. */
+  /** Exact tick (three decimal places) for the last unit, estimated at today's building level. */
   endTick: number;
 }
 

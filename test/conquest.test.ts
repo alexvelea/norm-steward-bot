@@ -51,6 +51,12 @@ test('an impossible capture deadline, external orders and six waves prevent disp
  v.orders.build=[{building:'wall',toLevel:2}];assert.equal(applyConquest(context,[],c).length,0);v.orders.build=[];
 
 });
+
+test('conquest waits for the integer processing tick after fractional recruitment',()=>{
+ const {context,c}=fixture();
+ assert.equal(conquestCaptureTick(context,c,100.906),conquestCaptureTick(context,c,101));
+ assert.equal(conquestCaptureTick(context,c,100),250);
+});
 test('standing orders, scheduled actions and a non-running world preserve proposals unchanged',()=>{
  for(const block of [
   (x:ReturnType<typeof fixture>)=>{x.v.orders.build=[{building:'wall',toLevel:2}];},

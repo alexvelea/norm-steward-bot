@@ -87,6 +87,7 @@ give the same world.
 
 - **Resources:** timber, stone and iron, made by the lumberyard, quarry and mine. Production per
   minute at level L is `productionBase * productionGrowth^(L-1)`, or `productionAtZero` at level 0.
+  The balance snapshot uses 80/minute at level 1 and 14/minute at level 0, with growth 1.165.
   Internally resources are integer milli-units; the API shows whole units rounded down, plus the exact
   figures for bots that want them.
 - **Storage:** the storehouse caps each resource at `storageBase * storageGrowth^(L-1)`. Anything that
@@ -102,7 +103,9 @@ give the same world.
 - **Building:** one build queue per village, up to `buildQueueMax` items. Queuing pays the cost at
   once; items build one after another. Ticks for level L are
   `max(1, round(baseTime * timeGrowth^(L-1) * HALL_SPEED_BASE^hallLevel))` with the hall level when the
-  item **starts**; once started, its `endTick` is fixed. Queuing a building that's already queued
+  item **starts**; once started, its `endTick` is fixed. Base times for all buildings, including the
+  Hall, are halved relative to the previous balance; whole-tick rounding (minimum 1), per-level
+  growth and Hall speed remain unchanged. Queuing a building that's already queued
   queues the level after. Each item builds `current level + 1` when it completes, so if trebuchets
   knock a building down while levels are queued, the items rebuild from the new level. Requirements
   are checked only when something is queued.
@@ -114,8 +117,12 @@ give the same world.
 - **The cellar** hides `cellarBase * cellarGrowth^(L-1)` of each resource from raiders.
 - **Training:** the barracks, stable, workshop and court each have a queue of up to `trainQueueMax`
   batches of up to `trainBatchMax` units. A batch pays for every unit up front. Units come out one at
-  a time, each taking `max(1, round(trainTime * speedBase^(max(1, level)-1)))` ticks at the producing
-  building's level when that unit starts. Training carries on if the building is knocked down.
+  a time, each taking `max(1, round(trainTime * 1000 * speedBase^(max(1, level)-1))) / 1000` ticks
+  at the producing building's level when that unit starts. Unit base times are halved; speedBase
+  remains 0.94. Training uses integer milli-tick precision, so several units can finish during one
+  tick; unused time carries into the next unit and batch. Completions become visible at the next
+  integer processing tick. Each unit locks its speed when it starts, even across upgrades.
+  Training carries on if the building is knocked down.
   Cancelling a batch refunds every unit not yet out, the one in progress included, in full.
 - **The market** has `round(merchantsA*L^2 + merchantsB*L)` merchants, each carrying `merchantCarry`
   of any mix of resources to any village (not a hamlet) at `merchantSpeed` ticks per field each way.

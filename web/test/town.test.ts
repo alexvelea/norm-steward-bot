@@ -6,8 +6,8 @@ import type { BuildQueueItem } from "../src/contract";
 import { buildingBenefit, buildingImprovement, buildingUnlocks, buildProgress } from "../src/ui/town/buildings";
 
 test("town benefits use published level tables for economy, storage and training", () => {
-  assert.match(buildingBenefit("lumberyard", 0, TABLES), /20 timber \/ min/);
-  assert.match(buildingBenefit("lumberyard", 2, TABLES), /130\.5 timber \/ min/);
+  assert.match(buildingBenefit("lumberyard", 0, TABLES), /14 timber \/ min/);
+  assert.match(buildingBenefit("lumberyard", 2, TABLES), /93\.2 timber \/ min/);
   assert.match(buildingBenefit("farm", 2, TABLES), new RegExp(String(TABLES.farm[2])));
   assert.match(buildingBenefit("storehouse", 2, TABLES), /4,392 storage per resource/);
   assert.match(buildingBenefit("cellar", 1, TABLES), /450 hidden per resource/);
@@ -39,7 +39,7 @@ test("construction progress advances only active work and is clamped at both end
 test("upgrade improvements compare adjacent levels, including hall time reductions rather than percentage points", () => {
   assert.equal(buildingImprovement("hall", 8, 9, TABLES), "4.8% shorter construction times");
   assert.equal(buildingImprovement("hall", 1, 2, TABLES), "4.8% shorter construction times");
-  assert.match(buildingImprovement("lumberyard", 1, 2, TABLES), /\+18\.5 timber \/ min \(\+16\.5%\)/);
+  assert.match(buildingImprovement("lumberyard", 1, 2, TABLES), /\+13\.2 timber \/ min \(\+16\.5%\)/);
   assert.equal(buildingImprovement("farm", 1, 2, TABLES), "+36 population capacity");
   assert.equal(buildingImprovement("storehouse", 1, 2, TABLES), "+792 storage per resource");
   assert.equal(buildingImprovement("barracks", 1, 2, TABLES), "6% shorter training times");

@@ -74,7 +74,7 @@ const cellarAt = (level: number) => (level === 0 ? 0 : roundHalfUp(ECONOMY.cella
 const farmAt = (level: number) => roundHalfUp(ECONOMY.farmBase * ECONOMY.farmGrowth ** (level - 1));
 const merchantsAt = (level: number) => roundHalfUp(MARKET.merchantsA * level * level + MARKET.merchantsB * level);
 const watchRadius = (level: number) => (level === 0 ? 0 : WATCHTOWER.radiusBase + WATCHTOWER.radiusPerLevel * level);
-const trainTicks = (u: UnitId, level: number) => Math.max(1, roundHalfUp(UNITS[u].trainTime * TRAINING.speedBase ** (Math.max(1, level) - 1)));
+const trainTicks = (u: UnitId, level: number) => Math.max(1, roundHalfUp(UNITS[u].trainTime * 1000 * TRAINING.speedBase ** (Math.max(1, level) - 1))) / 1000;
 const PRODUCER: Record<BuildingId, keyof Resources | null> = {
   hall: null, lumberyard: "timber", quarry: "stone", mine: "iron", farm: null, storehouse: null, cellar: null, barracks: null,
   smithy: null, stable: null, workshop: null, market: null, wall: null, watchtower: null, court: null,
@@ -642,7 +642,7 @@ export class MockWorld {
     const queue = v.training[building];
     const each = trainTicks(u, v.buildings[building]);
     const prevEnd = queue.length ? queue[queue.length - 1]!.endTick : this.tick;
-    queue.push({ id: this.id("b"), unit: u, count, remaining: count, costEach: UNITS[u].cost, nextTick: queue.length ? null : this.tick + each, endTick: prevEnd + each * count });
+    queue.push({ id: this.id("b"), unit: u, count, remaining: count, costEach: UNITS[u].cost, nextTick: queue.length ? null : (this.tick * 1000 + Math.round(each * 1000)) / 1000, endTick: (Math.round(prevEnd * 1000) + Math.round(each * 1000) * count) / 1000 });
     return true;
   }
 
@@ -757,17 +757,20 @@ export class MockWorld {
   private train(): void {
     for (const v of this.own.values()) {
       for (const building of TRAINERS) {
-        const batch = v.training[building][0];
-        if (!batch || batch.nextTick === null || batch.nextTick > this.tick) continue;
-        batch.remaining--;
-        addUnits(v.home, { [batch.unit]: 1 });
-        if (batch.remaining <= 0) {
-          v.training[building].shift();
-          this.event({ type: "training_completed", village: v.id, unit: batch.unit, count: batch.count, batch: batch.id });
-          const next = v.training[building][0];
-          if (next) next.nextTick = this.tick + trainTicks(next.unit, v.buildings[building]);
-        } else {
-          batch.nextTick = this.tick + trainTicks(batch.unit, v.buildings[building]);
+        while (v.training[building].length) {
+          const batch = v.training[building][0];
+          if (!batch || batch.nextTick === null || batch.nextTick > this.tick) break;
+          const finishedAt = batch.nextTick;
+          batch.remaining--;
+          addUnits(v.home, { [batch.unit]: 1 });
+          if (batch.remaining <= 0) {
+            v.training[building].shift();
+            this.event({ type: "training_completed", village: v.id, unit: batch.unit, count: batch.count, batch: batch.id });
+            const next = v.training[building][0];
+            if (next) next.nextTick = Math.round((finishedAt + trainTicks(next.unit, v.buildings[building])) * 1000) / 1000;
+          } else {
+            batch.nextTick = Math.round((finishedAt + trainTicks(batch.unit, v.buildings[building])) * 1000) / 1000;
+          }
         }
       }
     }

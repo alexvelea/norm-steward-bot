@@ -17,7 +17,7 @@ export function minuteTrainingProposal(
   targetLevel = currentLevel + deficit,
 ): Proposal<Extract<Action, { type: "train" }>> | null {
   const option = village.options.train.find(value => value.unit === unit);
-  if (!option || !Number.isSafeInteger(option.ticksEach) || option.ticksEach < 1) return null;
+  if (!option || !Number.isFinite(option.ticksEach) || option.ticksEach <= 0) return null;
   const facility = (context.rules.rules.UNITS as Record<string, { building: keyof VillageState["training"] }>)[unit]?.building;
   if (!facility) return null;
   const queue = village.training[facility];
@@ -62,11 +62,11 @@ export function minuteTrainingProposal(
   }
   if (queue.length) add("TRAIN_QUEUE_BUSY");
   if (village.orders.train.length) add("EXTERNAL_ORDERS");
-  const start = Math.max(
+  const start = Math.ceil(Math.max(
     affordableAtTick,
     context.state.player.nextActTick ?? context.state.world.tick,
     ...queue.map(batch => batch.endTick),
-  );
+  ));
   if (start + count * option.ticksEach + 60 > context.state.world.endsAtTick) {
     skip("ROUND_END_TOO_SOON");
   }
@@ -86,7 +86,7 @@ export function minuteTrainingProposal(
     currentLevel,
     targetLevel,
     importance,
-    reason: `${reason} Batch ${count} takes ${count * option.ticksEach} ticks; keep ${buffer} population free. Time and funding include queued Barracks work, with 60 ticks left for use.`,
+    reason: `${reason} Batch ${count} takes ${(count * option.ticksEach).toFixed(3)} ticks; keep ${buffer} population free. Time and funding include queued Barracks work, with 60 ticks left for use.`,
     requirements,
     blockers,
     status: !needed ? "not-needed" : blockers.length ? "waiting" : "ready",

@@ -43,7 +43,7 @@ export function conquestCaptureTick(context: AdvisorContext,c: ConquestContext,s
  const travel=conquestTravel(context,c);if(travel===null)return null;
  const combat=context.rules.rules.COMBAT as {envoyLoyaltyHit:number;loyaltyRegenTicks:number};
  const interval=Math.max(travel*2,context.state.world.actIntervalTicks??0);
- const arrivals=Array.from({length:6},(_,i)=>start+travel+i*interval);
+ const arrivals=Array.from({length:6},(_,i)=>Math.ceil(start)+travel+i*interval);
  const hit=conquestLoyalty(arrivals,combat.envoyLoyaltyHit,combat.loyaltyRegenTicks).findIndex(n=>n<=0);
  return hit<0?null:arrivals[hit];
 }

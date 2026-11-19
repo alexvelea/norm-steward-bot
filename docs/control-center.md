@@ -114,6 +114,15 @@ The displayed 3-/5-minute capacity forecasts ignore speculative future spending 
 production upgrades. The Hall comparison below separately estimates a bounded sequence.
 Equality at a capacity target does not trigger an upgrade.
 
+## Balance and fractional training
+
+Use live production, build options and training options for every forecast. The local balance snapshot
+uses production 80/min at level 1 and 14/min at level 0, halved building and unit base times, and
+training speedBase 0.94. Training durations and queue completion estimates can be fractional ticks
+with three-decimal precision, including less than one tick per unit. Count units and population as
+integers, but never truncate or reject fractional training durations. Full-time demand is cost divided
+by that duration; the existing construction allowance and policy thresholds are unchanged.
+
 ## Great Hall payback
 
 `src/advisors/hall.ts` makes a bounded client-side projection: at most 24 useful upgrades within

@@ -81,7 +81,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Seat of the holding. Each level makes every construction in the village faster.",
     minLevel: 1, maxLevel: 30,
     baseCost: { timber: 90, stone: 80, iron: 70 }, costGrowth: g,
-    baseTime: 20, timeGrowth: 1.2, basePop: 5, popGrowth: 1.17, basePoints: 10,
+    baseTime: 10, timeGrowth: 1.2, basePop: 5, popGrowth: 1.17, basePoints: 10,
     requires: {},
   },
   lumberyard: {
@@ -89,7 +89,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Fells timber.",
     minLevel: 0, maxLevel: 30,
     baseCost: { timber: 50, stone: 60, iron: 40 }, costGrowth: 1.25,
-    baseTime: 10, timeGrowth: 1.2, basePop: 5, popGrowth: 1.155, basePoints: 6,
+    baseTime: 5, timeGrowth: 1.2, basePop: 5, popGrowth: 1.155, basePoints: 6,
     requires: {},
   },
   quarry: {
@@ -97,7 +97,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Cuts stone.",
     minLevel: 0, maxLevel: 30,
     baseCost: { timber: 65, stone: 50, iron: 40 }, costGrowth: 1.27,
-    baseTime: 10, timeGrowth: 1.2, basePop: 10, popGrowth: 1.14, basePoints: 6,
+    baseTime: 5, timeGrowth: 1.2, basePop: 10, popGrowth: 1.14, basePoints: 6,
     requires: {},
   },
   mine: {
@@ -105,7 +105,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Digs iron.",
     minLevel: 0, maxLevel: 30,
     baseCost: { timber: 75, stone: 65, iron: 70 }, costGrowth: 1.252,
-    baseTime: 12, timeGrowth: 1.2, basePop: 10, popGrowth: 1.17, basePoints: 6,
+    baseTime: 6, timeGrowth: 1.2, basePop: 10, popGrowth: 1.17, basePoints: 6,
     requires: {},
   },
   farm: {
@@ -113,7 +113,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Feeds the village. Its level sets the population limit for buildings and troops.",
     minLevel: 1, maxLevel: 30,
     baseCost: { timber: 45, stone: 40, iron: 30 }, costGrowth: 1.3,
-    baseTime: 14, timeGrowth: 1.2, basePop: 0, popGrowth: 1, basePoints: 5,
+    baseTime: 7, timeGrowth: 1.2, basePop: 0, popGrowth: 1, basePoints: 5,
     requires: {},
   },
   storehouse: {
@@ -121,7 +121,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Sets how much of each resource the village can hold.",
     minLevel: 1, maxLevel: 30,
     baseCost: { timber: 60, stone: 50, iron: 40 }, costGrowth: 1.265,
-    baseTime: 12, timeGrowth: 1.2, basePop: 0, popGrowth: 1, basePoints: 6,
+    baseTime: 6, timeGrowth: 1.2, basePop: 0, popGrowth: 1, basePoints: 6,
     requires: {},
   },
   cellar: {
@@ -129,7 +129,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Hides part of each resource from raiders.",
     minLevel: 0, maxLevel: 10,
     baseCost: { timber: 50, stone: 60, iron: 50 }, costGrowth: 1.25,
-    baseTime: 8, timeGrowth: 1.2, basePop: 2, popGrowth: 1.17, basePoints: 5,
+    baseTime: 4, timeGrowth: 1.2, basePop: 2, popGrowth: 1.17, basePoints: 5,
     requires: {},
   },
   barracks: {
@@ -137,7 +137,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Trains foot soldiers. Each level trains them faster.",
     minLevel: 0, maxLevel: 25,
     baseCost: { timber: 200, stone: 170, iron: 90 }, costGrowth: g,
-    baseTime: 25, timeGrowth: 1.2, basePop: 7, popGrowth: 1.17, basePoints: 16,
+    baseTime: 12.5, timeGrowth: 1.2, basePop: 7, popGrowth: 1.17, basePoints: 16,
     requires: { hall: 3 },
   },
   smithy: {
@@ -145,7 +145,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Forges arms. Its level unlocks the better unit types.",
     minLevel: 0, maxLevel: 20,
     baseCost: { timber: 220, stone: 180, iron: 240 }, costGrowth: g,
-    baseTime: 50, timeGrowth: 1.2, basePop: 20, popGrowth: 1.17, basePoints: 19,
+    baseTime: 25, timeGrowth: 1.2, basePop: 20, popGrowth: 1.17, basePoints: 19,
     requires: { hall: 5, barracks: 1 },
   },
   stable: {
@@ -153,7 +153,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Trains scouts and horsemen. Each level trains them faster.",
     minLevel: 0, maxLevel: 20,
     baseCost: { timber: 270, stone: 240, iron: 260 }, costGrowth: g,
-    baseTime: 80, timeGrowth: 1.2, basePop: 8, popGrowth: 1.17, basePoints: 20,
+    baseTime: 40, timeGrowth: 1.2, basePop: 8, popGrowth: 1.17, basePoints: 20,
     requires: { hall: 10, barracks: 5, smithy: 5 },
   },
   workshop: {
@@ -161,7 +161,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Builds rams and trebuchets. Each level builds them faster.",
     minLevel: 0, maxLevel: 15,
     baseCost: { timber: 300, stone: 240, iron: 260 }, costGrowth: g,
-    baseTime: 80, timeGrowth: 1.2, basePop: 8, popGrowth: 1.17, basePoints: 24,
+    baseTime: 40, timeGrowth: 1.2, basePop: 8, popGrowth: 1.17, basePoints: 24,
     requires: { hall: 10, smithy: 10 },
   },
   market: {
@@ -169,7 +169,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Houses merchants who carry resources to any village.",
     minLevel: 0, maxLevel: 25,
     baseCost: { timber: 100, stone: 100, iron: 100 }, costGrowth: g,
-    baseTime: 35, timeGrowth: 1.2, basePop: 20, popGrowth: 1.17, basePoints: 10,
+    baseTime: 17.5, timeGrowth: 1.2, basePop: 20, popGrowth: 1.17, basePoints: 10,
     requires: { hall: 3, storehouse: 2 },
   },
   wall: {
@@ -177,7 +177,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Multiplies the defence of everyone inside.",
     minLevel: 0, maxLevel: 20,
     baseCost: { timber: 50, stone: 100, iron: 20 }, costGrowth: g,
-    baseTime: 45, timeGrowth: 1.2, basePop: 5, popGrowth: 1.17, basePoints: 8,
+    baseTime: 22.5, timeGrowth: 1.2, basePop: 5, popGrowth: 1.17, basePoints: 8,
     requires: { barracks: 1 },
   },
   watchtower: {
@@ -185,7 +185,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Sees incoming armies early: their size, and whether an envoy marches with them.",
     minLevel: 0, maxLevel: 20,
     baseCost: { timber: 120, stone: 150, iron: 80 }, costGrowth: 1.22,
-    baseTime: 40, timeGrowth: 1.2, basePop: 4, popGrowth: 1.17, basePoints: 12,
+    baseTime: 20, timeGrowth: 1.2, basePop: 4, popGrowth: 1.17, basePoints: 12,
     requires: { hall: 5, wall: 1 },
   },
   court: {
@@ -193,7 +193,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
     description: "Where envoys are trained, who win villages over to your banner.",
     minLevel: 0, maxLevel: 1,
     baseCost: { timber: 3000, stone: 4500, iron: 2500 }, costGrowth: 1,
-    baseTime: 600, timeGrowth: 1, basePop: 20, popGrowth: 1, basePoints: 100,
+    baseTime: 300, timeGrowth: 1, basePop: 20, popGrowth: 1, basePoints: 100,
     requires: { hall: 10, smithy: 10, market: 5 },
   },
 };
@@ -210,9 +210,9 @@ export const ECONOMY = {
    * productionAtZero at level 0. Resources are kept in milli-units (integers): each tick adds
    * round(perMinute * 1000 / 60) milli-units. The tables give that per-tick figure per level.
    */
-  productionBase: 112,
+  productionBase: 80,
   productionGrowth: 1.165,
-  productionAtZero: 20,
+  productionAtZero: 14,
   /** Storehouse capacity per resource at level L = round(base * growth^(L-1)). */
   storageBase: 3600,
   storageGrowth: 1.22,
@@ -291,63 +291,63 @@ export const UNITS: Record<UnitId, UnitRule> = {
     building: "barracks", buildingLevel: 1, smithyLevel: 0,
     cost: { timber: 45, stone: 35, iron: 15 }, pop: 1,
     attack: 10, attackType: "infantry", defense: { infantry: 20, cavalry: 45, ranged: 15 },
-    speed: 18, carry: 25, trainTime: 8,
+    speed: 18, carry: 25, trainTime: 4,
   },
   shieldman: {
     name: "Shieldman", description: "Heavy shield and short sword. Holds against foot soldiers and arrows.",
     building: "barracks", buildingLevel: 1, smithyLevel: 1,
     cost: { timber: 35, stone: 30, iron: 65 }, pop: 1,
     attack: 22, attackType: "infantry", defense: { infantry: 50, cavalry: 20, ranged: 40 },
-    speed: 22, carry: 15, trainTime: 11,
+    speed: 22, carry: 15, trainTime: 5.5,
   },
   raider: {
     name: "Raider", description: "Axe and torch. Hits hard, defends badly.",
     building: "barracks", buildingLevel: 1, smithyLevel: 2,
     cost: { timber: 55, stone: 35, iron: 45 }, pop: 1,
     attack: 42, attackType: "infantry", defense: { infantry: 8, cavalry: 5, ranged: 8 },
-    speed: 18, carry: 12, trainTime: 10,
+    speed: 18, carry: 12, trainTime: 5,
   },
   archer: {
     name: "Archer", description: "Longbow. Strong behind a wall, useful in an attack mix.",
     building: "barracks", buildingLevel: 5, smithyLevel: 5,
     cost: { timber: 90, stone: 40, iron: 55 }, pop: 1,
     attack: 18, attackType: "ranged", defense: { infantry: 45, cavalry: 35, ranged: 10 },
-    speed: 18, carry: 10, trainTime: 13,
+    speed: 18, carry: 10, trainTime: 6.5,
   },
   scout: {
     name: "Scout", description: "Rides ahead and reports what a village holds. Fights other scouts first.",
     building: "stable", buildingLevel: 1, smithyLevel: 0,
     cost: { timber: 45, stone: 55, iron: 25 }, pop: 2,
     attack: 0, attackType: "cavalry", defense: { infantry: 2, cavalry: 2, ranged: 2 },
-    speed: 9, carry: 0, trainTime: 7,
+    speed: 9, carry: 0, trainTime: 3.5,
   },
   lancer: {
     name: "Lancer", description: "Light horse. Fast, carries a lot, the raider's raider.",
     building: "stable", buildingLevel: 3, smithyLevel: 3,
     cost: { timber: 120, stone: 110, iron: 240 }, pop: 4,
     attack: 125, attackType: "cavalry", defense: { infantry: 25, cavalry: 35, ranged: 25 },
-    speed: 10, carry: 85, trainTime: 14,
+    speed: 10, carry: 85, trainTime: 7,
   },
   knight: {
     name: "Knight", description: "Armoured horse. Expensive, good at everything.",
     building: "stable", buildingLevel: 10, smithyLevel: 10,
     cost: { timber: 210, stone: 160, iron: 580 }, pop: 6,
     attack: 160, attackType: "cavalry", defense: { infantry: 190, cavalry: 90, ranged: 170 },
-    speed: 11, carry: 50, trainTime: 28,
+    speed: 11, carry: 50, trainTime: 14,
   },
   ram: {
     name: "Ram", description: "Breaks walls, before the fight and after a win.",
     building: "workshop", buildingLevel: 1, smithyLevel: 0,
     cost: { timber: 280, stone: 220, iron: 190 }, pop: 5,
     attack: 2, attackType: "infantry", defense: { infantry: 20, cavalry: 45, ranged: 20 },
-    speed: 30, carry: 0, trainTime: 35,
+    speed: 30, carry: 0, trainTime: 17.5,
   },
   trebuchet: {
     name: "Trebuchet", description: "After a win, knocks down levels of the building you aim it at.",
     building: "workshop", buildingLevel: 2, smithyLevel: 5,
     cost: { timber: 330, stone: 380, iron: 120 }, pop: 8,
     attack: 90, attackType: "infantry", defense: { infantry: 100, cavalry: 50, ranged: 100 },
-    speed: 30, carry: 0, trainTime: 55,
+    speed: 30, carry: 0, trainTime: 27.5,
   },
   envoy: {
     name: "Envoy", description: "Talks a beaten village's people out of their loyalty. Enough of them and it's yours.",
@@ -355,12 +355,12 @@ export const UNITS: Record<UnitId, UnitRule> = {
     cost: { timber: 6000, stone: 7500, iron: 6500 }, pop: 40,
     attack: 30, attackType: "infantry", defense: { infantry: 100, cavalry: 50, ranged: 100 },
     // Same pace as the siege engines, so only a watchtower tells an envoy train from a siege.
-    speed: 30, carry: 0, trainTime: 150,
+    speed: 30, carry: 0, trainTime: 75,
   },
 };
 
 export const TRAINING = {
-  /** Ticks to train one unit = max(1, round(unit.trainTime * speedBase^(max(1, buildingLevel)-1))), at the building's level when that unit starts. */
+  /** Ticks to train one unit = max(1, round(unit.trainTime * 1000 * speedBase^(max(1, buildingLevel)-1))) / 1000, at the building's level when that unit starts. */
   speedBase: 0.94,
   /** Envoy cost = unit cost * the number of villages you own when the batch is queued. */
   envoyCostPerVillageOwned: true,

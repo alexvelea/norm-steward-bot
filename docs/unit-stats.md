@@ -1,6 +1,6 @@
 # Unit stats and continuous recruitment budget
 
-Verified against the selected live world’s `/api/v1/worlds/{worldId}/rules` on **2026-11-16**, rules version **2**. These are recruitment costs, not recruitment-building construction costs.
+Balance reference: upstream server d4fadb0 (production 80/14, halved base build/train times, speedBase 0.94 and milli-tick training). These are recruitment costs, not recruitment-building construction costs. This is a local snapshot, not a fresh live-world verification.
 
 ## Level-1 training and resource demand
 
@@ -15,23 +15,23 @@ For one building training only this unit continuously:
 
 | Unit | Building | Base seconds/unit | Timber/unit | Stone/unit | Iron/unit | Total/unit | Units/min | Timber/min | Stone/min | Iron/min | Total/min |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Pikeman | Barracks | 8 | 45 | 35 | 15 | 95 | 7.5 | 337.5 | 262.5 | 112.5 | 712.5 |
-| Shieldman | Barracks | 11 | 35 | 30 | 65 | 130 | 5.45 | 190.91 | 163.64 | 354.55 | 709.09 |
-| Raider | Barracks | 10 | 55 | 35 | 45 | 135 | 6 | 330 | 210 | 270 | 810 |
-| Archer | Barracks | 13 | 90 | 40 | 55 | 185 | 4.62 | 415.38 | 184.62 | 253.85 | 853.85 |
-| Scout | Stable | 7 | 45 | 55 | 25 | 125 | 8.57 | 385.71 | 471.43 | 214.29 | 1,071.43 |
-| Lancer | Stable | 14 | 120 | 110 | 240 | 470 | 4.29 | 514.29 | 471.43 | 1,028.57 | 2,014.29 |
-| Knight | Stable | 28 | 210 | 160 | 580 | 950 | 2.14 | 450 | 342.86 | 1,242.86 | 2,035.71 |
-| Ram | Workshop | 35 | 280 | 220 | 190 | 690 | 1.71 | 480 | 377.14 | 325.71 | 1,182.86 |
-| Trebuchet | Workshop | 55 | 330 | 380 | 120 | 830 | 1.09 | 360 | 414.55 | 130.91 | 905.45 |
-| Envoy | Court | 150 | 6,000 | 7,500 | 6,500 | 20,000 | 0.4 | 2,400 | 3,000 | 2,600 | 8,000 |
-| 3Pi1Sh (3 Pikemen + 1 Shieldman) | Barracks | 35 | 170 | 135 | 110 | 415 | 1.71 | 291.43 | 231.43 | 188.57 | 711.43 |
+| Pikeman | Barracks | 4 | 45 | 35 | 15 | 95 | 15 | 675 | 525 | 225 | 1,425 |
+| Shieldman | Barracks | 5.5 | 35 | 30 | 65 | 130 | 10.91 | 381.82 | 327.27 | 709.09 | 1,418.18 |
+| Raider | Barracks | 5 | 55 | 35 | 45 | 135 | 12 | 660 | 420 | 540 | 1,620 |
+| Archer | Barracks | 6.5 | 90 | 40 | 55 | 185 | 9.23 | 830.77 | 369.23 | 507.69 | 1,707.69 |
+| Scout | Stable | 3.5 | 45 | 55 | 25 | 125 | 17.14 | 771.43 | 942.86 | 428.57 | 2,142.86 |
+| Lancer | Stable | 7 | 120 | 110 | 240 | 470 | 8.57 | 1,028.57 | 942.86 | 2,057.14 | 4,028.57 |
+| Knight | Stable | 14 | 210 | 160 | 580 | 950 | 4.29 | 900 | 685.71 | 2,485.71 | 4,071.43 |
+| Ram | Workshop | 17.5 | 280 | 220 | 190 | 690 | 3.43 | 960 | 754.29 | 651.43 | 2,365.71 |
+| Trebuchet | Workshop | 27.5 | 330 | 380 | 120 | 830 | 2.18 | 720 | 829.09 | 261.82 | 1,810.91 |
+| Envoy | Court | 75 | 6,000 | 7,500 | 6,500 | 20,000 | 0.8 | 4,800 | 6,000 | 5,200 | 16,000 |
+| 3Pi1Sh (3 Pikemen + 1 Shieldman) | Barracks | 17.5 | 170 | 135 | 110 | 415 | 3.43 | 582.86 | 462.86 | 377.14 | 1,422.86 |
 
-“3Pi1Sh” is a planning bundle of **3 Pikemen + 1 Shieldman**, not an actual game unit. One level-1 Barracks trains the four troops sequentially in `3 × 8 + 11 = 35` ticks. Its Units/min column means **bundles/minute** (6.86 individual troops/minute); each bundle uses 4 population. Shieldmen require Smithy 1.
+“3Pi1Sh” is a planning bundle of **3 Pikemen + 1 Shieldman**, not an actual game unit. One level-1 Barracks trains the four troops sequentially in `3 × 4 + 5.5 = 17.5` ticks. Its Units/min column means **bundles/minute** (13.71 individual troops/minute); each bundle uses 4 population. Shieldmen require Smithy 1.
 
 Envoy costs above assume **one owned village**. The server multiplies each resource cost by the number of owned villages when the batch is queued; multiply its resource-demand columns by that count. Training time does not receive that cost multiplier.
 
-Rates are long-run averages, rounded to two decimals. Units complete discretely; “5.45 units/min” does not mean a fractional unit is trained.
+Rates are long-run averages, rounded to two decimals. Units complete discretely; “10.91 units/min” does not mean a fractional unit is trained.
 
 ## Combat, population, travel and unlocks
 
@@ -55,22 +55,22 @@ Bundle combat values and carrying capacity sum its members; travel uses the slow
 
 ## Higher-level buildings and actual available throughput
 
-Live training rule: `ticks = max(1, round(baseTrainTime × 0.94^(max(1, buildingLevel) − 1)))`. Round the training time first, then calculate resource demand. The authoritative current-village value is `options.train[].ticksEach` in `/state`; use its `cost` too, especially for Envoys.
+Live training rule: `ticks = max(1, round(baseTrainTime × 1000 × 0.94^(max(1, buildingLevel) − 1))) / 1000`. Round to integer milli-ticks first, then calculate resource demand. The authoritative current-village value is `options.train[].ticksEach` in `/state`; use its `cost` too, especially for Envoys. Fractional `nextTick` and `endTick` retain the same units (ticks). The engine carries fractional completion times across units and batches; completed units appear on the integer tick that processes them. A unit's speed locks at its start.
 
 Units that cannot train at level 1 have these earliest-unlock training rates:
 
 | Unit | Minimum recruitment building | Seconds/unit there | Total resources/min there |
 |---|---|---:|---:|
-| Archer | Barracks 5 | 10 | 1,110 |
-| Lancer | Stable 3 | 12 | 2,350 |
-| Knight | Stable 10 | 16 | 3,562.5 |
-| Trebuchet | Workshop 2 | 52 | 957.69 |
+| Archer | Barracks 5 | 5.075 | 2187.19 |
+| Lancer | Stable 3 | 6.185 | 4559.42 |
+| Knight | Stable 10 | 8.022 | 7105.46 |
+| Trebuchet | Workshop 2 | 25.850 | 1926.50 |
 
 ## Using this for an economy budget
 
-A level-1 Barracks continuously producing **Raiders** needs **330 timber + 210 stone + 270 iron per minute**, or **810 resources/minute total**, and creates six population worth of troops per minute. Having 810 total production is insufficient if iron production is below 270/minute.
+A level-1 Barracks continuously producing **Raiders** needs **660 timber + 420 stone + 540 iron per minute**, or **1,620 resources/minute total**, and creates twelve population worth of troops per minute. Having 1,620 total production is insufficient if iron production is below 540/minute.
 
-At your observed **Barracks 5**, a Raider takes **8 ticks**, so continuous recruitment needs **412.5 timber + 262.5 stone + 337.5 iron/minute**, total **1,012.5/minute**, and 7.5 population/minute. Faster training increases the sustained resource requirement.
+At **Barracks 5**, a Raider takes **3.904 ticks**, so continuous recruitment needs **845.29 timber + 537.91 stone + 691.60 iron/minute**, total **2074.80/minute**, and 15.37 population/minute. Faster training increases the sustained resource requirement.
 
 For a mix in the **same building**, weight resource flows by the fraction of training time assigned to each unit; do not add two full-time rows. For desired unit counts, calculate total cost divided by total training time instead. For **different buildings** running simultaneously (for example Barracks and Stable), add their resource flows.
 
@@ -80,7 +80,7 @@ Continuous recruitment also consumes population capacity: allow for Farm expansi
 
 ## Recruitment cohorts
 
-The advisor queues whole 3Pi1Sh bundles covering just over one game minute: `ceil(61 / bundle training ticks)` bundles. At Barracks 1 that is **6 Pikemen + 2 Shieldmen in 70 ticks**; at the advisor’s initial target **Barracks 3 it is 6 + 2 in 62 ticks**; at Barracks 5 it is **9 Pikemen + 3 Shieldmen in 81 ticks**. Both components share the Barracks queue. Once queued, the cohort drains before another starts; construction and Stable training can continue independently.
+For the illustrative 3Pi1Sh mix, `ceil(61 / bundle training ticks)` bundles cover just over one game minute. At Barracks 1 that is **12 Pikemen + 4 Shieldmen in 70.000 ticks**; at Barracks 3 it is **12 + 4 in 61.848 ticks**; at Barracks 5 it is **15 + 5 in 68.315 ticks**. Round each unit duration to milli-ticks before summing. This mix is a comparison budget, not the current Pikeman-only advisor policy: current single-unit batches use `min(deficit, ceil(61 / live ticksEach), trainBatchMax, maxCount)` and drain before another batch starts.
 
 ## Refreshing the numbers
 

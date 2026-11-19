@@ -3,6 +3,14 @@
 > Historical experiment commands marked `retired-harness:` are archival evidence, not executable commands. Use the single-version sandbox runner documented in docs/reviews.md for new runs.
 
 
+## Current balance baseline
+
+The server balance at d4fadb0 uses production 80/min at level 1 and 14/min at level 0,
+unchanged 1.165 growth, halved building/unit base times, and milli-tick training with speedBase
+0.94. Use live options and [unit budgets](unit-stats.md), not old experiment throughput figures.
+Policy targets and allocation thresholds are not retuned by this contract sync. Dated comparisons
+below record historical rules and must not be reinterpreted as measurements under this balance.
+
 ## Current policy: hardcoded early game and sustainable military budget
 
 The capital grows producers to 5, then toward 8; after producers 8 it raises Great Hall toward 5
@@ -98,8 +106,7 @@ and explain the tradeoff before editing policy. Long simulations now run in a pe
 experiment worker outside the 15-minute Codex budget. A negative result can complete research;
 implementation tasks remain subject to exact tested-code evidence, checks and deployment gates.
 Next measure: observe the approved hybrid in the next live world, including production, delivered
-troops, Wall timing, spending and building-queue occupancy. Later test threats and the upstream training-speed changes only
-after live rules actually expose them. The Farm deadline and Farm runway guards are deployed (`3977d0d`, then `d054552`).
+troops, Wall timing, spending and building-queue occupancy. Future comparisons must use the new server balance; the historical measurements below predate it. The Farm deadline and Farm runway guards are deployed (`3977d0d`, then `d054552`).
 Population-runway research and delivery are complete. Gameplay execution preference remains unchanged.
 
 ## Conquest transition: verified for activation (2026-11-17)
