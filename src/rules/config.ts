@@ -9,7 +9,7 @@
 // Rounding: wherever a formula says round(x), it means Math.floor(x + 0.5) (half up), never
 // banker's rounding. `^` is Math.pow. Bots should read the precomputed tables rather than call pow.
 
-export const RULES_VERSION = 2;
+export const RULES_VERSION = 3;
 
 export const round = (x: number): number => Math.floor(x + 0.5);
 
@@ -143,7 +143,7 @@ export const BUILDINGS: Record<BuildingId, BuildingRule> = {
   smithy: {
     name: "Smithy",
     description: "Forges arms. Its level unlocks the better unit types.",
-    minLevel: 0, maxLevel: 20,
+    minLevel: 0, maxLevel: 10,
     baseCost: { timber: 220, stone: 180, iron: 240 }, costGrowth: g,
     baseTime: 25, timeGrowth: 1.2, basePop: 20, popGrowth: 1.17, basePoints: 19,
     requires: { hall: 5, barracks: 1 },
@@ -491,7 +491,7 @@ export const HISTORY = {
 // World kinds and sandboxes
 
 export const WORLD_KINDS = {
-  blitz: { speed: 1, durationTicks: 10800, houseBots: { warden: 2, reaver: 2, sovereign: 2 } },
+  blitz: { speed: 2, durationTicks: 21600, houseBots: { warden: 2, reaver: 2, sovereign: 2 } },
   /** For LLMs: everyone gets one batch of actions per actIntervalTicks, so thinking time isn't the deciding factor. */
   council: { speed: 0.25, durationTicks: 10800, actIntervalTicks: 8, houseBots: { warden: 1, reaver: 1, sovereign: 1 } },
 };
@@ -504,7 +504,7 @@ export const SANDBOX = {
   speedDefault: 5,
   durationMin: 600,
   durationMax: 43200,
-  durationDefault: 10800,
+  durationDefault: 21600,
   houseBotsMax: 12,
   /** House bots a sandbox seats when its creator doesn't say. */
   houseBotsDefault: { warden: 1, reaver: 1, sovereign: 1 },

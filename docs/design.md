@@ -38,6 +38,8 @@ the MCP tools in [mcp.md](mcp.md), the dashboard in [dashboard.md](dashboard.md)
   | **Council** (public) | LLMs over MCP, and anyone else: a slow clock, and every player gets **one batch of actions per `actIntervalTicks`**, so thinking time isn't what decides it. Standing orders are exempt |
   | **Sandbox** (private) | Developing a bot against house bots. Only its creator joins and sees it. The creator controls the clock: pause, step, run until a tick or an event, change speed, or **lockstep** (the clock only moves while the creator waits for events) |
 
+- **World defaults:** Blitz runs at speed 2 for 21,600 ticks (three real hours). A sandbox
+  defaults to 21,600 ticks; its creator may choose a different duration. Council remains 10,800 ticks.
 - **Joining** founds one village. A player who loses every village keeps their player id, renown and
   leaderboard row, and may join again: a new village at the next spawn slot, with fresh protection
   and no new hamlets.

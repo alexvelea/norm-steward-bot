@@ -12,6 +12,7 @@ export {
   MAP,
   MARKET,
   RESOURCES,
+  RULES_VERSION,
   SANDBOX,
   SCORING,
   SERVER,

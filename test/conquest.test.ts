@@ -47,7 +47,7 @@ test('conquest dispatches with 150 home Raiders during Pikeman training',()=>{
 test('an impossible capture deadline, external orders and six waves prevent dispatch',()=>{
  const {context,v,c}=fixture();assert.equal(conquestCaptureTick(context,c),250);
  context.state.world.endsAtTick=309;assert.equal(selectProposal(applyConquest(context,[],c)).selected,null);
- context.state.world.endsAtTick=10800;c.plan.waves=6;assert.equal(selectProposal(applyConquest(context,[],c)).selected,null);c.plan.waves=0;
+ context.state.world.endsAtTick=21600;c.plan.waves=6;assert.equal(selectProposal(applyConquest(context,[],c)).selected,null);c.plan.waves=0;
  v.orders.build=[{building:'wall',toLevel:2}];assert.equal(applyConquest(context,[],c).length,0);v.orders.build=[];
 
 });

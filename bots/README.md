@@ -141,7 +141,8 @@ Two sandboxes per account at a time; delete one with `DELETE /sandboxes/{w}`.
 ## Strategy notes
 
 Real numbers, from [`src/rules/config.ts`](../src/rules/config.ts). A tick is one second of game
-time; a blitz round is 10,800 ticks (three hours at speed 1).
+time; a blitz round is 21,600 ticks at speed 2 (three real hours, six game hours).
+Sandboxes default to 21,600 ticks; explicit experiment durations can be shorter.
 
 **The start.** A new village has the Great Hall, farm, storehouse, lumberyard, quarry and mine at
 level 1 and 1,000 of each resource. A level-1 resource building makes 80 a minute, and each level

@@ -116,6 +116,10 @@ Equality at a capacity target does not trigger an upgrade.
 
 ## Balance and fractional training
 
+The snapshot is rules version 3, with Smithy capped at level 10. The Controller validates
+the fetched `/rules` version against the selected world's `rulesVersion`, not a hardcoded
+client version, and invalidates its rules cache when that world version changes.
+
 Use live production, build options and training options for every forecast. The local balance snapshot
 uses production 80/min at level 1 and 14/min at level 0, halved building and unit base times, and
 training speedBase 0.94. Training durations and queue completion estimates can be fractional ticks

@@ -121,7 +121,7 @@ async function setup() {
       level,
       cost: { timber: 1, stone: 1, iron: 1 },
       startTick: c.state.world.tick,
-      endTick: c.state.world.tick + 10,
+      endTick: c.state.world.tick + 10 * c.state.world.speed,
     };
     v.buildQueue.push(item);
     return {
@@ -1071,6 +1071,8 @@ test("one-second idle cycles refresh state without repeatedly fetching metadata 
 });
 test("version changes invalidate rule cache and metadata refreshes at its bounded TTL", async () => {
   const x = await setup();
+  assert.equal(x.c.state.world.rulesVersion, 3);
+  assert.equal(x.c.rules.version, 3);
   let now = 0;
   const calls: string[] = [];
   const remote: Remote = async <T>(s: Settings, p: string, b?: unknown) => {
@@ -1091,6 +1093,18 @@ test("version changes invalidate rule cache and metadata refreshes at its bounde
   await controller.cycle();
   assert.equal(calls.filter((p) => p === "/me").length, 2);
   assert.equal(calls.filter((p) => p.endsWith("/rules")).length, 2);
+  assert.equal(controller.snapshot().error, null);
+});
+
+test("rules-v3 worlds reject stale live rules before gameplay writes", async () => {
+  const x = await setup();
+  await x.controller.cycle();
+  await x.controller.setAutomatic(true);
+  x.c.rules.version = 2;
+  x.c.state.world.epoch = "next-round";
+  await x.controller.cycle();
+  assert.match(x.controller.snapshot().error ?? "", /Rules version mismatch/);
+  assert.equal(x.writes.length, 0);
 });
 
 test("accepted construction and training run concurrently, survive paused restart and confirm independently", async()=>{

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { defenseBudget } from "../src/advisors/defense-budget.js";
 import { minuteTrainingProposal } from "../src/advisors/military-training.js";
-import { BUILDINGS, UNITS, UNIT_IDS } from "../src/rules/config.js";
-import { buildTicks, productionPerMinute, trainTicks } from "../src/rules/tables.js";
+import { BUILDINGS, RULES_VERSION, SANDBOX, UNITS, UNIT_IDS, WORLD_KINDS } from "../src/rules/config.js";
+import { TABLES, buildTicks, productionPerMinute, trainTicks } from "../src/rules/tables.js";
 import { developedContext } from "./control-fixtures.js";
 
 function fixture() {
@@ -16,6 +16,17 @@ function fixture() {
   village.resourcesMilli = { timber: 100000000, stone: 100000000, iron: 100000000 };
   return { context, village };
 }
+
+test("approved rules-v3 snapshot includes the Smithy cap and world defaults", () => {
+  assert.equal(RULES_VERSION, 3);
+  assert.equal(BUILDINGS.smithy.maxLevel, 10);
+  assert.equal(TABLES.buildings.smithy.length, 10);
+  assert.equal(TABLES.buildings.smithy.at(-1)?.level, 10);
+  assert.equal(WORLD_KINDS.blitz.speed, 2);
+  assert.equal(WORLD_KINDS.blitz.durationTicks, 21600);
+  assert.equal(SANDBOX.durationDefault, 21600);
+  assert.equal(WORLD_KINDS.council.durationTicks, 10800);
+});
 
 test("balance snapshot uses milli-ticks while construction remains whole ticks", () => {
   assert.equal(productionPerMinute(0), 14);
