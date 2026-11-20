@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {applyConquest, conquestCaptureTick, conquestScope, evaluateRecall, type ConquestContext} from '../src/advisors/conquest.js';
+import {applyConquest, recurringConquestFits, conquestCaptureTick, conquestScope, evaluateRecall, type ConquestContext} from '../src/advisors/conquest.js';
 import {selectProposal} from '../src/advisors/president.js';
 import {allocateWithPresident} from '../src/bot/allocation/president.js';
 import type {AdvisorContext, Proposal} from '../src/advisors/types.js';
@@ -452,4 +452,87 @@ test('first conquest waits for the producer gate, Barracks cap and empty orders'
   const c=await x.create();await c.setAutomatic(false);await c.cycle();
   assert.equal(x.saved().missions?.length,0);
  }
+});
+
+test('recurring admission includes scaled Envoy cost, production, incoming trade arrival and capture margin',()=>{
+ const {context,v,c}=fixture();
+ v.units.home.envoy=0;v.training.court=[];
+ const option=v.options.train.find(value=>value.unit==='envoy')!;
+ option.cost={timber:1000,stone:1000,iron:1000};option.ticksEach=100;
+ v.resourcesMilli={timber:0,stone:0,iron:0};
+ v.productionPerTickMilli={timber:1000,stone:1000,iron:1000};
+ const arrival=conquestCaptureTick(context,c,1200)!;
+ context.state.world.endsAtTick=arrival+60;
+ assert.equal(recurringConquestFits(context,v,c.map),true);
+ context.state.world.endsAtTick--;
+ assert.equal(recurringConquestFits(context,v,c.map),false);
+ v.productionPerTickMilli={timber:0,stone:0,iron:0};
+ context.state.trades.incoming=[{id:'fund',to:{id:v.id},resources:{timber:1000,stone:1000,iron:1000},arrivalTick:1100,returning:false} as any];
+ context.state.world.endsAtTick=arrival+60;
+ assert.equal(recurringConquestFits(context,v,c.map),true);
+ context.state.trades.incoming[0]!.arrivalTick++;
+ assert.equal(recurringConquestFits(context,v,c.map),false);
+ context.state.trades.incoming=[];
+ assert.equal(recurringConquestFits(context,v,c.map),false);
+});
+
+test('recurring admission handles absent map, absent targets, missing training option and retained Envoy',()=>{
+ const {context,v,c}=fixture();
+ assert.equal(recurringConquestFits(context,v),true);
+ assert.equal(recurringConquestFits(context,v,{...c.map!,villages:[]}),false);
+ context.state.world.endsAtTick=context.state.world.tick+60;
+ assert.equal(recurringConquestFits(context,v,c.map),false);
+ v.options.train=[];
+ assert.equal(recurringConquestFits(context,v,c.map),false);
+});
+
+test('a late recurring mission is not persisted or allowed to reserve capital spending',async()=>{
+ const x=await executor();x.v.units.home.pikeman=250;
+ const previous=structuredClone(x.c.plan);previous.status='captured';
+ x.saved().missions=[conquestMission(previous)];
+ const economic=structuredClone(x.v);economic.id='economic';economic.buildings.hall=10;
+ economic.buildings.wall=10;economic.units.home.pikeman=200;
+ x.context.state.villages.push(economic);x.context.state.world.villages=2;
+ x.context.state.world.endsAtTick=x.context.state.world.tick+60;
+ const controller=await x.create();await controller.setAutomatic(false);await controller.cycle();
+ assert.equal(x.saved().missions?.length,1);
+ assert.ok(!controller.snapshot().proposals.some(proposal=>proposal.task==='expansion.envoy'));
+});
+
+test('recurring admission uses stock, retained Envoys and the nearest neutral target',()=>{
+ const {context,v,c}=fixture();
+ const capture=conquestCaptureTick(context,c)!;
+ context.state.world.endsAtTick=capture+60;
+ const option=v.options.train.find(value=>value.unit==='envoy')!;
+ option.ticksEach=100;
+ assert.equal(recurringConquestFits(context,v,c.map),true,'retained Envoy needs no funding or training');
+ v.units.home.envoy=0;
+ assert.equal(recurringConquestFits(context,v,c.map),false,'training must fit even when stock is funded');
+ context.state.world.endsAtTick+=100;
+ assert.equal(recurringConquestFits(context,v,c.map),true);
+ option.cost={timber:v.storage+1,stone:1,iron:1};
+ assert.equal(recurringConquestFits(context,v,c.map),false,'unfundable storage capacity');
+ v.units.home.envoy=1;
+ c.map!.villages.unshift({...c.map!.villages[0]!,id:'far',x:90,y:90});
+ c.map!.villages.unshift({...c.map!.villages[0]!,id:'owned',x:v.x,y:v.y,ownerId:'enemy'});
+ assert.equal(recurringConquestFits(context,v,c.map),true,'nearer owned targets are excluded');
+ context.state.world.endsAtTick=context.state.world.tick+60;
+ assert.equal(recurringConquestFits(context,v),false,'fallback is not instantaneous');
+});
+
+test('recurring admission combines production and several incoming trades, excluding unrelated trades',()=>{
+ const {context,v,c}=fixture();v.units.home.envoy=0;
+ const option=v.options.train.find(value=>value.unit==='envoy')!;
+ option.cost={timber:1000,stone:1000,iron:1000};option.ticksEach=100;
+ v.resourcesMilli={timber:100000,stone:100000,iron:100000};
+ v.productionPerTickMilli={timber:1000,stone:1000,iron:1000};
+ const trade=(id:string,arrivalTick:number)=>({id,to:{id:v.id},resources:{timber:200,stone:200,iron:200},arrivalTick,returning:false} as any);
+ context.state.trades.incoming=[trade('later',500),trade('earlier',300)];
+ context.state.world.endsAtTick=conquestCaptureTick(context,c,700)!+60;
+ assert.equal(recurringConquestFits(context,v,c.map),true);
+ context.state.world.endsAtTick--;
+ assert.equal(recurringConquestFits(context,v,c.map),false);
+ context.state.trades.incoming[0]!.returning=true;
+ context.state.trades.incoming[1]!.to.id='elsewhere';
+ assert.equal(recurringConquestFits(context,v,c.map),false);
 });

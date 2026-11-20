@@ -417,3 +417,5 @@ After each capture, every capital-origin Raider stack stationed in the new econo
 recalled to the capital; Pikemen remain. Recall is journalled and reconciled like other actions.
 Enemy-village scouting, close/big target ranking and 2× battle simulation remain planned and are
 not implemented in this phase.
+
+Recurring conquests start only when estimated Envoy funding, training and capture plus 60 ticks fit before round end. Funding includes capital production and incoming trades. The nearest unowned map target is used; without a map, the estimate assumes 600 ticks of one-way travel.

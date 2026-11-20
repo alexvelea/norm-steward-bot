@@ -39,8 +39,8 @@ export function conquestTravel(context: AdvisorContext, c: ConquestContext): num
  return v&&t?Math.max(1,Math.ceil(Math.hypot(t.x-v.x,t.y-v.y)*speed)):null;
 }
 /** Exact loyalty boundaries, allowing council spacing, and six bounded hits at most. */
-export function conquestCaptureTick(context: AdvisorContext,c: ConquestContext,start=context.state.world.tick): number | null {
- const travel=conquestTravel(context,c);if(travel===null)return null;
+export function conquestCaptureTick(context: AdvisorContext,c: ConquestContext,start=context.state.world.tick,travel=conquestTravel(context,c)): number | null {
+ if(travel===null)return null;
  const combat=context.rules.rules.COMBAT as {envoyLoyaltyHit:number;loyaltyRegenTicks:number};
  const interval=Math.max(travel*2,context.state.world.actIntervalTicks??0);
  const arrivals=Array.from({length:6},(_,i)=>Math.ceil(start)+travel+i*interval);
@@ -173,4 +173,38 @@ export function evaluateRecall(context: AdvisorContext): Proposal<Extract<Action
    affordableAtTick:null,
   }];
  });
+}
+
+export function recurringConquestFits(context: AdvisorContext, capital: VillageState, map?: MapResponse): boolean {
+ const {state}=context,now=state.world.tick;
+ const option=capital.options.train.find(value=>value.unit==='envoy');
+ const ready=(capital.units.home.envoy??0)>0;
+ if(!option)return false;
+ if(!ready&&resources.some(resource=>option.cost[resource]>capital.storage))return false;
+ const trades=state.trades.incoming.filter(trade=>trade.to.id===capital.id&&!trade.returning&&trade.arrivalTick>=now)
+  .sort((a,b)=>a.arrivalTick-b.arrivalTick);
+ let tick=now,stock={...capital.resourcesMilli},funded=now;
+ if(!ready){
+  for(let i=0;i<=trades.length;i++){
+   funded=Math.max(tick,...resources.map(resource=>{
+    const deficit=option.cost[resource]*1000-stock[resource];
+    return deficit<=0?tick:capital.productionPerTickMilli[resource]>0
+     ?tick+Math.ceil(deficit/capital.productionPerTickMilli[resource]):Infinity;
+   }));
+   const trade=trades[i];
+   if(!trade||funded<=trade.arrivalTick)break;
+   for(const resource of resources)stock[resource]=Math.min(capital.storage*1000,
+    stock[resource]+(trade.arrivalTick-tick)*capital.productionPerTickMilli[resource]+trade.resources[resource]*1000);
+   tick=trade.arrivalTick;
+  }
+ }
+ if(!Number.isFinite(funded))return false;
+ const target=map?.villages.filter(value=>value.ownerId===null&&!state.villages.some(village=>village.id===value.id))
+  .sort((a,b)=>Math.hypot(a.x-capital.x,a.y-capital.y)-Math.hypot(b.x-capital.x,b.y-capital.y)||a.id.localeCompare(b.id))[0];
+ if(map&&!target)return false;
+ const plan:ConquestPlan={scope:'',villageId:capital.id,targetId:target?.id,startedTick:now,status:'preparing',waves:0};
+ const start=ready?now:Math.max(funded,...capital.training.court.map(batch=>batch.endTick))+option.ticksEach;
+ const c={plan,map};
+ const capture=conquestCaptureTick(context,c,start,map?conquestTravel(context,c):600);
+ return capture!==null&&capture+60<=state.world.endsAtTick;
 }

@@ -190,7 +190,7 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     eligible: ["First city captured."],
   },
   "expansion.readiness": {
-    intent: "Start the next conquest after the previous one ends, capital readiness is met, and all economic cities reach Great Hall 10; train its Envoy only after Every city defended.",
+    intent: "Start the next conquest only when Envoy funding, training and capture plus a 60-tick margin fit before round end, after the previous one ends, capital readiness is met, and all economic cities reach Great Hall 10; train its Envoy only after Every city defended.",
     eligible: [
       "The previous conquest has ended (captured or stopped).",
       "Every economic city has Great Hall 10.",

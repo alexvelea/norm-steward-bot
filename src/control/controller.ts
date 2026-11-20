@@ -29,7 +29,7 @@ import { logisticsAdvisor } from "../advisors/logistics.js";
 import { militaryAdvisor } from "../advisors/military.js";
 import { expansionReadiness } from "../advisors/sustained-defense.js";
 import { prioritizeFarmRunway } from "../advisors/farm-runway.js";
-import {applyConquest, conquestScope, conquestTravel, type ConquestContext} from "../advisors/conquest.js";
+import {applyConquest, conquestScope, conquestTravel, recurringConquestFits, type ConquestContext} from "../advisors/conquest.js";
 import { BARRACKS_CAP, militaryUnlocked, RAIDER_SEND_MIN } from "../advisors/defense-budget.js";
 import {safeEnvoyAttack} from "../review/conquest-plan.js";
 import type { AdvisorContext, Proposal } from "../advisors/types.js";
@@ -456,6 +456,7 @@ export class Controller {
     const latest=scopedMissions.at(-1);
     let mission=latest;
     let newlyStarted=false;
+    let admissionMap:MapResponse|undefined;
     if(!mission&&state.villages.length===1&&state.world.status==='running'){
       const v=state.villages[0];
       if(militaryUnlocked(v)&&v.buildings.barracks>=BARRACKS_CAP&&!Object.values(v.orders).some(q=>q.length)){
@@ -469,15 +470,18 @@ export class Controller {
       const roles=cityRoles(context,scopedMissions);
       const capital=state.villages.find(village=>roles.get(village.id)?.role==='capital');
       if(capital&&expansionReadiness(context,roles).ready){
-        mission=conquestMission({
-          scope,
-          villageId:capital.id,
-          startedTick:state.world.tick,
-          status:'preparing',
-          waves:0,
-          sequence:(latest.sequence??1)+1,
-        });
-        newlyStarted=true;
+        admissionMap=await this.request<MapResponse>(this.settings,this.path('/map')).catch(()=>undefined);
+        if(recurringConquestFits(context,capital,admissionMap)){
+          mission=conquestMission({
+            scope,
+            villageId:capital.id,
+            startedTick:state.world.tick,
+            status:'preparing',
+            waves:0,
+            sequence:(latest.sequence??1)+1,
+          });
+          newlyStarted=true;
+        }
       }
     }
     if(!mission){this.conquest=undefined;this.conquestReports={reports:[],next:null};return;}
@@ -498,7 +502,7 @@ export class Controller {
     }
     this.conquest={plan};
     if(plan.status!=='preparing'||!v||Math.min(v.buildings.lumberyard,v.buildings.quarry,v.buildings.mine)<15){savePlan();return;}
-    const map=await this.request<MapResponse>(this.settings,this.path('/map'));
+    const map=admissionMap??await this.request<MapResponse>(this.settings,this.path('/map'));
     this.conquest.map=map;
     if(!plan.targetId){
       plan.targetId=map.villages.filter(t=>t.ownerId===null).sort((a,b)=>
