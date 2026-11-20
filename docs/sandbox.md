@@ -42,11 +42,12 @@ SANDBOX_HOST=root@host scripts/sandbox/fetch.sh master HEAD
 
 Other options: `--house-bots none` or `--house-bots warden=1,reaver=1` (default
 `warden=2,reaver=2,sovereign=2`, at most 12), `--snapshot-ticks N` (default 300) and `--hours`
-(600–10800 ticks, up to three game hours). The default ref is HEAD and the default seed is 73430.
+(600–43200 ticks, up to 12 game hours). The default ref is HEAD and the default seed is 73430.
 
-This runner explicitly creates a 10,800-tick experiment world and caps its horizon at that
-duration. That is a local experiment bound, not the server's 21,600-tick sandbox default or
-Blitz round duration (speed 2, three real hours). `--hours` measures game hours.
+For ordinary runs, the experiment round lasts the longer of 10,800 ticks and the requested
+horizon. Thus `--hours 6` plays a full 21,600-tick Blitz round (speed 2, three real hours).
+`--hours` measures game hours; the maximum horizon is 43,200 ticks (12 game hours).
+Kept worlds use a 43,200-tick round regardless of the requested horizon.
 
 A one-hour run takes roughly 25 seconds and a two-hour run under two minutes. Run the command in
 the foreground and read its output; do not wrap it in polling loops. Runs are serialized by
@@ -113,8 +114,9 @@ the latest sighting details. Milestones already true at tick 0 are omitted.
 
 ## Kept worlds
 
-`--keep` stops one tick before the round ends when asked for the full three hours, because an ended
-world cannot be opened. The world stays paused and counts against the account limit of ten
+`--keep` creates a MAX_TICKS round (43,200 ticks, 12 game hours) and stops at the requested
+horizon, capped at tick 43,199 because an ended world cannot be opened. The world stays paused
+and counts against the account limit of ten
 sandboxes, so delete it with `--delete <run id>` as soon as you are done. A failed `--keep` run is
 cleaned up like any other.
 

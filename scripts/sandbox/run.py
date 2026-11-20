@@ -14,7 +14,7 @@ ROUND_TICKS=10800
 MAX_TICKS=43200  # SANDBOX.durationMax
 
 def round_ticks(ticks,keep=False):
-    """The round lasts three hours, or the horizon when longer; a kept world gets the longest round so it stays playable."""
+    """The round lasts at least 10,800 ticks, or the horizon when longer; kept worlds use MAX_TICKS so they stay playable."""
     return MAX_TICKS if keep else max(ROUND_TICKS,ticks)
 
 def read(path):return json.loads(path.read_text())
