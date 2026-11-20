@@ -103,7 +103,7 @@ try{
   }
   for(const p of view.proposals)if(p.affordableAtTick>tick)events.push(p.affordableAtTick);
   for(const command of [...state.commands.outgoing,...state.commands.incoming])if(command.arrivalTick>tick)events.push(command.arrivalTick);
-  const next=Math.min(...events.filter(n=>Number.isFinite(n)&&n>tick));assert.ok(next>tick&&next<=result.stopTick);
+  const next=Math.ceil(Math.min(...events.filter(n=>Number.isFinite(n)&&n>tick)));assert.ok(next>tick&&next<=result.stopTick);
   state=await advanceTo(next);timeline.observe(state);
  }
  await c.setAutomatic(false);result.final=state;result.lastTick=state.world.tick;result.cycles=cycles;assert.equal(state.world.tick,result.stopTick);assert.equal(result.checkpoints.at(-1).tick,result.stopTick);result.passed=true;
