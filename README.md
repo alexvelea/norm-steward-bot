@@ -44,8 +44,7 @@ lease on port 8790, even if it chooses another UI port. No game engine runs here
 The Economic Advisor runs automatically when a valid connection is configured, including after
 restarts while preserving a persisted operator pause. It automatically joins the selected world when a new round starts, and refounds if all
 villages are lost. It never switches to unrelated world IDs. The persistent service owns execution; browsers only display its state. Existing server
-standing build orders make this advisor wait in that village. Do not run an independent starter
-bot on the same account alongside this executor.
+standing build orders make this advisor wait in that village. Do not run another client on the same account alongside this executor.
 
 `STEWARD_CONTROL_DIR` defaults to ignored `data/control`. The service stores the game key and its
 request/decision journal in mode-0600 `control.json`; keep machine access private. Environment values
@@ -94,45 +93,11 @@ Give another agent [docs/OPERATOR.md](docs/OPERATOR.md) for explicitly requested
 recalls and troop movement. It includes a copyable task prompt and must not start another economic
 loop. The advisor and President themselves are deterministic scripts, with **no LLM calls**.
 
-## Run your bot
-
-These starters are an alternative economic controller. Do not run one on the same account while
-automatic Economic Advisor execution is enabled.
-
-Use the same game account/key as the dashboard if you want to control the same villages.
-In a second terminal, choose the TypeScript or Python starter:
-
-```bash
-export STEWARD_URL=https://norn-steward.velea.cc
-read -r -s STEWARD_KEY
-export STEWARD_KEY
-export STEWARD_WORLD=your-world-id
-npm run bot
-# Or: python3 bots/python/starter.py
-```
-
-The read command prompts silently for your key in bash/zsh. Paste it and press Enter.
-For a new account and a private sandbox, instead of supplying a key:
-
-```bash
-STEWARD_URL=https://norn-steward.velea.cc STEWARD_NAME=your_unique_name STEWARD_SANDBOX=1 npm run bot
-```
-
-The starter prints the new key once; save it privately. The bots read live rules/options and
-play on their own. Their fallback URL is localhost:8787, so always set STEWARD_URL for the live game.
-See [bots/README.md](bots/README.md) for strategy and environment options. The optional LLM shift
-runner is preserved and targets Claude Code; it is not a Codex runner.
-
-On a remote machine, use separate tmux windows for UI development and the bot. For an already
-created session: `tmux attach -t codex`. Detach with Ctrl+B, then D. tmux survives SSH disconnects,
-but not reboots; use a service manager if you need the bot to restart after reboot.
-
 ## Repository layout
 
 | Path | Purpose |
 |---|---|
 | web/ | Imported dashboard, mock demo, build script, UI tests, Caddy hosting config |
-| bots/ | Standalone TypeScript/Python starters and optional Claude shift runner |
 | src/shared/api.ts | Public API type snapshot used by the UI |
 | src/rules/ | Rule constants and derived tables needed by UI and tests; no engine |
 | scripts/serve.mjs | Personal UI hosting, authenticated control API and transport proxy |

@@ -78,7 +78,7 @@ subsequent connection changes belong in Settings. `.env` files are not automatic
 A fresh configured executor starts gameplay automatically. If moving an existing account to another
 machine, stop the old executor before starting this one. The port-8790 lease prevents duplicates on
 one host; it is not a cross-machine account lock. Existing persisted execution pauses survive restarts.
-The standalone starter bots are alternatives, not services to run alongside this control center.
+Do not run another client on this player's key alongside this control center.
 
 ## 3. Start the control center
 

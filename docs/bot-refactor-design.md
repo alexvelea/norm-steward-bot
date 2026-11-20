@@ -5,7 +5,9 @@ and version-1 planning projection are implemented. Economic-city roles and resou
 by capital trade are implemented, with recurring conquest. Automated scouting and raid bot behavior was
 removed. By owner decision, no gameplay parity harness was added. Parallel mission budgets, multiple
 submissions per cycle, satellite roles, defender requests, and overflow fulfilment remain unavailable.
-The design below retains the broader proposal and acceptance criteria for future work.
+The unused adapter implementations were removed; live execution uses the Controller and sandbox
+execution uses its sandbox transport. Adapter references below are proposed boundaries, not existing
+code. The design below retains the broader proposal and acceptance criteria for future work.
 
 This document is a handoff for an implementing agent. It describes an architectural refactor,
 not authorization to change strategy thresholds, enable gameplay, start experiments, or deploy.

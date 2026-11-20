@@ -35,14 +35,13 @@ lanes, journals stable IDs before writes, and reconciles unknown/accepted outcom
 render state; they do not own gameplay loops. A server restart reloads existing queues and IDs.
 The current cadence is one second. Missing Codex access does not stop this path.
 
-The lease is host-local. Running the starter bot or a second machine with this player's key can
+The lease is host-local. Running another client with this player's key can
 still compete; coordination with external/manual actions is a limitation to evaluate, not a distributed
 lock guarantee. The server remains the final validator of resources, limits and prerequisites.
 
 ## Bot core and planning
 
-`src/bot/` separates the declarative plan (`plan/graph.ts`, `plan/evaluate.ts`), live and scripted
-world adapters, serialized runner, President allocation wrapper, mission/commitment strategy,
+`src/bot/` separates the declarative plan (`plan/graph.ts`, `plan/evaluate.ts`), serialized runner, President allocation wrapper, mission/commitment strategy,
 execution journal, persistence schema, and planning diagnostics. The Controller remains the HTTP
 facade and composes these parts; the generated graph is documented in [plan.md](plan.md).
 

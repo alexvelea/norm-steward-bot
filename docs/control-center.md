@@ -225,8 +225,8 @@ therefore stops or changes the selection. The remote engine remains the final ar
 independent client can still act between revalidation and submission. There is no cross-client
 resource reservation or atomic expected-level check in the upstream API.
 
-The bot architecture is split under `src/bot/`: declarative plan and projection, live/scripted
-adapters, runner, allocation, mission and commitment strategy, execution journal, persistence, and
+The bot architecture is split under `src/bot/`: declarative plan and projection,
+runner, allocation, mission and commitment strategy, execution journal, persistence, and
 diagnostics. The Controller remains the HTTP facade. The control store uses version 2; startup
 migrates legacy state and writes a private mode-0600 backup. Unsupported versions require recovery
 and block execution rather than being overwritten. Automated scouting and raid bot behavior has
@@ -289,10 +289,10 @@ The matched private result demonstrates peaceful capture at 113:04, with substan
 home defence and lower production than continuous recruitment. It does not establish survival
 against a hostile player. See [strategy](strategy.md) for measured costs and verification status.
 
-## Existing starter bots and operator agent
+## Other clients and operator agent
 
-Stop `npm run bot`, the Python starter and LLM shift runners for this account before automatic mode.
-Those independent processes can compete even if the browser is closed. A bot running on another
+Do not run another client on this account alongside automatic mode.
+Independent processes can compete even if the browser is closed. A client running on another
 machine cannot be detected reliably. Current
 server standing build orders are detected and block this advisor per village.
 Manual gameplay remains available. Its writes use normal API limits and appear in the game's

@@ -13,7 +13,6 @@
     "start": "node --import tsx scripts/serve.mjs",
     "build:web": "node web/build.mjs",
     "watch:web": "node web/build.mjs --watch",
-    "bot": "tsx bots/typescript/starter.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
     "test": "node --import tsx --test web/test/*.test.ts test/*.test.ts",
     "access:init": "node scripts/access-token.mjs",

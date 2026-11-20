@@ -8,7 +8,7 @@ This repository is a client of the remote game, not its engine.
 
 - Follow Alex's current request: scouting, recalling support, or moving a specified army is not
   permission to attack with combat troops, spend resources, enable automation, or run indefinitely.
-- The President owns automated economic construction. Do not start a starter bot or a second
+- The President owns automated economic construction. Do not start a second
   economic loop. Manual orders share resources, troops, queues and Council turns with it.
 - Read fresh state before each action. Match names to IDs, check ownership and available home
   troops, and resolve ambiguous targets before sending anything.

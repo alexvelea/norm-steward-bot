@@ -23,8 +23,8 @@ limits. An AI connected with your key can do exactly what your key can, and noth
 A Council round is many hours; no conversation holds that much context. So an LLM plays in **shifts**
 of about 30 real minutes. Each shift starts with a fresh context, calls `get_briefing` (which carries
 the notes it left), plays the loop until its time is up, then calls `set_notes` with its plan and
-stops. `bots/llm/shift.sh` and `shift.ps1` run shifts back to back with `claude -p` until the round
-ends. Routine work between shifts is what **standing orders** are for: a build order, troop targets,
+stops. A client can start a fresh shift with those saved notes. Routine work between shifts is what
+**standing orders** are for: a build order, troop targets,
 farm raids.
 
 ## The tools
