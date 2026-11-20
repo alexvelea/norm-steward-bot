@@ -45,6 +45,8 @@ test("Stable 1 is the final military-development step for Scouts", () => {
   const village = context.state.villages[0]!;
   Object.assign(village.buildings, {barracks: 5, smithy: 5});
   for (const option of village.options.build) option.level = village.buildings[option.building] + 1;
+  assert.ok(!evaluateMilitaryDevelopment(context).some(value => value.task === "military.stable1"));
+  context.state.villages.push({...structuredClone(village), id: "second"});
   const proposal = evaluateMilitaryDevelopment(context).find(value => value.task === "military.stable1");
   assert.equal(proposal?.action.type, "build");
   if (proposal?.action.type === "build") {
@@ -76,7 +78,7 @@ test("capital Walls stop at level 10 and economic cities are excluded", () => {
 test("the early Wall rush outranks Hall and Barracks builds after Barracks 1", () => {
   const context = ready();
   const village = context.state.villages[0]!;
-  Object.assign(village.buildings, {lumberyard: 14, quarry: 14, mine: 12, barracks: 1, wall: 2, hall: 10, smithy: 0});
+  Object.assign(village.buildings, {lumberyard: 14, quarry: 14, mine: 14, barracks: 1, wall: 2, hall: 10, smithy: 0});
   for (const option of village.options.build) option.level = village.buildings[option.building] + 1;
   const proposals = [
     ...evaluateEconomy(context),
@@ -95,7 +97,7 @@ test("the early Wall rush outranks Hall and Barracks builds after Barracks 1", (
 test("Hall 10 rush waits on resources at importance 90 and blocks other military development", () => {
   const context = ready();
   const village = context.state.villages[0]!;
-  Object.assign(village.buildings, {lumberyard: 14, quarry: 14, mine: 12, barracks: 1, wall: 5, hall: 6, smithy: 0});
+  Object.assign(village.buildings, {lumberyard: 14, quarry: 14, mine: 14, barracks: 1, wall: 5, hall: 6, smithy: 0});
   for (const option of village.options.build) option.level = village.buildings[option.building] + 1;
   village.resourcesMilli = {timber: 0, stone: 0, iron: 0};
   const hall = evaluateWalls(context).find(proposal => proposal.action.type === "build" && proposal.action.building === "hall");

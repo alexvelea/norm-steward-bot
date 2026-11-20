@@ -7,7 +7,7 @@ import {militaryAdvisor} from "../src/advisors/military.js";
 function ready() {
   const context = developedContext();
   const village = context.state.villages[0]!;
-  Object.assign(village.buildings, {lumberyard: 14, quarry: 14, mine: 12, barracks: 1, smithy: 0});
+  Object.assign(village.buildings, {lumberyard: 14, quarry: 14, mine: 14, barracks: 1, smithy: 0});
   village.units.home = {};
   village.units.away = {};
   village.population = {max: 1000, used: 200};
@@ -21,7 +21,7 @@ function ready() {
   return context;
 }
 
-test("after Barracks 1 and the 14/14/12 producer gate, a zero-Pikeman capital starts toward 200", () => {
+test("after Barracks 1 and the 14/14/14 producer gate, a zero-Pikeman capital starts toward 200", () => {
   const context = ready();
   const proposal = evaluateSustainedDefense(context).find(value =>
     value.action.type === "train",
@@ -39,12 +39,12 @@ test("after Barracks 1 and the 14/14/12 producer gate, a zero-Pikeman capital st
 test("Pikeman training waits for the exact early producer gate", () => {
   const context = ready();
   const capital = context.state.villages[0]!;
-  Object.assign(capital.buildings, {lumberyard: 13, quarry: 14, mine: 12});
+  Object.assign(capital.buildings, {lumberyard: 14, quarry: 14, mine: 13});
   assert.equal(evaluateSustainedDefense(context).some(value =>
     value.task === "early.pikemen",
   ), false);
 
-  Object.assign(capital.buildings, {lumberyard: 14, quarry: 14, mine: 12});
+  Object.assign(capital.buildings, {lumberyard: 14, quarry: 14, mine: 14});
   const proposal = evaluateSustainedDefense(context).find(value =>
     value.task === "early.pikemen",
   );

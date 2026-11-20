@@ -1,7 +1,7 @@
 import type { Resources, VillageState } from "../shared/api.js";
 export const RECRUIT_USE_TICKS = 60;
 export const PRODUCER_CEILING = 20;
-export const EARLY_GATE = { lumberyard: 14, quarry: 14, mine: 12 } as const;
+export const EARLY_GATE = { lumberyard: 14, quarry: 14, mine: 14 } as const;
 export const EARLY_PIKEMEN_TARGET = 200;
 /** Raiders the capital keeps trained for conquest. */
 export const RAIDER_TARGET = 150;
@@ -44,6 +44,6 @@ export function militaryEconomy(v:VillageState) {
  const targetPerTick=Object.fromEntries((["timber","stone","iron"] as const).map(r=>[r,b?.perTick[r]??0])) as Resources;
  const burn=Object.fromEntries((["timber","stone","iron"] as const).map(r=>[r,running?targetPerTick[r]:0])) as Resources;
  const availableMilli=Object.fromEntries((["timber","stone","iron"] as const).map(r=>[r,Math.max(0,v.productionPerTickMilli[r]-burn[r]*1000)])) as Resources;
- const stage=producerLevel(v)<5?"Opening: producers to 5":producerLevel(v)<8?"Capacity as needed; producers to 8":v.buildings.hall<5?"Construction speed: Great Hall to 5":producerLevel(v)<10?"Producers to 10":!militaryUnlocked(v)?"Early gate: Lumberyard 14, Quarry 14, Mine 12":v.buildings.barracks<1?"Build Barracks 1":!running?"Grow income to sustain Pikemen + construction":v.buildings.wall<EARLY_WALL?"Early opening: Wall 5":v.buildings.hall<EARLY_HALL?"Early opening: Hall 10":v.buildings.barracks<BARRACKS_CAP?"Early opening: Barracks 5":!earlyGoalMet(v)?`Early goal: producers 15 plus ${EARLY_PIKEMEN_TARGET} home Pikemen`:"Continuous Pikemen + construction";
+ const stage=producerLevel(v)<5?"Opening: producers to 5":producerLevel(v)<8?"Capacity as needed; producers to 8":v.buildings.hall<5?"Construction speed: Great Hall to 5":producerLevel(v)<10?"Producers to 10":!militaryUnlocked(v)?"Early gate: Lumberyard 14, Quarry 14, Mine 14":v.buildings.barracks<1?"Build Barracks 1":!running?"Grow income to sustain Pikemen + construction":v.buildings.wall<EARLY_WALL?"Early opening: Wall 5":v.buildings.hall<EARLY_HALL?"Early opening: Hall 10":v.buildings.barracks<BARRACKS_CAP?"Early opening: Barracks 5":!earlyGoalMet(v)?`Early goal: producers 15 plus ${EARLY_PIKEMEN_TARGET} home Pikemen`:"Continuous Pikemen + construction";
  return {budget:b,running,burn,targetPerTick,availableMilli,stage};
 }

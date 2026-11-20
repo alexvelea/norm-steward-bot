@@ -301,8 +301,9 @@ test('incoming attacks do not hold a ready Raider and Envoy expedition at home',
  assert.equal(x.v.units.home.pikeman,153);
 });
 
-test('incoming attacks do not prevent entering the conquest phase at 150 home Pikemen',async()=>{
+test('incoming attacks do not prevent entering conquest with Barracks 5 and no Pikemen',async()=>{
  const x=await executor();x.saved().missions=[];
+ x.v.units.home.pikeman=0;x.v.buildings.barracks=5;
  x.context.state.commands.incoming=[{kind:'attack',to:{id:x.v.id}} as any];
  const c=await x.create();await c.setAutomatic(false);await c.cycle();
  assert.equal(x.saved().missions?.[0]?.status,'active');assert.equal(x.writes.length,0);
@@ -439,4 +440,16 @@ test('Raider escort is funded in minute batches, letting affordable Smithy work 
  assert.equal(selected?.action.type,'build');if(selected?.action.type==='build')assert.equal(selected.action.building,'smithy');
  v.training.barracks=[];v.units.home.raider=142;
  const last=applyConquest(context,[],c).find(p=>p.action.type==='train'&&p.action.unit==='raider');if(last?.action.type==='train')assert.equal(last.action.count,8);else assert.fail('Missing final bounded batch');
+});
+
+test('first conquest waits for the producer gate, Barracks cap and empty orders',async()=>{
+ for(const mutate of [
+  (v:any)=>{v.buildings.mine=11;},
+  (v:any)=>{v.buildings.barracks=4;},
+  (v:any)=>{v.orders.build.push({building:'mine'});},
+ ]){
+  const x=await executor();x.saved().missions=[];mutate(x.v);
+  const c=await x.create();await c.setAutomatic(false);await c.cycle();
+  assert.equal(x.saved().missions?.length,0);
+ }
 });

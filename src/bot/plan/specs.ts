@@ -51,7 +51,7 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
   },
   "first-conquest": {
     intent: "Conquer as soon as possible: meet the conquest requirements in the capital alongside the rest of the early game.",
-    eligible: ["The capital is the only city, has Barracks 1, 150 home Pikemen and no queued orders.", "It does not wait for the rest of the early game (Wall 5, Hall 10, Barracks 5, producers 15, 200 Pikemen).", "Producer upgrades pause during the Hall 10 rush; Raiders wait for Barracks 5."],
+    eligible: ["The capital is the only city, meets the early producer gate, has Barracks 5 and no queued orders.", "It does not wait for the rest of the early game (Wall 5, Hall 10, producers 15, 200 Pikemen).", "Producer upgrades pause during the Hall 10 rush; Raiders wait for Barracks 5."],
     priority: ["Mission tasks compete with every other task through the President (88 to 96); the capital saves for them when they are its top need."],
     never: ["Never pause or exclude the capital's other tasks; conquest is an operation on top of normal production."],
   },
@@ -235,12 +235,12 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     never: ["Never raise a capital producer above level 20."],
   },
   "early.economy": {
-    intent: "Reach the capital's early military producer gate: Lumberyard 14, Quarry 14, Mine 12.",
-    eligible: ["Lumberyard is at least level 14.", "Quarry is at least level 14.", "Mine is at least level 12."],
+    intent: "Reach the capital's early military producer gate: Lumberyard 14, Quarry 14, Mine 14.",
+    eligible: ["Lumberyard is at least level 14.", "Quarry is at least level 14.", "Mine is at least level 14."],
   },
   "early.barracks1": {
     intent: "Build Barracks 1 after the early producer gate.",
-    eligible: ["Lumberyard 14, Quarry 14 and Mine 12 are complete."],
+    eligible: ["Lumberyard 14, Quarry 14 and Mine 14 are complete."],
     priority: ["Score: to be decided when codified."],
   },
   "early.wall5": {
@@ -291,14 +291,14 @@ export const SPECS: Readonly<Record<string, NodeSpec>> = {
     never: ["Never wait for Raiders that are not being trained."],
   },
   "military.stable1": {
-    intent: "Build Stable 1 for Scouts once Scout-path Smithy is done; the Stable is only for Scouts.",
+    intent: "After owning a second village, build Stable 1 for Scouts once Scout-path Smithy is done; the Stable is only for Scouts.",
     eligible: ["Producers 15 and 200 home Pikemen are reached.", "Smithy reaches level 5 first, because Stable 1 requires it."],
     priority: ["Follow the military development step order: Barracks 3, then Smithy and Stable 1 with its missing prerequisites."],
     never: ["Before producers reach 20, never build beyond Stable 1; Attack owns later Stable levels."],
   },
   "military.scouts": {
     intent: "The capital keeps 20 Scouts at home per city it owns, and stations 20 in each economic city on request.",
-    eligible: ["Stable 1 is built.", "Keep 20 Scouts at home per city owned.", "Station 20 Scouts in each economic city on request."],
+    eligible: ["At least two villages are owned and Stable 1 is built.", "Keep 20 Scouts at home per city owned.", "Station 20 Scouts in each economic city on request."],
     priority: ["Score: to be decided when codified."],
     never: ["Never use the Stable for non-Scout units."],
   },

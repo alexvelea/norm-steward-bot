@@ -10,7 +10,7 @@ No LLM, model key, prompt or inference service participates in economic decision
 
 The capital opens by growing producers to 5, then toward 8; after producers 8 it raises the
 Great Hall toward 5 and continues production growth. Its military opening is fixed: Lumberyard
-14, Quarry 14, Mine 12 unlock Barracks 1; Wall 5 follows before any further military building;
+14, Quarry 14, Mine 14 unlock Barracks 1; Wall 5 follows before any further military building;
 then Hall 10, Barracks 5, and all three producers to 15. The capital never proposes a Cellar.
 Pikemen training starts from Barracks 1 and continues alongside this sequence until 200 are home.
 Economic cities retain their Cellar policy and never train troops.
@@ -249,7 +249,8 @@ The last 100 decisions and any pending request survive restarts in `control.json
 ## Bounded first-conquest transition
 
 The live conquest transition uses the same President and durable executor. Its first mission
-can start at 150 home Pikemen, in parallel with the opening's 200-Pikeman goal. It preserves
+can start at the early producer gate and Barracks 5, with no home-Pikeman entry condition,
+in parallel with the opening's 200-Pikeman goal. It preserves
 the garrison and funds Smithy 10, Market 5 and Court, shown under **Early game → Conquest enabled**.
 Hall 10 and Barracks 5 remain opening goals. **Conquest → First conquest** tracks the first
 capture as a one-shot milestone; later conquest missions are tracked under **Next cities**.

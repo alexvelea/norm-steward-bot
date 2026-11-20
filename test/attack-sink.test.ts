@@ -23,6 +23,7 @@ function lateGame(buildings: Record<string, number>, each = 30000) {
   village.options.build = (["hall", "stable", "workshop"] as const).map(building => ({
     ...template, building, level: village.buildings[building] + 1, cost: {timber: 100, stone: 100, iron: 100}, ok: true, blockers: [],
   }));
+  context.state.villages.push({...structuredClone(village), id: "second"});
   context.cityRoles = new Map([[village.id, {role: "capital", reason: "fixture"}]]);
   return context;
 }
@@ -51,4 +52,13 @@ test("Lancers train above 10k of each resource and Rams above 20k, Lancers first
   const middle = evaluateAttackSink(lateGame({}, 15000)).filter(value => value.action.type === "train").map(value => value.task);
   assert.deepEqual(middle, ["military.lancers"]);
   assert.deepEqual(evaluateAttackSink(lateGame({}, 9000)).filter(value => value.action.type === "train"), []);
+});
+
+test("attack sink cannot build Stable before the second village", () => {
+  for (const buildings of [{stable: 0}, {stable: 10}]) {
+    const context = lateGame(buildings);
+    context.state.villages.splice(1);
+    context.state.villages[0]!.training.stable.push({endTick: 200} as any);
+    assert.ok(!evaluateAttackSink(context).some(value => value.action.type === "build" && value.action.building === "stable"));
+  }
 });

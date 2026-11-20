@@ -30,7 +30,7 @@ import { militaryAdvisor } from "../advisors/military.js";
 import { expansionReadiness } from "../advisors/sustained-defense.js";
 import { prioritizeFarmRunway } from "../advisors/farm-runway.js";
 import {applyConquest, conquestScope, conquestTravel, type ConquestContext} from "../advisors/conquest.js";
-import { RAIDER_SEND_MIN } from "../advisors/defense-budget.js";
+import { BARRACKS_CAP, militaryUnlocked, RAIDER_SEND_MIN } from "../advisors/defense-budget.js";
 import {safeEnvoyAttack} from "../review/conquest-plan.js";
 import type { AdvisorContext, Proposal } from "../advisors/types.js";
 import type { ControlStorage } from "./storage.js";
@@ -458,7 +458,7 @@ export class Controller {
     let newlyStarted=false;
     if(!mission&&state.villages.length===1&&state.world.status==='running'){
       const v=state.villages[0];
-      if((v.units.home.pikeman??0)>=150&&!Object.values(v.orders).some(q=>q.length)){
+      if(militaryUnlocked(v)&&v.buildings.barracks>=BARRACKS_CAP&&!Object.values(v.orders).some(q=>q.length)){
         mission=conquestMission({scope,villageId:v.id,startedTick:state.world.tick,status:'preparing',waves:0});
         newlyStarted=true;
       }

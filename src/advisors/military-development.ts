@@ -20,6 +20,7 @@ export function evaluateMilitaryDevelopment(context:AdvisorContext):Proposal<Ext
   if(!isCapital(context,v.id))continue;
   if(!militaryUnlocked(v)||!v.buildings.barracks||v.buildings.wall<EARLY_WALL||hallRushActive(v))continue;
   let building:BuildingId=v.buildings.barracks<3?"barracks":v.buildings.smithy<1?"smithy":"stable";
+  if(building==="stable"&&state.villages.length<2)continue;
   if(v.buildings.barracks>=3&&!earlyGoalMet(v))continue;
   const goal=building==="barracks"?3:1;
   if(v.buildings[building]>=goal)continue;

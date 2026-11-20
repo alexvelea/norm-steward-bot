@@ -57,10 +57,10 @@ export function evaluateAttackSink(context: AdvisorContext): Proposal[] {
   if (v.buildings.hall < ATTACK_HALL) {
     push(build(context, v, "hall", "economy.hall-push", 88, `Producers reached ${PRODUCER_CEILING}: force the Great Hall to ${ATTACK_HALL} before the late-game troop sink.`));
   } else if (v.buildings.stable < ATTACK_STABLE) {
-    push(build(context, v, "stable", "military.attack-stable", 74, `Late game: raise the Stable to ${ATTACK_STABLE} so surplus resources can become Lancers.`));
+    if (state.villages.length >= 2) push(build(context, v, "stable", "military.attack-stable", 74, `Late game: raise the Stable to ${ATTACK_STABLE} so surplus resources can become Lancers.`));
   } else if (v.buildings.workshop < ATTACK_WORKSHOP) {
     push(build(context, v, "workshop", "military.attack-workshop", 75, `Late game: Stable ${ATTACK_STABLE} is done; build Workshop ${ATTACK_WORKSHOP} before raising the Stable further.`));
-  } else if (v.training.stable.length > 0 && above(v, LANCER_FLOOR)) {
+  } else if (state.villages.length >= 2 && v.training.stable.length > 0 && above(v, LANCER_FLOOR)) {
     push(build(context, v, "stable", "military.attack-stable", 70, `Late game: the Stable queue is busy while every resource is above ${LANCER_FLOOR}; raise the Stable to train faster.`));
   }
   let reserved: Resources | undefined;

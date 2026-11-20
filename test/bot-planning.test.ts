@@ -166,9 +166,9 @@ test("c: requires edges gate candidate-free nodes; candidate blockers take prece
   assert.deepEqual(candidateState.primaryBlocker, { reasonCode: "COUNCIL_COOLDOWN" });
 });
 
-test("the early producer milestone tracks the separate 14/14/12 thresholds", () => {
+test("the early producer milestone tracks the 14/14/14 thresholds", () => {
   const c = context();
-  Object.assign(c.state.villages[0]!.buildings, {lumberyard: 14, quarry: 13, mine: 12});
+  Object.assign(c.state.villages[0]!.buildings, {lumberyard: 14, quarry: 13, mine: 14});
   const partial = node(project(c), "early.economy");
   assert.deepEqual(partial.progress, {observed: 2, goal: 3});
   assert.equal(partial.status, "waiting");

@@ -126,7 +126,7 @@ export function evaluateSustainedDefense(context: AdvisorContext): Proposal[] {
       request.atCity, request.target, "econ.request-defenders", 80));
   }
 
-  const homeScoutTarget = 20 * state.villages.length;
+  const homeScoutTarget = state.villages.length >= 2 ? 20 * state.villages.length : 0;
   const scoutRequests = cities.flatMap(city => {
     if (city.buildings.wall < 10) return [];
     const atCity = stationed(city, "scout") + incomingSupport(context, capital.id, city.id, "scout");
@@ -136,7 +136,7 @@ export function evaluateSustainedDefense(context: AdvisorContext): Proposal[] {
   const queuedScouts = capital.training.stable.filter(batch => batch.unit === "scout")
     .reduce((sum, batch) => sum + batch.remaining, 0);
   const scoutDeficit = scoutTarget - (capital.units.home.scout ?? 0) - queuedScouts;
-  if (scoutDeficit > 0) {
+  if (state.villages.length >= 2 && scoutDeficit > 0) {
     const proposal = minuteTrainingProposal(context, capital, "scout", scoutDeficit, "military.scouts", 60,
       `Train toward ${scoutTarget} home Scouts: ${homeScoutTarget} for owned cities plus ${scoutTarget - homeScoutTarget} active city requests.`,
       `${state.world.epoch}:${capital.id}:scouts:${scoutTarget}`,

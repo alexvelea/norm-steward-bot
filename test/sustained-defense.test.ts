@@ -172,3 +172,10 @@ test("Pikemen requests are sent before the capital's 3x scaling reserve is full"
   assert.equal(send?.action.type, "send");
   if (send?.action.type === "send") assert.deepEqual(send.action.units, {pikeman: 600 - (city.units.home.pikeman ?? 0)});
 });
+
+test("Scouts wait for a second village even when training is available", () => {
+  const context = ready();
+  assert.ok(!evaluateSustainedDefense(context).some(value => value.action.type === "train" && value.action.unit === "scout"));
+  addEconomicCity(context);
+  assert.ok(evaluateSustainedDefense(context).some(value => value.action.type === "train" && value.action.unit === "scout"));
+});

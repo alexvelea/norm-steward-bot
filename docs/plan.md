@@ -498,7 +498,7 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | economy.producers.5 | milestone | Producers at level 5 | All three resource producers reach level 5. | minimum=5 | — | — |
 | economy.producers.8 | milestone | Producers at level 8 | All three resource producers reach level 8. | minimum=8 | — | — |
 | economy.producers.10 | milestone | Producers at level 10 | All three resource producers reach level 10. | minimum=10 | — | — |
-| economy.producers.12 | milestone | Producers at level 12 | All three resource producers reach level 12; the early capital gate is Lumberyard 14, Quarry 14, Mine 12. | minimum=12 | — | — |
+| economy.producers.12 | milestone | Producers at level 12 | All three resource producers reach level 12; the early capital gate is Lumberyard 14, Quarry 14, Mine 14. | minimum=12 | — | — |
 | economy.producers.15 | milestone | Producers at level 15 | All three resource producers reach level 15 after Barracks 5. | minimum=15 | early.barracks5 | — |
 | economy.producers.20 | milestone | Producers at level 20 | All three resource producers reach level 20. | minimum=20 | — | — |
 | economy.producer-cap | policy | Producers capped at 20 | Capital producers stop at level 20. | — | — | — |
@@ -510,8 +510,8 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | economy.payback | policy | Production payback | Keep the existing round-end production return test and ceiling. | producerCeiling=20 | — | — |
 | economy.round-end | policy | Round-end completion | Keep current affordability, construction, and use deadlines. | — | — | — |
 | economy.hall-push | policy | Great Hall push | Once producers reach 20, force the Great Hall to 15, then keep it growing alongside military growth. | level=15 | economy.producers.20 | — |
-| early-game | group | Early game | Grow producers to 14/14/12, then build Barracks 1, Wall 5, Hall 10 and Barracks 5 before reaching producers 15. Train toward 200 home Pikemen alongside the build order and complete the infrastructure that enables conquest. | — | — | — |
-| early.economy | milestone | Early producer gate | Reach Lumberyard 14, Quarry 14 and Mine 12. | lumberyard=14, quarry=14, mine=12 | — | — |
+| early-game | group | Early game | Grow producers to 14/14/14, then build Barracks 1, Wall 5, Hall 10 and Barracks 5 before reaching producers 15. Train toward 200 home Pikemen alongside the build order and complete the infrastructure that enables conquest. | — | — | — |
+| early.economy | milestone | Early producer gate | Reach Lumberyard 14, Quarry 14 and Mine 14. | lumberyard=14, quarry=14, mine=14 | — | — |
 | early.barracks1 | task | Barracks 1 | Build Barracks 1 after the early producer gate. | level=1 | early.economy | — |
 | early.wall5 | task | Wall 5 | Rush Wall 5 after Barracks 1, before further military development. | level=5 | early.barracks1 | — |
 | early.hall10 | task | Hall 10 | Complete Hall 10 after Wall 5 and before further Barracks growth. | level=10 | early.wall5 | — |
@@ -534,7 +534,7 @@ Contains edges are solid blue, requires edges are dashed red, and contributesTo 
 | military.capital-growth | policy | Keep building the capital | The troop sink ranks below capital construction, so buildings keep growing while Lancers and Rams absorb the surplus. | — | — | — |
 | conquest | mission | Conquest | Capture the first city once per round, then prepare for the next cities. | — | — | — |
 | military.raiders | task | Raider force | Keep 150 Raiders for conquest, counting home, away and queued troops; replace losses. Each wave needs at least 100 at home and takes every Raider at home. | count=150 | — | — |
-| first-conquest | group | First conquest | Starts at 150 home Pikemen alongside the early game. Prepare the escort and Envoy and dispatch waves until the city is captured; later captures belong to Next cities. | originVillages=1, homePikemen=150, standingOrders=0 | early.barracks1 | — |
+| first-conquest | group | First conquest | Starts at the early producer gate and Barracks 5 alongside the early game. Prepare the escort and Envoy and dispatch waves until the city is captured; later captures belong to Next cities. | originVillages=1, barracks=5, standingOrders=0 | early.barracks1 | — |
 | conquest.infrastructure | group | Conquest enabled | Build Smithy 10, Market 5 and Court, with capacity and funding as needed. | — | economy.producers.15 | — |
 | conquest.smithy10 | task | Smithy 10 | Build the conquest Smithy requirement. | level=10 | — | — |
 | conquest.market5 | task | Market 5 | Build the conquest Market requirement. | level=5 | — | — |
